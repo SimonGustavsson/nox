@@ -3,6 +3,7 @@
 #endif
 #include <stddef.h>
 #include <stdint.h>
+
 #include "terminal.h"
 #include "pci.h"
 
@@ -11,7 +12,7 @@
 #endif
 
 #if !defined(__i386__)
-#error "This kernel requires the ix86-elf compiler"
+#error "This kernel requires the i686-elf compiler"
 #endif
 
 const char* hcNames[4] = {"UHCI", "OHCI", "EHCI", "xHCI"};
@@ -34,31 +35,27 @@ void kernel_main()
 	devStartAddr.device = 0;
 	devStartAddr.func = 0;
 
-	if(getNextUsbController(&devStartAddr, &dev))
+	while(getNextUsbController(&devStartAddr, &dev))
 	{
-		terminal_writestring("Found a ");
+		terminal_writestring("Found (");
 		terminal_writestring(hcNames[dev.progInterface]);
-		terminal_writestring(" USB host controller on \n");
+		terminal_writestring(") USB host controller on");
 
-		terminal_writestring("    Bus: ");
+		terminal_writestring(" B:");
 		print_int(devStartAddr.bus);
-		terminal_writestring(" device: ");
+		terminal_writestring(" D:");
 		print_int(devStartAddr.device);
-		terminal_writestring(" func: ");
+		terminal_writestring(" F:");
 		print_int(devStartAddr.func);
-		terminal_writestring("\n");
-		terminal_writestring("Base address: ");
+		terminal_writestring(" Addr:");
 
-		if(dev.progInterface == 0) // UHCI, it's special and uses baseAddr4
-			print_int(dev.baseAddr4);
-		else
-			print_int(dev.baseAddr0);
-
+		// UHCI, it's special and uses baseAddr4
+		print_int(dev.progInterface == 0 ? dev.baseAddr4 : dev.baseAddr0);
+		
 		terminal_writestring("\n");
-	}
-	else
-	{
-		terminal_writestring("Couldn't find a usb device, boo!\n");
+
+		// Skip this dev when searching for next
+		devStartAddr.func++;
 	}
 
 	terminal_writestring("Well I'm done... :-)\n");
