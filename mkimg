@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# 16M is all we want, we only want to 
+# deal with FAT12 for now anyways
+size=$((16 * 1024 * 1024))
+
+# Create it
+if [ -f nox.img ];
+then
+    rm nox.img
+fi
+
+dd if=/dev/zero of=nox.img bs=$size count=1

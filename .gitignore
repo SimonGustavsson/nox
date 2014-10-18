@@ -1,3 +1,6 @@
+# Image Files
+*.img
+
 # Object files
 *.o
 *.ko
@@ -26,3 +29,9 @@
 *.boot
 *.vhd
 *.map
+
+# ViM things
+*.swp
+
+# BOCHS
+bochsout.txt
