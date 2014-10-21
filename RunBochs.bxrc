@@ -13,7 +13,7 @@ ata1: enabled=1, ioaddr1=0x170, ioaddr2=0x370, irq=15
 ata2: enabled=0, ioaddr1=0x1e8, ioaddr2=0x3e0, irq=11
 ata3: enabled=0, ioaddr1=0x168, ioaddr2=0x360, irq=9
 
-ata0-master: type=disk, path="c:/git/nox/NoxHdd.vhd", mode=flat
+ata0-master: type=disk, path="build/nox-disk.img", mode=flat
 # Examples:
 #   boot: floppy
 #   boot: cdrom, disk
