@@ -19,6 +19,9 @@ $(BUILD)/nox-disk.img: $(BUILD)/nox-fs.img $(BUILD)/mbr.bin
 	# Blit in a FAT12 file system
 	dd if=$(BUILD)/nox-fs.img of=$@ seek=$(PART_OFFSET_SECTORS) count=$(PART_SECTOR_COUNT) conv=notrunc
 
+	# Blit in the MBR
+	dd if=$(BUILD)/mbr.bin of=$@ bs=1 count=446 conv=notrunc
+
 $(BUILD)/nox-fs.img: 
 	mkdosfs -R $(PART_OFFSET_SECTORS) -C -n "NOX" -F 12 $@ $(PART_MKDOSFS_SIZE)
 
