@@ -1,4 +1,7 @@
-org 0x7C00 				; Origin where the BIOS loads us
+; NOTE: BIOS will load us to either 0x07C0:0, 
+; or, 0:0x7C00. We relocate to 0:0x6000 immediately
+
+org 0x6000
 bits 16    				; We're in real mode
 
 [map all mbr.map]
@@ -12,8 +15,21 @@ PARTITION_TABLE_OFFSET_3 EQU PARTITION_TABLE_OFFSET_2 + 0x10
 VBR_ADDRESS							EQU 0x1000
 VBR_OFFSET_RESERVED_SECTOR_COUNT	EQU 0x0E
 
-start: jmp loader ; Jump past the MBR info
+start: 
 
+; Relocate
+mov cx, 0x200
+xor ax, ax
+mov es, ax
+mov ds, ax
+mov si, 0x7C00
+mov di, 0x6000
+rep movsb
+
+; Far Jump to Relocated Code
+jmp 0:loader 
+
+version  dw 0x0001
 msg_pre  db "MBR PRE0", 0x0D, 0x0A, 0
 msg_post db "MBR POS0", 0x0D, 0x0A, 0
 
