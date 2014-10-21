@@ -4,9 +4,9 @@ bits 16    				; We're in real mode
 [map all mbr.map]
 
 PARTITION_TABLE_OFFSET_0 EQU 0x1BE
-PARTITION_TABLE_OFFSET_1 EQU PARTITION_TABLE_OFFSET_0 + 0x16
-PARTITION_TABLE_OFFSET_2 EQU PARTITION_TABLE_OFFSET_1 + 0x16
-PARTITION_TABLE_OFFSET_3 EQU PARTITION_TABLE_OFFSET_2 + 0x16
+PARTITION_TABLE_OFFSET_1 EQU PARTITION_TABLE_OFFSET_0 + 0x10
+PARTITION_TABLE_OFFSET_2 EQU PARTITION_TABLE_OFFSET_1 + 0x10
+PARTITION_TABLE_OFFSET_3 EQU PARTITION_TABLE_OFFSET_2 + 0x10
 
 ; VBR_OFFSET_BYTES_PER_SECTOR	EQU 0x0B
 VBR_ADDRESS							EQU 0x1000
@@ -14,17 +14,17 @@ VBR_OFFSET_RESERVED_SECTOR_COUNT	EQU 0x0E
 
 start: jmp loader ; Jump past the MBR info
 
-msg_pre  db "MBR PRE0", 13, 10, 0
-msg_post db "MBR POS0", 13, 10, 0
+msg_pre  db "MBR PRE0", 0x0D, 0x0A, 0
+msg_post db "MBR POS0", 0x0D, 0x0A, 0
 
 ; Block read package tp send  to int13
-readPkg:
-	db 10 					; Package size (bytes)
+readPacket:
+	db 0x10					; Packet size (bytes)
 	db 0 					; Reserved
-	readPkgNumBlocks dw 1 	; Blocks to read
-	readPkgBuffer dw 0x1000	; Buffer to read to
+	readPacketNumBlocks dw 1 	; Blocks to read
+	readPacketBuffer dw 0x1000	; Buffer to read to
 	dw 0 					; Memory Page
-	readPkgLBA dd 0			; LBA to read from
+	readPacketLBA dd 0			; LBA to read from
 	dd 0					; Extra storage for LBAs > 4 bytes
 
 print:
@@ -60,12 +60,12 @@ loader:
 	; Read the VBR from the first partition
 	; First prepare the package
 	mov word ax, [start + PARTITION_TABLE_OFFSET_0 + 0x8]
-	mov word [readPkgLBA], ax
+	mov word [readPacketLBA], ax
 	mov word ax, [start + PARTITION_TABLE_OFFSET_0 + 0xA]
-	mov word [readPkgLBA + 2], ax
+	mov word [readPacketLBA + 2], ax
 
 	; Up to you, big man!
-	mov si, readPkg
+	mov si, readPacket
 	mov ah, 0x42
 	int 0x13
 
