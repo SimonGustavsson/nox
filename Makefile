@@ -9,8 +9,14 @@ PART_OFFSET_SECTORS=2048
 nox: directories $(BUILD)/nox-disk.img
 
 $(BUILD)/nox-disk.img: $(BUILD)/nox-fs.img $(BUILD)/mbr.bin
+	
+	# Empty file for the disk image
 	dd if=/dev/zero of=$@ count=$(DISK_SECTOR_COUNT)
+	
+	# Partition it with a single 8MiB FAT12 Partition
 	@echo "o\nn\np\n1\n$(PART_OFFSET_SECTORS)\n+$(PART_SECTOR_COUNT)\na\n1\nt\n1\nw" | fdisk $@
+	
+	# Blit in a FAT12 file system
 	dd if=$(BUILD)/nox-fs.img of=$@ seek=$(PART_OFFSET_SECTORS) count=$(PART_SECTOR_COUNT) conv=notrunc
 
 $(BUILD)/nox-fs.img: 
