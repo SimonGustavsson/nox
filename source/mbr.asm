@@ -99,3 +99,6 @@ loader:
 
 times 510 - ($-$$) db 0 ; Fill 0's until the 510th byte
 dw 0xAA55 			    ; MBR magic bytes
+
+; NASM Syntax
+; vim: ft=nasm expandtab

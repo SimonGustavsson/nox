@@ -86,3 +86,6 @@ struc dir_entry
     .startCluster       resw    1 ; 
     .fileSize           resd    1
 endstruc
+
+; NASM Syntax
+; vim: ft=nasm expandtab
