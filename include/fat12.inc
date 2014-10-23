@@ -29,8 +29,6 @@ struc ebpb_fat1216
     .volumeId           resb    4
     .volumeLabel        resb    11
     .systemId           resb    8
-    .bootCode           resb    448
-    .bootSignature      resb    2
 endstruc
 
 struc ebpb_fat32
@@ -48,8 +46,6 @@ struc ebpb_fat32
     .volumeId           resb    4
     .volumeLabel        resb    11
     .systemId           resb    8
-    .bootCode           resb    420
-    .bootSignature      resb    2
 endstruc
 
 struc dir_entry
