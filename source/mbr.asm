@@ -1,7 +1,7 @@
 ; NOTE: BIOS will load us to either 0x07C0:0, 
-; or, 0:0x7C00. We relocate to 0:0x6000 immediately
+; or, 0:0x7C00. We relocate to 0:0x600 immediately
 
-org 0x6000
+org 0x600
 bits 16                 ; We're in real mode
 
 [map all mbr.map]
@@ -23,7 +23,7 @@ xor ax, ax
 mov es, ax
 mov ds, ax
 mov si, 0x7C00
-mov di, 0x6000
+mov di, 0x0600
 rep movsb
 
 ; Far Jump to Relocated Code
