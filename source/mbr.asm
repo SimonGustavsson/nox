@@ -12,7 +12,7 @@ PARTITION_TABLE_OFFSET_2 EQU PARTITION_TABLE_OFFSET_1 + 0x10
 PARTITION_TABLE_OFFSET_3 EQU PARTITION_TABLE_OFFSET_2 + 0x10
 
 ; VBR_OFFSET_BYTES_PER_SECTOR       EQU 0x0B
-VBR_ADDRESS                         EQU 0x1000
+VBR_ADDRESS                         EQU 0x7C00
 VBR_OFFSET_RESERVED_SECTOR_COUNT    EQU 0x0E
 
 start: 
@@ -38,7 +38,7 @@ readPacket:
     db 0x10                         ; Packet size (bytes)
     db 0                            ; Reserved
     readPacketNumBlocks dw 1        ; Blocks to read
-    readPacketBuffer dw 0x1000      ; Buffer to read to
+    readPacketBuffer dw VBR_ADDRESS ; Buffer to read to
     dw 0                            ; Memory Page
     readPacketLBA dd 0              ; LBA to read from
     dd 0                            ; Extra storage for LBAs > 4 bytes
@@ -46,10 +46,21 @@ readPacket:
 print:
     lodsb
     or al, al
-    jz .print_done
+    jz .done
     mov ah, 0eh
     int 10h
     jmp print
+
+    .done:
+        ret
+
+printBoundedString:
+    dec cx
+    jz .print_done
+    lodsb
+    mov ah, 0eh
+    int 10h
+    jmp printBoundedString
 .print_done:
     ret
 
@@ -97,14 +108,15 @@ loader:
     ; TODO: Jump to STAGE2.SYS
 
 .printVolumeLabel:
-    xor ax, ax          ; ES:SI is the address of the message, clear ES
-    mov es, ax  
-    mov si, 0x1000 + 3  ; Volume label is 3 bytes into the VBR and is null padded :trollface:
+    xor ax, ax          ; DS:SI is the address of the message, clear DS
+    mov ds, ax  
+    mov si, VBR_ADDRESS + 3  ; Volume label is 3 bytes into the VBR and is null padded :trollface:
+    mov cx, 8
     call print
 
 .printPost:
-    xor ax, ax          ; ES:SI is the address of the message, clear ES
-    mov es, ax  
+    xor ax, ax          ; DS:SI is the address of the message, clear DS
+    mov ds, ax  
     mov si, msg_post
     call print
 
