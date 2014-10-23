@@ -99,13 +99,8 @@ loader:
     ; The VBR is now loaded at 0x1000
     mov ax, [VBR_ADDRESS + VBR_OFFSET_RESERVED_SECTOR_COUNT]
 
-    ; TODO: Parse root directory 
-
-    ; TODO: Locate STAGE2.SYS
-
-    ; TODO: Load STAGE2.SYS into memory
-
-    ; TODO: Jump to STAGE2.SYS
+    ; Jump to the VBR
+    jmp 0:VBR_ADDRESS
 
 .printVolumeLabel:
     xor ax, ax          ; DS:SI is the address of the message, clear DS
