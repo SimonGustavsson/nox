@@ -6,7 +6,7 @@
 ;
 ;****************************************************
 
-org 0x0		; offset to 0, we will set segments later 
+org 0x7c00	; offset to 0, we will set segments later 
 bits 16		; we are still in real mode 
 jmp main	; jump to main 
 

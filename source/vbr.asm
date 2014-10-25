@@ -204,16 +204,17 @@ kloaderFound:
     mov word [readPacketNumBlocks], 4 ; TODO: Sectors per cluster here
     mov [readPacketLBA], eax
 
+    ; Read kloader to a familiar place
+    mov dword [readPacketBuffer], 0x7c00    
+    
     ; Get the BIOS to read the sectors
     mov si, readPacket
     mov ah, 0x42
     mov dl, 0x80
     int 0x13
 
-    xor ax, ax
-    mov ds, ax
-    mov si, 0x1000
-    call print
+    ; k kloader, up to you, dawg.
+    jmp 0:0x7c00
 
 halt:
     cli
