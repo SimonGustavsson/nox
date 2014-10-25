@@ -88,10 +88,17 @@ void terminal_writestring(const char* data)
 		terminal_putchar(data[i]);
 }
 
-void itoa(unsigned int number, char* buf)
+void itoa(int number, char* buf)
 {
 	// We populate the string backwards, increment to make room for \0
 	buf++;
+
+	int negative = number < 0;
+	if(negative)
+	{
+		buf++;
+		number = -number;
+	}
 
 	// Find where our string will end
 	int shifter = number;
@@ -110,6 +117,9 @@ void itoa(unsigned int number, char* buf)
 		*--buf = '0' + (number % 10); // Muahaha!
 		number /= 10;
 	}while(number > 0);
+
+	if(negative)
+		*--buf = '-';
 }
 
 void print_int(uint32_t val)

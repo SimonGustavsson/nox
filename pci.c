@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "pio.h"
 #include "pci.h"
 
 // read from the pci config space

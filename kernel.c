@@ -6,6 +6,7 @@
 
 #include "terminal.h"
 #include "pci.h"
+#include "uhci.h"
 
 #if defined(__linux__)
 #error "You are not using a cross compiler!"
@@ -24,12 +25,9 @@ void kernel_main()
 {
 	terminal_initialize();
 
-	/* Since there is no support for newlines in terminal_putchar yet, \n will
-	   produce some VGA specific character instead. This is normal. */
 	terminal_writestring("Hello, x86-World!\n");
 
 	PCI_DEVICE dev;
-
 	PCI_ADDRESS devStartAddr;
 	devStartAddr.bus = 0;
 	devStartAddr.device = 0;
@@ -49,10 +47,23 @@ void kernel_main()
 		print_int(devStartAddr.func);
 		terminal_writestring(" Addr:");
 
+		uint32_t baseAddr = dev.progInterface == 0 ? dev.baseAddr4 : dev.baseAddr0;
+
 		// UHCI, it's special and uses baseAddr4
-		print_int(dev.progInterface == 0 ? dev.baseAddr4 : dev.baseAddr0);
+		print_int(baseAddr);
 		
 		terminal_writestring("\n");
+
+		int detectRes = uhci_detect_root(baseAddr, true);
+
+		if(detectRes == 0)
+			terminal_writestring("UHCI detect success!\n");
+		else
+		{
+			terminal_writestring("UhCI detect failed! Res: ");
+			print_int(detectRes);
+			terminal_writestring("\n");
+		}
 
 		// Skip this dev when searching for next
 		devStartAddr.func++;

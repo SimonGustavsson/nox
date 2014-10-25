@@ -17,22 +17,6 @@
 #define USB_CLASS_CODE (0xC)
 #define USB_SUBCLASS_CODE (0x03)
 
-// in port double (32-bit)
-__inline__ uint32_t inpd(uint16_t port) {
-  uint32_t rv;
-  __asm__ __volatile__ ("inl %1, %0"
-	  : "=a" (rv)
-    : "dN" (port));
-  return rv;
-}
-
-__inline__ void outpd(uint16_t port, uint32_t data) {
-  __asm__ __volatile__ ("outl %1, %0"
-	  :
-    : "dN" (port),
-      "a" (data));
-}
-
 typedef struct {
   uint16_t vendorid;         // Vendor ID = FFFFh if not 'a valid entry'
   uint16_t deviceId;         // Device ID
