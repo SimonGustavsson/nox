@@ -32,7 +32,7 @@ rep movsb
 jmp 0:loader 
 
 version  dw 0x0001
-kloader_name db "BOOT.SYS   " ; DO NOT EDIT, 11 chars
+kloader_name db "BOOT    SYS" ; DO NOT EDIT, 11 chars
 
 msg_pre  db "VBR Loading...", 0x0D, 0x0A, 0
 msg_kloader_found db "BOOT.SYS FOUND", 0x0D, 0x0A, 0
@@ -131,10 +131,10 @@ loader:
 PostReadRoot:
 
     ; Find kloader
-    mov si, kloader_name
 
     mov ax, 0x1000 ; Start addr of rootdir entries
 .compareDirEntry:
+    mov si, kloader_name
     mov cx, 8 + 3 ; File names are 8 chars long
     mov di, ax
     repe cmpsb ; Compare string while equal
