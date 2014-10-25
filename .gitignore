@@ -35,3 +35,6 @@
 
 # BOCHS
 bochsout.txt
+
+# Directories
+build/
