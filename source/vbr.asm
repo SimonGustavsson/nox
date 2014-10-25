@@ -15,8 +15,9 @@ localBPB: istruc ebpb_fat1216
 iend
 
 variables:
-    .fatStart            dd    0
-    .rootDirectoryStart  dd    0
+    .fatStart            dd     0
+    .rootDirectoryStart  dd     0
+    .dataRegionStart     dd     0
 start: 
 
 ; Relocate
@@ -75,9 +76,8 @@ loader:
 .findKernelLoader:
 
     ;
-    ; calculate the offset to the data region
-    ; of the file system from the root of the 
-    ; drive
+    ; calculate the offset to the first FAT
+    ; from the root of the drive
     ;
 
     ; Get the number of hidden sectors into ax    
@@ -96,7 +96,7 @@ loader:
 
     ;
     ; calculate the offset to the root directory
-    ; from the start of the data region
+    ; from the first FAT
     ;
 
     ; get the number of fats
@@ -110,6 +110,7 @@ loader:
 
     ;
     ; get the sector offset to the root directory
+    ; from the start of the drive
     ;
     add eax, ebx
 
@@ -128,11 +129,11 @@ loader:
     mov dl, 0x80
     int 0x13
 
-PostReadRoot:
-
-    ; Find kloader
-
+    ;
+    ; Find kloader (BOOT.SYS) in the root dir
+    ;
     mov ax, 0x1000 ; Start addr of rootdir entries
+    
 .compareDirEntry:
     mov si, kloader_name
     mov cx, 8 + 3 ; File names are 8 chars long
@@ -156,11 +157,61 @@ kloaderNotFound:
     jmp halt
 
 kloaderFound:
-    mov dx, ax ; make sure we don't trash it
+    mov bx, ax ; make sure we don't trash it
 
     xor ax, ax
     mov ds, ax
     mov si, msg_kloader_found
+    call print
+
+.loadKloader:
+
+;  DATA Region = ROOT_DIR_START +
+;                ROOT_DIR_SIZE
+
+    ; Calculate the number of sectors in
+    ; the root directory - each entry is 32-bytes
+    xor eax, eax
+    mov ax, [localBPB+bpb.dirEntryCount]
+    
+    mov ecx, 32
+    mul ecx
+
+    mov ecx, 512
+    div ecx
+
+    add eax, [variables.rootDirectoryStart]
+    mov [variables.dataRegionStart], eax
+
+; FILE LBA = DATA Region + 
+;            ({CLUSTER_NUMBER} * SECTORS_PER_CLUSTER);
+
+    xor eax, eax
+    mov ax, [bx+dir_entry.startCluster]
+    sub eax, 2
+
+    xor ecx, ecx
+    mov cl, [localBPB+bpb.sectorsPerCluster]
+
+    mul ecx
+
+    ; eax = relative lba
+    ; result = file absolute lba
+    add eax, [variables.dataRegionStart]
+    
+    ; EAX Now contains the LBA of BOOT.SYS
+    mov word [readPacketNumBlocks], 4 ; TODO: Sectors per cluster here
+    mov [readPacketLBA], eax
+
+    ; Get the BIOS to read the sectors
+    mov si, readPacket
+    mov ah, 0x42
+    mov dl, 0x80
+    int 0x13
+
+    xor ax, ax
+    mov ds, ax
+    mov si, 0x1000
     call print
 
 halt:
