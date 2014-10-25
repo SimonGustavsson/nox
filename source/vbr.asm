@@ -5,6 +5,7 @@ bits 16                 ; We're in real mode
 
 [map all vbr.map]
 
+
 localBPB: istruc ebpb_fat1216
 
     ; First three bytes of the BPB are a short JMP instruction
@@ -13,6 +14,9 @@ localBPB: istruc ebpb_fat1216
 
 iend
 
+variables:
+    .fatStart            dd    0
+    .rootDirectoryStart  dd    0
 start: 
 
 ; Relocate
@@ -41,6 +45,7 @@ readPacket:
     readPacketLBA dd 0              ; LBA to read from
     dd 0                            ; Extra storage for LBAs > 4 bytes
 
+; Assumes address to string is in ds:si
 print:
     lodsb
     or al, al
@@ -66,15 +71,66 @@ loader:
 
 .findKernelLoader:
 
-    
+    ;
+    ; calculate the offset to the data region
+    ; of the file system from the root of the 
+    ; drive
+    ;
 
-    ; TODO: Parse root directory 
+    ; Get the number of hidden sectors into ax    
+    mov eax, [localBPB+bpb.hiddenSectors]
 
-    ; TODO: Locate STAGE2.SYS
+    ; reserved sectors are 16-bits, convert to 32-bit
+    xor ebx, ebx
+    mov bx, [localBPB+bpb.reservedSectors]
 
-    ; TODO: Load STAGE2.SYS into memory
+    ; this is now the start of the first fat
+    ; in sectors
+    add ebx, eax
 
-    ; TODO: Jump to STAGE2.SYS
+    ; we're going to need this value later on
+    mov [variables.fatStart], ebx
+
+    ;
+    ; calculate the offset to the root directory
+    ; from the start of the data region
+    ;
+
+    ; get the number of fats
+    xor eax, eax
+    mov al, [localBPB+bpb.fatCount]
+
+    xor ecx, ecx
+    mov cx, [localBPB+bpb.sectorsPerFat]
+
+    mul ecx
+
+    ;
+    ; get the sector offset to the root directory
+    ;
+    add eax, ebx
+
+    ; we're going to need this value later on
+    mov [variables.rootDirectoryStart], eax
+
+    ;
+    ; read the root sector into memory
+    ;
+    mov word [readPacketNumBlocks], 4 ; Assume 4 sector root directory
+    mov [readPacketLBA], eax
+
+    ; Get the BIOS to read the sectors
+    mov si, readPacket
+    mov ah, 0x42
+    mov dl, 0x80
+    int 0x13
+
+PostReadRoot:
+
+    xor ax, ax
+    mov ds, ax
+    mov si, 0x1000
+    call print
 
 .printPost:
     xor ax, ax          ; DS:SI is the address of the message, clear ES
