@@ -1,0 +1,100 @@
+cpu: model=core2_penryn_t9600, count=1, ips=50000000, reset_on_triple_fault=1, ignore_bad_msrs=1, msrs="msrs.def"
+cpu: cpuid_limit_winnt=0
+
+memory: guest=512, host=256
+romimage: file=$BXSHARE/BIOS-bochs-latest
+vgaromimage: file=$BXSHARE/VGABIOS-lgpl-latest
+mouse: enabled=0
+pci: enabled=1, chipset=i440fx
+private_colormap: enabled=0
+#floppya: 1_44=C:/git/nox/noxhdd1_floppy.img, status=inserted
+ata0: enabled=1, ioaddr1=0x1f0, ioaddr2=0x3f0, irq=14
+ata1: enabled=1, ioaddr1=0x170, ioaddr2=0x370, irq=15
+ata2: enabled=0, ioaddr1=0x1e8, ioaddr2=0x3e0, irq=11
+ata3: enabled=0, ioaddr1=0x168, ioaddr2=0x360, irq=9
+
+ata0-master: type=disk, path="build/nox-disk.img", mode=flat
+# Examples:
+#   boot: floppy
+#   boot: cdrom, disk
+#   boot: network, disk
+#   boot: cdrom, floppy, disk
+#=======================================================================
+boot: disk
+
+floppy_bootsig_check: disabled=0
+log: bochsout.txt
+
+panic: action=ask
+error: action=report
+info: action=report
+debug: action=ignore, pci=report # report BX_DEBUG from module 'pci'
+
+debugger_log: -
+parport1: enabled=1, file="parport.out"
+sound: driver=default, waveout=/dev/dsp. wavein=
+speaker: enabled=1, mode=sound
+
+#=======================================================================
+# USB_UHCI:
+# This option controls the presence of the USB root hub which is a part
+# of the i440FX PCI chipset. With the portX parameter you can connect devices
+# to the hub (currently supported: 'mouse', 'tablet', 'keypad', 'disk', 'cdrom'
+# 'hub' and 'printer').
+#
+# The optionsX parameter can be used to assign specific options to the device
+# connected to the corresponding USB port. Currently this feature is only used
+# to set the speed reported by device and by the 'disk' device to specify
+# an alternative redolog file of some image modes.
+#
+# If you connect the mouse or tablet to one of the ports, Bochs forwards the
+# mouse movement data to the USB device instead of the selected mouse type.
+# When connecting the keypad to one of the ports, Bochs forwards the input of
+# the numeric keypad to the USB device instead of the PS/2 keyboard.
+#
+# To connect a 'flat' mode image as an USB hardisk you can use the 'disk' device
+# with the path to the image separated with a colon. To use other disk image modes
+# similar to ATA disks the syntax 'disk:mode:filename' must be used (see below).
+#
+# To emulate an USB cdrom you can use the 'cdrom' device name and the path to
+# an ISO image or raw device name also separated with a colon. An option to
+# insert/eject media is available in the runtime configuration.
+#
+# The device name 'hub' connects an external hub with max. 8 ports (default: 4)
+# to the root hub. To specify the number of ports you have to add the value
+# separated with a colon. Connecting devices to the external hub ports is only
+# available in the runtime configuration.
+#
+# The device 'printer' emulates the HP Deskjet 920C printer. The PCL data is
+# sent to a file specified in bochsrc.txt. The current code appends the PCL
+# code to the file if the file already existed. It would probably be nice to
+# overwrite the file instead, asking user first.
+#=======================================================================
+#usb_uhci: enabled=1
+#usb_uhci: enabled=1, port1=mouse, port2=disk:usbstick.img
+#usb_uhci: enabled=1, port1=hub:7, port2=disk:growing:usbdisk.img
+#usb_uhci: enabled=1, port2=disk:undoable:usbdisk.img, options1=journal:redo.log
+#usb_uhci: enabled=1, port1=printer:printdata.bin, port2=cdrom:image.iso
+
+#=======================================================================
+# USB_OHCI:
+# This option controls the presence of the USB OHCI host controller with a
+# 2-port hub. The portX option accepts the same device types with the same
+# syntax as the UHCI controller (see above).
+#=======================================================================
+#usb_ohci: enabled=1
+#usb_ohci: enabled=1, port1=printer:usbprinter.bin
+
+#=======================================================================
+# USB_XHCI:
+# This option controls the presence of the experimental USB xHCI host controller
+# with a 4-port hub. The portX option accepts the same device types with the
+# same syntax as the UHCI controller (see above).
+#=======================================================================
+#usb_xhci: enabled=1
+
+#=======================================================================
+# PCIDEV:
+# PCI host device mapping
+#=======================================================================
+#pcidev: vendor=0x1234, device=0x5678
