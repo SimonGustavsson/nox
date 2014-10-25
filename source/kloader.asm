@@ -1,16 +1,16 @@
 
 ; ***************************************************
 ;
-;  Second stage bootloader, located on the first partition
-;  of the first drive, in a file called STAGE2.SYS
+;  nTh stage bootloader, located in the root directory
+;  of the partition, in a file called BOOT.SYS
 ;
 ;****************************************************
 
-org 0x7c00	; offset to 0, we will set segments later 
-bits 16		; we are still in real mode 
-jmp main	; jump to main 
+org 0x7c00	; The nTh-1 loader will load us here 
+bits 16		; we are still in real mode :(
+jmp main	; Get to da code!
 
-msg_welcome  db "Stage 2 bootloader...", 13, 10, 0
+msg_welcome  db "Nox - Loading kernel...", 13, 10, 0
 
 print:
 	lodsb		; load next byte from string from SI to AL
@@ -21,11 +21,11 @@ print:
 	jmp print	; Loop until AL = 0
 
 	.done:
-			ret		; we are done, so return
+			ret
  
 main:
 	cli			; clear interrupts
-	push	cs	; Ensure DS=CS
+	push cs	    ; Ensure DS=CS
 	pop ds
 
 	mov si, msg_welcome
