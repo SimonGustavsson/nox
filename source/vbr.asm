@@ -133,7 +133,7 @@ loader:
     ; Find kloader (BOOT.SYS) in the root dir
     ;
     mov ax, 0x1000 ; Start addr of rootdir entries
-    
+
 .compareDirEntry:
     mov si, kloader_name
     mov cx, 8 + 3 ; File names are 8 chars long
@@ -172,9 +172,10 @@ kloaderFound:
     ; Calculate the number of sectors in
     ; the root directory - each entry is 32-bytes
     xor eax, eax
+    mov ecx, eax
     mov ax, [localBPB+bpb.dirEntryCount]
     
-    mov ecx, 32
+    mov cl, 32
     mul ecx
 
     mov ecx, 512
