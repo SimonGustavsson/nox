@@ -8,7 +8,7 @@ PART_OFFSET_SECTORS=2048
 
 nox: directories $(BUILD)/nox-disk.img
 
-$(BUILD)/nox-disk.img: $(BUILD)/nox-fs.img $(BUILD)/mbr.bin
+$(BUILD)/nox-disk.img: $(BUILD)/nox-fs.img $(BUILD)/mbr.bin $(BUILD)/vbr.bin
 	
 	# Empty file for the disk image
 	dd if=/dev/zero of=$@ count=$(DISK_SECTOR_COUNT)
@@ -22,11 +22,18 @@ $(BUILD)/nox-disk.img: $(BUILD)/nox-fs.img $(BUILD)/mbr.bin
 	# Blit in the MBR
 	dd if=$(BUILD)/mbr.bin of=$@ bs=1 count=446 conv=notrunc
 
-$(BUILD)/nox-fs.img: 
+$(BUILD)/nox-fs.img: $(BUILD)/vbr.bin
 	mkdosfs -R $(PART_OFFSET_SECTORS) -C -n "NOX" -F 12 $@ $(PART_MKDOSFS_SIZE)
+
+	# Blit in our VBR
+
+	dd if=$(BUILD)/vbr.bin of=$@ bs=1 count=448 skip=62 seek=62
 
 $(BUILD)/mbr.bin: $(SOURCE)/mbr.asm
 	nasm $< -o $@ -f bin
+
+$(BUILD)/vbr.bin: $(SOURCE)/vbr.asm
+	nasm $< -o $@ -f bin -i include/
 
 $(BUILD)/boot.sys: $(SOURCE)/kloader.asm
 	nasm $< -o $@ -f bin

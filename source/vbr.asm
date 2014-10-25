@@ -66,6 +66,8 @@ loader:
 
 .findKernelLoader:
 
+    
+
     ; TODO: Parse root directory 
 
     ; TODO: Locate STAGE2.SYS
