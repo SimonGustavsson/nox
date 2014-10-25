@@ -32,8 +32,11 @@ rep movsb
 jmp 0:loader 
 
 version  dw 0x0001
-msg_pre  db "VBR PRE0", 0x0D, 0x0A, 0
-msg_post db "VBR POS0", 0x0D, 0x0A, 0
+kloader_name db "BOOT.SYS   " ; DO NOT EDIT, 11 chars
+
+msg_pre  db "VBR Loading...", 0x0D, 0x0A, 0
+msg_kloader_found db "BOOT.SYS FOUND", 0x0D, 0x0A, 0
+msg_kloader_notfound db "BOOT.SYS NOT FOUND", 0x0D, 0x0A, 0
 
 ; Block read package tp send  to int13
 readPacket:
@@ -127,18 +130,40 @@ loader:
 
 PostReadRoot:
 
+    ; Find kloader
+    mov si, kloader_name
+
+    mov ax, 0x1000 ; Start addr of rootdir entries
+.compareDirEntry:
+    mov cx, 8 + 3 ; File names are 8 chars long
+    mov di, ax
+    repe cmpsb ; Compare string while equal
+    je kloaderFound
+
+    .compareNextDirEntry:
+        cmp ax, 0x1000 + 0x800
+        jge kloaderNotFound
+
+        add ax, 0x20 ; go to next entry
+        jmp .compareDirEntry
+
+kloaderNotFound:
     xor ax, ax
     mov ds, ax
-    mov si, 0x1000
+    mov si, msg_kloader_notfound
     call print
 
-.printPost:
-    xor ax, ax          ; DS:SI is the address of the message, clear ES
-    mov ds, ax  
-    mov si, msg_post
+    jmp halt
+
+kloaderFound:
+    mov dx, ax ; make sure we don't trash it
+
+    xor ax, ax
+    mov ds, ax
+    mov si, msg_kloader_found
     call print
 
-.halt:
+halt:
     cli
     hlt
     ; Calculate root directory
