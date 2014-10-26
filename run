@@ -1,0 +1,3 @@
+#!/bin/bash
+
+bochs -rc bochs_run_on_launch.rc -q
