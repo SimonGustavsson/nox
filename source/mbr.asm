@@ -4,7 +4,7 @@
 org 0x600
 bits 16                 ; We're in real mode
 
-[map all mbr.map]
+[map all build/mbr.map]
 
 PARTITION_TABLE_OFFSET_0 EQU 0x1BE
 PARTITION_TABLE_OFFSET_1 EQU PARTITION_TABLE_OFFSET_0 + 0x10

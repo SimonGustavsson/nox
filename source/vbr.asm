@@ -3,7 +3,7 @@
 org 0x6000
 bits 16                 ; We're in real mode
 
-[map all vbr.map]
+[map all build/vbr.map]
 
 
 localBPB: istruc ebpb_fat1216
