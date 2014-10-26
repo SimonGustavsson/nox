@@ -33,3 +33,7 @@ options see the [Bochs documentation](http://bochs.sourceforge.net/doc/docbook/u
 
 See [GCC Cross-Compiler](http://wiki.osdev.org/GCC_Cross-Compiler) for instructions on building
 a cross compiler required to build this project.
+
+# Contributors
+[Simon Gustavsson](http://www.github.com/simongustavsson/)
+[Philip Stears](http://www.github.com/philipstears/)
