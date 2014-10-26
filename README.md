@@ -1,5 +1,4 @@
 #nox
-===
 
 x86 kernel for USB HC development
 
@@ -12,13 +11,14 @@ After building it, just hit: `make run` to launch the kernel in Bochs.
 Yes, it's that simple! Make creates a harddrive image file with the following:
 * Custom MBR
 * FAT16 Filesystem with a custom VBR
+* A kernel bootloader (BOOT.SYS) on the FAT16 partition
 
 # Build requirements:
 
 * [Bochs](http://bochs.sourceforge.net/) (2.6.6+ recommended)
 * [Nasm](http://www.nasm.us/) (2.10.09+ recommended)
-* Gcc (See note at the bottom of this file)
 * [mtools](http://www.gnu.org/software/mtools/)
+* gcc (See note at the bottom of this file)
 * mkdosfs
 
 # Configuring Bochs
