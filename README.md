@@ -1,10 +1,10 @@
-#nox
+# Nox
 
 x86 kernel for USB HC development
 
 # Running it
 
-After building it, just hit: `make run` to launch the kernel in Bochs.
+After building it, just hit `make run` to launch the kernel in Bochs.
 
 # Building
 `make`
@@ -20,6 +20,7 @@ Yes, it's that simple! Make creates a harddrive image file with the following:
 * [mtools](http://www.gnu.org/software/mtools/)
 * gcc (See note at the bottom of this file)
 * mkdosfs
+* make
 
 # Configuring Bochs
 The default configuration for Bochs does not enable everything required
@@ -35,5 +36,5 @@ See [GCC Cross-Compiler](http://wiki.osdev.org/GCC_Cross-Compiler) for instructi
 a cross compiler required to build this project.
 
 # Contributors
-[Simon Gustavsson](http://www.github.com/simongustavsson/)
-[Philip Stears](http://www.github.com/philipstears/)
+* [Simon Gustavsson](http://www.github.com/simongustavsson/)
+* [Philip Stears](http://www.github.com/philipstears/)
