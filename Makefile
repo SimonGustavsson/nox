@@ -46,8 +46,8 @@ clean:
 directories:
 	@mkdir -p $(BUILD)
 
-run:
-	./run
+run: nox
+	bochs -rc bochs_run_on_launch.rc -q
 
 fire:
 	@echo *fire crackles*
