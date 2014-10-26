@@ -39,9 +39,15 @@ $(BUILD)/vbr.bin: $(SOURCE)/vbr.asm
 $(BUILD)/BOOT.SYS: $(SOURCE)/kloader.asm
 	nasm $< -o $@ -f bin
 
-.PHONY: clean directories
+.PHONY: clean directories run fire
 clean:
 	rm -f -r $(BUILD)
 
 directories:
 	@mkdir -p $(BUILD)
+
+run:
+	./run
+
+fire:
+	@echo *fire crackles*
