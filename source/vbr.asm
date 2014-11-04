@@ -1,6 +1,6 @@
 %include "fat12.inc"
 
-org 0x6000
+org 0x600
 bits 16                 ; We're in real mode
 
 [map all build/vbr.map]
@@ -10,7 +10,7 @@ localBPB: istruc ebpb_fat1216
 
     ; First three bytes of the BPB are a short JMP instruction
     ; to the boot code
-    jmp (start - 0x6000 + 0x7C00)
+    jmp (start - 0x600 + 0x7C00)
 
 iend
 
@@ -26,7 +26,7 @@ xor ax, ax
 mov es, ax
 mov ds, ax
 mov si, 0x7C00
-mov di, 0x6000
+mov di, 0x600
 rep movsb
 
 ; Far Jump to Relocated Code
