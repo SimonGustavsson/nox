@@ -17,12 +17,37 @@ jmp 0:0x7C00 + start - 0x600
 LOADED_VBR              EQU 0x1000
 VBR_SIZE                EQU 0x200
 LOADED_ROOTDIR          EQU LOADED_VBR + VBR_SIZE
+KERNEL_STACK_START      EQU 0x7FFFF ; End of available RAM, the stack grows downwards, remember!
 
 variables:
     .fatStart            dd     0
     .rootDirectoryStart  dd     0
     .dataRegionStart     dd     0
 .endvariables:
+
+gdt:
+	.null:
+		dq              0
+	.code:
+		db 				0 			; base 24:31
+		db 				0xCF		; limit & flags
+		db 				0x9A		; access bytes
+		db 				0 			; base 16:23
+		dw 				0 			; base 0:15
+		dw 				0xFFFF 		; limit 0:15
+	.data:
+		db 				0 			; base 24:31
+		db 				0xCF		; limit & flags
+		db 				0x92		; access bytes
+		db 				0 			; base 16:23
+		dw 				0 			; base 0:15
+		dw 				0xFFFF 		; limit 0:15
+.end:
+
+gdtDescriptor:
+		dw 				gdt.end - gdt - 1
+		dd              gdt
+.end:
 
 ; Relocate
 start: 
@@ -43,6 +68,7 @@ kernel_name db "KERNEL  BIN" ; DO NOT EDIT, 11 chars
 msg_pre db "BOOT.SYS Loading...", 0x0D, 0x0A, 0
 msg_kernel_found db "KERNEL.BIN FOUND", 0x0D, 0x0A, 0
 msg_kernel_notfound db "KERNEL.BIN NOT FOUND", 0x0D, 0x0A, 0
+msg_a20_interrupt_failed db "A20 via Int 0x15 failed. Halting.", 0x0D, 0x0A, 0
 
 ; Block read package tp send  to int13
 readPacket:
@@ -66,6 +92,9 @@ print:
     ret
 
 loader: 
+ 	
+ 	; Setup stack pointer
+ 	mov esp, KERNEL_STACK_START
 
 .printPre:
     xor ax, ax                      ; DS:SI is the address of the message, clear ES
@@ -85,6 +114,7 @@ loader:
 	;
 	; Step 0: Load MBR into memory
 	;
+	mov word [readPacketBuffer], LOADED_VBR
 	mov dword [readPacketLBA], 0
 	mov si, readPacket
     mov ah, 0x42
@@ -243,16 +273,52 @@ kernelFound:
     mov ah, 0x42
     mov dl, 0x80
     int 0x13
+    
+    ;
+    ; Kernel is now loaded to 0x7C00
+    ;
+
+	; No interrupts past this point for moving
+	; into protect mode
+	cli
+
+	; Enable A20
+	call enableA20
+
+	; setup GDT
+	lgdt [gdtDescriptor]
+
+	; Enable protected mode
+	mov eax, cr0
+	or eax, 0x01
+	mov cr0, eax
 
     ; k kernel, go baby, go!
-    jmp 0:0x7c00
+    mov eax, 0x10
+    mov ds, eax
+    mov es, eax
+    mov fs, eax
+    mov gs, eax
+    mov ss, eax
+
+    ;jmp 0x08:0x7c00
 
 halt:
     cli
     hlt
 
-times 510 - ($-$$) db 0 ; Fill 0's until the 510th byte
-dw 0xAA55               ; MBR magic bytes
+enableA20:
+	mov ax, 0x2401
+	int 0x15
+	jc	.fail
+	ret
+
+	.fail:
+	    xor ax, ax                      ; DS:SI is the address of the message, clear ES
+    	mov es, ax  
+    	mov si, msg_a20_interrupt_failed
+    	call print
+		jmp halt
 
 ; NASM Syntax
 ; vim: ft=nasm expandtab

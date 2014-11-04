@@ -22,13 +22,16 @@ $(BUILD)/nox-disk.img: $(BUILD)/nox-fs.img $(BUILD)/mbr.bin $(BUILD)/vbr.bin
 	# Blit in the MBR
 	dd if=$(BUILD)/mbr.bin of=$@ bs=1 count=446 conv=notrunc
 
-$(BUILD)/nox-fs.img: $(BUILD)/vbr.bin $(BUILD)/BOOT.SYS
+$(BUILD)/nox-fs.img: $(BUILD)/vbr.bin $(BUILD)/BOOT.SYS $(BUILD)/KERNEL.BIN
 	mkdosfs -h $(PART_OFFSET_SECTORS) -C -n "NOX" -F 12 $@ $(PART_MKDOSFS_SIZE)
 
 	# Blit in our VBR
 	dd if=$(BUILD)/vbr.bin of=$@ bs=1 count=448 skip=62 seek=62 conv=notrunc
 
 	mcopy -i $(BUILD)/nox-fs.img $(BUILD)/BOOT.SYS ::BOOT.SYS
+
+	cp $(BUILD)/BOOT.SYS $(BUILD)/KERNEL.BIN
+	mcopy -i $(BUILD)/nox-fs.img $(BUILD)/KERNEL.BIN ::KERNEL.BIN
 
 $(BUILD)/mbr.bin: $(SOURCE)/mbr.asm
 	nasm $< -o $@ -f bin
@@ -38,6 +41,9 @@ $(BUILD)/vbr.bin: $(SOURCE)/vbr.asm
 
 $(BUILD)/BOOT.SYS: $(SOURCE)/kloader.asm
 	nasm $< -o $@ -f bin -i include/
+
+$(BUILD)/KERNEL.BIN:
+	touch $@
 
 .PHONY: clean directories run fire
 clean:
