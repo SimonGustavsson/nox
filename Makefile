@@ -37,7 +37,7 @@ $(BUILD)/vbr.bin: $(SOURCE)/vbr.asm
 	nasm $< -o $@ -f bin -i include/
 
 $(BUILD)/BOOT.SYS: $(SOURCE)/kloader.asm
-	nasm $< -o $@ -f bin
+	nasm $< -o $@ -f bin -i include/
 
 .PHONY: clean directories run fire
 clean:
