@@ -1,47 +1,42 @@
+%include "fat12.inc"
+
 ; NOTE: BIOS will load us to either 0x07C0:0, 
 ; or, 0:0x7C00. We relocate to 0:0x600 immediately
 
-org 0x600
+org 0x600               ; We will relocate us here
 bits 16                 ; We're in real mode
+[map all build/mbr.map] ; Debug information
 
-[map all build/mbr.map]
-
-PARTITION_TABLE_OFFSET_0 EQU 0x1BE
-PARTITION_TABLE_OFFSET_1 EQU PARTITION_TABLE_OFFSET_0 + 0x10
-PARTITION_TABLE_OFFSET_2 EQU PARTITION_TABLE_OFFSET_1 + 0x10
-PARTITION_TABLE_OFFSET_3 EQU PARTITION_TABLE_OFFSET_2 + 0x10
-
-; VBR_OFFSET_BYTES_PER_SECTOR       EQU 0x0B
+; Address we will read the VBR to
 VBR_ADDRESS                         EQU 0x7C00
 VBR_OFFSET_RESERVED_SECTOR_COUNT    EQU 0x0E
 
 start: 
 
-; Relocate
-mov cx, 0x200
-xor ax, ax
-mov es, ax
-mov ds, ax
-mov si, 0x7C00
-mov di, 0x0600
-rep movsb
-
-; Far Jump to Relocated Code
-jmp 0:loader 
+    ; Relocate
+    mov cx, 0x200
+    xor ax, ax
+    mov es, ax
+    mov ds, ax
+    mov si, 0x7C00
+    mov di, 0x0600
+    rep movsb
+    
+    ; Far Jump to Relocated Code
+    jmp 0:loader 
 
 version  dw 0x0001
-msg_pre  db "MBR PRE0", 0x0D, 0x0A, 0
-msg_post db "MBR POS0", 0x0D, 0x0A, 0
+msg_pre  db "MBR - Locating active partition...", 0x0D, 0x0A, 0
 
-; Block read package tp send  to int13
+; Block read package to send to int13
 readPacket:
-    db 0x10                         ; Packet size (bytes)
-    db 0                            ; Reserved
-    readPacketNumBlocks dw 1        ; Blocks to read
-    readPacketBuffer dw VBR_ADDRESS ; Buffer to read to
-    dw 0                            ; Memory Page
-    readPacketLBA dd 0              ; LBA to read from
-    dd 0                            ; Extra storage for LBAs > 4 bytes
+                        db 0x10        ; Packet size (bytes)
+                        db 0           ; Reserved
+    readPacketNumBlocks dw 1           ; Blocks to read
+    readPacketBuffer    dw VBR_ADDRESS ; Buffer to read to
+                        dw 0           ; Memory Page
+    readPacketLBA       dd 0           ; LBA to read from
+                        dd 0           ; Extra storage for LBAs > 4 bytes
 
 print:
     lodsb
@@ -86,9 +81,9 @@ loader:
 
     ; Read the VBR from the first partition
     ; First prepare the package
-    mov word ax, [start + PARTITION_TABLE_OFFSET_0 + 0x8]
+    mov word ax, [start + mbr.part0 + part_entry.lbaLo]
     mov word [readPacketLBA], ax
-    mov word ax, [start + PARTITION_TABLE_OFFSET_0 + 0xA]
+    mov word ax, [start + mbr.part0 + part_entry.lbaHi]
     mov word [readPacketLBA + 2], ax
 
     ; Up to you, big man!
@@ -101,19 +96,6 @@ loader:
 
     ; Jump to the VBR
     jmp 0:VBR_ADDRESS
-
-.printVolumeLabel:
-    xor ax, ax          ; DS:SI is the address of the message, clear DS
-    mov ds, ax  
-    mov si, VBR_ADDRESS + 3  ; Volume label is 3 bytes into the VBR and is null padded :trollface:
-    mov cx, 8
-    call print
-
-.printPost:
-    xor ax, ax          ; DS:SI is the address of the message, clear DS
-    mov ds, ax  
-    mov si, msg_post
-    call print
 
 .halt:
     cli

@@ -34,7 +34,7 @@ $(BUILD)/nox-fs.img: $(BUILD)/vbr.bin $(BUILD)/BOOT.SYS $(BUILD)/KERNEL.BIN
 	mcopy -i $(BUILD)/nox-fs.img $(BUILD)/KERNEL.BIN ::KERNEL.BIN
 
 $(BUILD)/mbr.bin: $(SOURCE)/mbr.asm
-	nasm $< -o $@ -f bin
+	nasm $< -o $@ -f bin -i include/
 
 $(BUILD)/vbr.bin: $(SOURCE)/vbr.asm
 	nasm $< -o $@ -f bin -i include/
