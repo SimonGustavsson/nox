@@ -9,7 +9,6 @@ bits 16                 ; We're in real mode
 
 ; Address we will read the VBR to
 VBR_ADDRESS                         EQU 0x7C00
-VBR_OFFSET_RESERVED_SECTOR_COUNT    EQU 0x0E
 
 start: 
 
@@ -78,9 +77,6 @@ loader:
     mov si, readPacket
     mov ah, 0x42
     int 0x13
-
-    ; The VBR is now loaded at 0x1000
-    mov ax, [VBR_ADDRESS + VBR_OFFSET_RESERVED_SECTOR_COUNT]
 
     ; Jump to the VBR
     jmp 0:VBR_ADDRESS
