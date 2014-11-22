@@ -25,7 +25,8 @@ start:
     jmp 0:loader 
 
 %include "int10.inc"
-string16 messageLoading, {"MBR - Locating active partition...", 0x0D, 0x0A}
+string16 messageLoading, {"Locating active partition...", 0x0D, 0x0A}
+string16 messageNoActive, {"No active partition...", 0x0D, 0x0A}
 
 ; Block read package to send to int13
 readPacket:
@@ -63,25 +64,46 @@ loader:
 
     ; Read the VBR from the first partition
     ; First prepare the package
-    mov word ax, [start + mbr.part0 + part_entry.lbaLo]
-    mov word [readPacketLBA], ax
-    mov word ax, [start + mbr.part0 + part_entry.lbaHi]
-    mov word [readPacketLBA + 2], ax
 
-    ; Note: DL is the drive number, BIOS will have set it to the boot drive,
-    ; which in our case ought to be 0x80
-    ; Up to you, big man!
-    mov si, readPacket
-    mov ah, 0x42
-    int 0x13
+    mov ecx, 4 ; 4 Partition entries
+    mov ebx, start + mbr.part0
+    
+    .readPartitionEntries:
 
-    ; Jump to the VBR
-    jmp 0:VBR_ADDRESS
+        mov al, byte [ebx + part_entry.status]
+        cmp al, 0x80
+        je .found
 
-.halt:
+        dec ecx
+        jz .notFound
+
+        add ebx, part_entry_size
+        jmp .readPartitionEntries
+
+    .found:
+        mov word ax, [ebx + part_entry.lbaLo]
+        mov word [readPacketLBA], ax
+        mov word ax, [ebx + part_entry.lbaHi]
+        mov word [readPacketLBA + 2], ax
+
+        ; Note: DL is the drive number, BIOS will have set it to the boot drive,
+        ; which in our case ought to be 0x80
+        ; Up to you, big man!
+        mov si, readPacket
+        mov ah, 0x42
+        int 0x13
+
+        ; Jump to the VBR
+        jmp 0:VBR_ADDRESS
+
+    .notFound:
+        mov eax, messageNoActive
+        call printString16
+        call halt
+
+halt:
     cli
     hlt
-    ; Calculate root directory
 
 times 510 - ($-$$) db 0 ; Fill 0's until the 510th byte
 dw 0xAA55               ; MBR magic bytes
