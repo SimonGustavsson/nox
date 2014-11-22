@@ -1,3 +1,4 @@
+TOOL=i686-elf
 SOURCE=source
 BUILD=build
 INCLUDE=include
@@ -29,8 +30,6 @@ $(BUILD)/nox-fs.img: $(BUILD)/vbr.bin $(BUILD)/BOOT.SYS $(BUILD)/KERNEL.BIN
 	dd if=$(BUILD)/vbr.bin of=$@ bs=1 count=448 skip=62 seek=62 conv=notrunc
 
 	mcopy -i $(BUILD)/nox-fs.img $(BUILD)/BOOT.SYS ::BOOT.SYS
-
-	cp $(BUILD)/BOOT.SYS $(BUILD)/KERNEL.BIN
 	mcopy -i $(BUILD)/nox-fs.img $(BUILD)/KERNEL.BIN ::KERNEL.BIN
 
 $(BUILD)/mbr.bin: $(SOURCE)/mbr.asm
@@ -39,11 +38,18 @@ $(BUILD)/mbr.bin: $(SOURCE)/mbr.asm
 $(BUILD)/vbr.bin: $(SOURCE)/vbr.asm
 	nasm $< -o $@ -f bin -i include/
 
+# Note: Upper case because we use FAT12 and this makes it easy for now 
+$(BUILD)/KERNEL.BIN: $(BUILD)/kernel.elf
+	$(TOOL)-objcopy $< -O binary $@
+
+$(BUILD)/kernel.elf: $(BUILD)/kernel.o
+	$(TOOL)-ld -T kernel.ld $< -o $@
+
+$(BUILD)/kernel.o: $(SOURCE)/kernel.c
+	$(TOOL)-gcc $< -o $@ -Iinclude/ -ffreestanding -nostdlib 
+
 $(BUILD)/BOOT.SYS: $(SOURCE)/kloader.asm
 	nasm $< -o $@ -f bin -i include/
-
-$(BUILD)/KERNEL.BIN:
-	touch $@
 
 .PHONY: clean directories run fire
 clean:
