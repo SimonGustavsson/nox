@@ -25,8 +25,8 @@ start:
     ; Far Jump to Relocated Code
     jmp 0:loader 
 
-version  dw 0x0001
-msg_pre  db "MBR - Locating active partition...", 0x0D, 0x0A, 0
+%include "int10.inc"
+string16 messageLoading, {"MBR - Locating active partition...", 0x0D, 0x0A}
 
 ; Block read package to send to int13
 readPacket:
@@ -38,34 +38,22 @@ readPacket:
     readPacketLBA       dd 0           ; LBA to read from
                         dd 0           ; Extra storage for LBAs > 4 bytes
 
-print:
-    lodsb
-    or al, al
-    jz .done
-    mov ah, 0eh
-    int 10h
-    jmp print
-
-    .done:
-        ret
-
-printBoundedString:
-    dec cx
-    jz .print_done
-    lodsb
-    mov ah, 0eh
-    int 10h
-    jmp printBoundedString
-.print_done:
-    ret
-
 loader: 
 
-.printPre:
-    xor ax, ax                      ; ES:SI is the address of the message, clear ES
+    ; setup segments
+    xor ax, ax
     mov es, ax  
-    mov si, msg_pre
-    call print
+    mov ds, ax  
+
+    ; need a stack, grow downwards from
+    ; the boot location gives us plenty
+    ; of space
+    mov ax, 0x7B00
+    mov ss, ax
+  
+.printPre:
+    mov eax, messageLoading
+    call printString16
 
 .tryReset:
     mov ah, 0                       ; Reset floppy function
