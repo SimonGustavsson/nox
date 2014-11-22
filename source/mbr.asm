@@ -60,11 +60,6 @@ loader:
     jc .tryReset                    ; Try again if carry flag is set
 
 .readVBR:
-    ; DL is the drive number, BIOS will have set it to the boot drive,
-    ; which in our case ought to be 0x80
-
-    xor bx, bx
-    mov es, bx                      ; Zero the destination segment register, offset in BX
 
     ; Read the VBR from the first partition
     ; First prepare the package
@@ -73,6 +68,8 @@ loader:
     mov word ax, [start + mbr.part0 + part_entry.lbaHi]
     mov word [readPacketLBA + 2], ax
 
+    ; Note: DL is the drive number, BIOS will have set it to the boot drive,
+    ; which in our case ought to be 0x80
     ; Up to you, big man!
     mov si, readPacket
     mov ah, 0x42
