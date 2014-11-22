@@ -14,7 +14,7 @@ printString16:
 	mov esi, eax
 
 	xor ecx, ecx
-	lodsw 
+	lodsw
 	mov cx, ax
 
 	cmp cx, 0
@@ -30,4 +30,25 @@ printString16:
     	jmp .printChar    	
 	
 	.printDone:
+	    ret
+
+; arguments
+;	eax: addr of the string
+;	ecx: count of bytes to print
+printStringN:
+	
+	cmp ecx, 0
+	je .done
+
+	mov esi, eax
+
+    mov ah, 0eh
+
+    .printChar:
+    	lodsb
+    	int 10h
+    	dec ecx
+		jnz .printChar
+
+	.done:
 	    ret
