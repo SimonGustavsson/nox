@@ -72,13 +72,13 @@ msg_a20_interrupt_failed db "A20 via Int 0x15 failed. Halting.", 0x0D, 0x0A, 0
 
 ; Block read package tp send  to int13
 readPacket:
-    db 0x10                         ; Packet size (bytes)
-    db 0                            ; Reserved
+                        db 0x10     ; Packet size (bytes)
+                        db 0        ; Reserved
     readPacketNumBlocks dw 1        ; Blocks to read
-    readPacketBuffer dw 0x1000      ; Buffer to read to
-    dw 0                            ; Memory Page
-    readPacketLBA dd 0              ; LBA to read from
-    dd 0                            ; Extra storage for LBAs > 4 bytes
+    readPacketBuffer    dw 0x1000   ; Buffer to read to
+                        dw 0        ; Memory Page
+    readPacketLBA       dd 0        ; LBA to read from
+                        dd 0        ; Extra storage for LBAs > 4 bytes
 
 ; Assumes address to string is in ds:si
 print:
@@ -122,7 +122,7 @@ loader:
     int 0x13
 
     ; Find LBA of first sector
-	mov ebx, [readPacketBuffer + 0x1BE + (0 * 0x10)] ; 0 is active part number, get from Multiboot
+	mov ebx, LOADED_VBR + 0x1BE + (0 * 0x10) ; 0 is active part number, get from Multiboot
 	mov ebx, [ebx + 0x8] ; Store LBA of first sector in EBX
 
 	;
@@ -143,7 +143,8 @@ loader:
     mov eax, [LOADED_VBR + bpb.hiddenSectors]
 
     ; Reserved sectors are 16-bits, convert to 32-bit
-    mov ebx, [LOADED_VBR + bpb.reservedSectors]
+    xor ebx, ebx
+    mov bx, word [LOADED_VBR + bpb.reservedSectors]
 
     ; This is now the start of the first fat
     ; in sectors
@@ -196,6 +197,7 @@ loader:
     mov ax, LOADED_ROOTDIR ; Start addr of rootdir entries
 
 .compareDirEntry:
+
     mov si, kernel_name
     mov cx, 8 + 3 ; File names are 8 chars long
     mov di, ax
