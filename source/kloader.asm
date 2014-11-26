@@ -29,19 +29,19 @@ gdt:
 	.null:
 		dq              0
 	.code:
-		db 				0 			; base 24:31
-		db 				0xCF		; limit & flags
+		dw 				0xFFFF 		; limit 0:15
+		dw 				0 			; base 0:15
+		db 				0 			; base 16:23
 		db 				0x9A		; access bytes
-		db 				0 			; base 16:23
-		dw 				0 			; base 0:15
-		dw 				0xFFFF 		; limit 0:15
-	.data:
-		db 				0 			; base 24:31
 		db 				0xCF		; limit & flags
-		db 				0x92		; access bytes
-		db 				0 			; base 16:23
-		dw 				0 			; base 0:15
+		db 				0 			; base 24:31
+	.data:
 		dw 				0xFFFF 		; limit 0:15
+		dw 				0 			; base 0:15
+		db 				0 			; base 16:23
+		db 				0x92		; access bytes
+		db 				0xCF		; limit & flags
+		db 				0 			; base 24:31
 .end:
 
 gdtDescriptor:
@@ -51,7 +51,7 @@ gdtDescriptor:
 
 ; Relocate
 start: 
-mov cx, 0x200 ; TODO Needs to be size of BOOT.SYS
+mov cx, kloaderEnd
 xor ax, ax
 mov es, ax
 mov ds, ax
@@ -166,7 +166,6 @@ loader:
     mov cx, [LOADED_VBR + bpb.sectorsPerFat]
 
     mul ecx
-
     ;
     ; get the sector offset to the root directory
     ; from the start of the drive
@@ -239,8 +238,7 @@ kernelFound:
     mov ax, [LOADED_VBR+bpb.dirEntryCount]
     
     mov cl, 32
-    mul ecx
-
+    mul ecx 
     mov ecx, 512
     div ecx
 
@@ -268,7 +266,7 @@ kernelFound:
     mov [readPacketLBA], eax
 
     ; Read kernel to a familiar place
-    mov dword [readPacketBuffer], 0x7c00    
+    mov dword [readPacketBuffer], 0x7c00
     
     ; Get the BIOS to read the sectors
     mov si, readPacket
@@ -295,15 +293,23 @@ kernelFound:
 	or eax, 0x01
 	mov cr0, eax
 
-    ; k kernel, go baby, go!
-    mov eax, 0x10
-    mov ds, eax
-    mov es, eax
-    mov fs, eax
-    mov gs, eax
-    mov ss, eax
+    jmp 0x08:enterProtectedMode
 
-    ;jmp 0x08:0x7c00
+    enterProtectedMode:
+
+        ; We're in protectec mode now, make sure nasm spits
+        ; out 32-bit wide instructions, or very, very, VERY bad things happen!
+        bits 32
+
+        mov edx, 0x10
+        mov ds, edx
+        mov es, edx
+        mov fs, edx
+        mov gs, edx
+        mov ss, edx
+
+        ; Jump to the kernel
+        jmp 0x08:0x7c00
 
 halt:
     cli
@@ -321,6 +327,9 @@ enableA20:
     	mov si, msg_a20_interrupt_failed
     	call print
 		jmp halt
+
+; Note: This label is used to calculate the size of the binary! :-)
+kloaderEnd:
 
 ; NASM Syntax
 ; vim: ft=nasm expandtab
