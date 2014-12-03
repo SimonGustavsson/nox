@@ -7,6 +7,6 @@ __attribute__((section(".text.boot"))) void _start()
 
     terminal_initialize();
     terminal_writestring("NOX is here, bow down puny mortal...\n");
-
+    terminal_writehex(0x1234);
 	while(1);
 }

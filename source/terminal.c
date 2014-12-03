@@ -128,3 +128,31 @@ void print_int(uint32_t val)
 	itoa(val,  buf);
 	terminal_writestring(buf);
 }
+
+uint8_t nybbleToAscii(uint8_t val)
+{
+    if (val < 0x0A) {
+        return '0' + val;
+    }
+    else {
+        return 'A' + (val - 10);
+    } 
+}
+
+void terminal_writeHexByte(uint8_t val)
+{
+    terminal_putchar(nybbleToAscii((val >> 4) & 0xF));
+    terminal_putchar(nybbleToAscii((val >> 0) & 0xF));
+}
+
+void terminal_writehex(uint32_t val)
+{
+    terminal_putchar('0');
+    terminal_putchar('x');
+    terminal_writeHexByte((val >> 24) & 0xFF);
+    terminal_writeHexByte((val >> 16) & 0xFF);
+    terminal_writeHexByte((val >> 8) & 0xFF);    
+    terminal_writeHexByte((val >> 0) & 0xFF);
+}
+
+

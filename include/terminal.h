@@ -27,5 +27,6 @@ void terminal_initialize();
 void terminal_putchar(char c);
 void terminal_writestring(const char* data);
 void print_int(uint32_t val);
+void terminal_writehex(uint32_t val);
 
 #endif
