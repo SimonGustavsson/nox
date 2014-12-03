@@ -15,7 +15,7 @@ SECTIONS
 	   Next we'll put the .text section. */
 	.text :
 	{
-		*(.multiboot)
+        *(.text.boot)
 		*(.text)
 	}
 

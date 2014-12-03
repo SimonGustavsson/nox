@@ -6,6 +6,7 @@ DISK_SECTOR_COUNT=$(shell echo $$((32 * 1024)))
 PART_SECTOR_COUNT=$(shell echo $$((16 * 1024)))
 PART_MKDOSFS_SIZE=$(shell echo $$(($(PART_SECTOR_COUNT) / 2)))
 PART_OFFSET_SECTORS=2048
+CFLAGS=-std=c11 -ffreestanding -nostdlib -c
 
 nox: directories $(BUILD)/nox-disk.img
 
@@ -42,11 +43,14 @@ $(BUILD)/vbr.bin: $(SOURCE)/vbr.asm
 $(BUILD)/KERNEL.BIN: $(BUILD)/kernel.elf
 	$(TOOL)-objcopy $< -O binary $@
 
-$(BUILD)/kernel.elf: $(BUILD)/kernel.o
-	$(TOOL)-ld -T kernel.ld $< -o $@
+$(BUILD)/kernel.elf: $(BUILD)/terminal.o $(BUILD)/kernel.o
+	$(TOOL)-ld -T kernel.ld $(BUILD)/terminal.o $(BUILD)/kernel.o -o $@
+
+$(BUILD)/terminal.o: $(SOURCE)/terminal.c
+	$(TOOL)-gcc $< -o $@ -Iinclude/ $(CFLAGS)
 
 $(BUILD)/kernel.o: $(SOURCE)/kernel.c
-	$(TOOL)-gcc $< -o $@ -Iinclude/ -ffreestanding -nostdlib 
+	$(TOOL)-gcc $< -o $@ -Iinclude/ $(CFLAGS)
 
 $(BUILD)/BOOT.SYS: $(SOURCE)/kloader.asm
 	nasm $< -o $@ -f bin -i include/
