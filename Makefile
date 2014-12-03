@@ -34,26 +34,32 @@ $(BUILD)/nox-fs.img: $(BUILD)/vbr.bin $(BUILD)/BOOT.SYS $(BUILD)/KERNEL.BIN
 	mcopy -i $(BUILD)/nox-fs.img $(BUILD)/KERNEL.BIN ::KERNEL.BIN
 
 $(BUILD)/mbr.bin: $(SOURCE)/mbr.asm
-	nasm $< -o $@ -f bin -i include/
+	nasm $^ -o $@ -f bin -i include/
 
 $(BUILD)/vbr.bin: $(SOURCE)/vbr.asm
-	nasm $< -o $@ -f bin -i include/
+	nasm $^ -o $@ -f bin -i include/
 
 # Note: Upper case because we use FAT12 and this makes it easy for now 
 $(BUILD)/KERNEL.BIN: $(BUILD)/kernel.elf
-	$(TOOL)-objcopy $< -O binary $@
+	$(TOOL)-objcopy $^ -O binary $@
 
-$(BUILD)/kernel.elf: $(BUILD)/terminal.o $(BUILD)/kernel.o
-	$(TOOL)-ld -T kernel.ld $(BUILD)/terminal.o $(BUILD)/kernel.o -o $@
+$(BUILD)/kernel.elf: $(BUILD)/terminal.o $(BUILD)/pio.o $(BUILD)/pci.o $(BUILD)/kernel.o
+	$(TOOL)-ld -T kernel.ld $^ -o $@
+
+$(BUILD)/pio.o: $(SOURCE)/pio.c
+	$(TOOL)-gcc $^ -o $@ -Iinclude/ $(CFLAGS)
+
+$(BUILD)/pci.o: $(SOURCE)/pci.c
+	$(TOOL)-gcc $^ -o $@ -Iinclude/ $(CFLAGS)
 
 $(BUILD)/terminal.o: $(SOURCE)/terminal.c
-	$(TOOL)-gcc $< -o $@ -Iinclude/ $(CFLAGS)
+	$(TOOL)-gcc $^ -o $@ -Iinclude/ $(CFLAGS)
 
 $(BUILD)/kernel.o: $(SOURCE)/kernel.c
-	$(TOOL)-gcc $< -o $@ -Iinclude/ $(CFLAGS)
+	$(TOOL)-gcc $^ -o $@ -Iinclude/ $(CFLAGS)
 
 $(BUILD)/BOOT.SYS: $(SOURCE)/kloader.asm
-	nasm $< -o $@ -f bin -i include/
+	nasm $^ -o $@ -f bin -i include/
 
 .PHONY: clean directories run fire
 clean:

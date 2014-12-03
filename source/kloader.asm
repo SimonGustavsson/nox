@@ -262,7 +262,7 @@ kernelFound:
     add eax, [variables.dataRegionStart]
     
     ; EAX Now contains the LBA of KERNEL.BIN
-    mov word [readPacketNumBlocks], 4 ; TODO: Sectors per cluster here
+    mov word [readPacketNumBlocks], 16 ; TODO: Sectors per cluster here
     mov [readPacketLBA], eax
 
     ; Read kernel to a familiar place
