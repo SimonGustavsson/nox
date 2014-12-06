@@ -1,20 +1,20 @@
 // idt.h
 
 // Gate Types for 3:0 of typeAttr in idt_entry_t
-enum {
-	GateType_Task32      0x5
-	GateType_Interrupt16 0x6
-	GateType_Trap16      0x7
-	GateType_Interrupt32 0xE
-	GateType_Trap32      0xF	
+typedef enum {
+	GateType_Task32      = 0x5,
+	GateType_Interrupt16 = 0x6,
+	GateType_Trap16      = 0x7,
+	GateType_Interrupt32 = 0xE,
+	GateType_Trap32      = 0xF	
 } idt_gateType_t;
 
-struct {
+typedef struct {
 	uint16_t limit; // Length of IDT in bytes - 1
 	uint32_t base; // Linear start address
 } idt_t;
 
-union {
+typedef union {
 	uint8_t raw;
 	
 	struct {
@@ -25,7 +25,7 @@ union {
 	} bits;
 } idt_typeAttr_t;
 
-struct {
+typedef struct {
 	uint16_t       offsetLow;  // 31:16 of offset
 	uint16_t       selector;   // Code segment selector in GDT/LDT
 	uint8_t        zero;

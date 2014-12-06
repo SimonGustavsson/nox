@@ -55,6 +55,9 @@ $(BUILD)/pci.o: $(SOURCE)/pci.c
 $(BUILD)/terminal.o: $(SOURCE)/terminal.c
 	$(TOOL)-gcc $^ -o $@ -Iinclude/ $(CFLAGS)
 
+$(BUILD)/idt.o: $(SOURCE)/idt.c
+	$(TOOL)-gcc $^ -o $@ -Iinclude/ $(CFLAGS)
+
 $(BUILD)/kernel.o: $(SOURCE)/kernel.c
 	$(TOOL)-gcc $^ -o $@ -Iinclude/ $(CFLAGS)
 
