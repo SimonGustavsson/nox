@@ -5,19 +5,20 @@
 void idt_install(idt_t* idt)
 {
 	uint32_t addr = (uint32_t)idt;
-	__asm("LIDT addr");
+	__asm("LIDT %0": /* no out */ : "m"(addr));
 }
 
 void idt_remove()
 {
 	uint32_t addr = 0;
-	__asm("LIDT addr");
+	__asm("LIDT %0": /* no out */ : "m"(addr));
 }
 
 idt_t* idt_get()
 {
 	uint32_t addr;
-	__asm("SIDT addr");
+
+	__asm("SIDT %0": "=m"(addr) : /* no input */);
 
 	return (idt_t*)addr;
 }

@@ -43,7 +43,7 @@ $(BUILD)/vbr.bin: $(SOURCE)/vbr.asm
 $(BUILD)/KERNEL.BIN: $(BUILD)/kernel.elf
 	$(TOOL)-objcopy $^ -O binary $@
 
-$(BUILD)/kernel.elf: $(BUILD)/terminal.o $(BUILD)/pio.o $(BUILD)/pci.o $(BUILD)/kernel.o
+$(BUILD)/kernel.elf: $(BUILD)/terminal.o $(BUILD)/idt.o $(BUILD)/pio.o $(BUILD)/pci.o $(BUILD)/kernel.o
 	$(TOOL)-ld -T kernel.ld $^ -o $@
 
 $(BUILD)/pio.o: $(SOURCE)/pio.c
