@@ -52,6 +52,9 @@ $(BUILD)/pio.o: $(SOURCE)/pio.c
 $(BUILD)/pci.o: $(SOURCE)/pci.c
 	$(TOOL)-gcc $^ -o $@ -Iinclude/ $(CFLAGS)
 
+$(BUILD)/pic.o: $(SOURCE)/pic.c
+	$(TOOL)-gcc $^ -o $@ -Iinclude/ $(CFLAGS)
+
 $(BUILD)/terminal.o: $(SOURCE)/terminal.c
 	$(TOOL)-gcc $^ -o $@ -Iinclude/ $(CFLAGS)
 

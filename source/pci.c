@@ -18,9 +18,9 @@ uint32_t read_pci(uint8_t bus, uint8_t dev, uint8_t func, uint8_t port, uint8_t 
 	    (func << 8) |
 	    (port & 0xFC);
 
-	outpd(PCI_ADDR, val);
+	outd(PCI_ADDR, val);
 
-	ret = inpd(PCI_DATA + (port & 0x3));
+	ret = ind(PCI_DATA + (port & 0x3));
 
 	ret &= (0xFFFFFFFF >> ((4-len) * 8));
 
@@ -36,10 +36,10 @@ void write_pci(uint8_t bus, uint8_t dev, uint8_t func, uint8_t port, uint8_t len
 	    (func << 8) |
 	    (port & 0xFC);
 
-	outpd(PCI_ADDR, val);
+	outd(PCI_ADDR, val);
 
 	// get current value
-	val = inpd(PCI_DATA+(port & 0x3));
+	val = ind(PCI_DATA+(port & 0x3));
 	
 	// mask out new section
 	if (len != 4)
@@ -49,7 +49,7 @@ void write_pci(uint8_t bus, uint8_t dev, uint8_t func, uint8_t port, uint8_t len
   
   	val |= value;
   
-  	outpd(PCI_DATA + (port & 0x3), val);
+  	outd(PCI_DATA + (port & 0x3), val);
 }
 
 // addr is the adress to start scanning at, and will be the address when the function returns

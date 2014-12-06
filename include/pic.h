@@ -99,9 +99,9 @@ inline void pic_sendData(uint8_t pic, uint8_t data)
 
 inline uint8_t pic_readData(uint8_t pic)
 {
-	if(pic > 1) return; // Only supports 2 PICs
+	if(pic > 1) return 0; // Only supports 2 PICs
 
-	return inb(pic == 0 ? PIC1_DATA | PIC2_DATA);
+	return inb(pic == 0 ? PIC1_DATA : PIC2_DATA);
 }
 
 /*  Addr   IRQ      Desc
