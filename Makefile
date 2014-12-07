@@ -21,10 +21,13 @@ $(BUILD)/nox-disk.img: $(BUILD)/nox-fs.img
 	
 # Empty file for the disk image
 	@dd if=/dev/zero of=$@ count=$(DISK_SECTOR_COUNT) > /dev/null 2>&1
-	
+
+# Initialize file system (not necessary, but stops some warnings from fdisk)
+	@mkfs.fat $@ > /dev/null
+
 # Partition it with a single 8MiB FAT12 Partition
 	@echo "o\nn\np\n1\n$(PART_OFFSET_SECTORS)\n+$(PART_SECTOR_COUNT)\na\n1\nt\n1\nw" | fdisk $@ > /dev/null
-	
+
 # Blit in a FAT12 file system
 	@dd if=$(BUILD)/nox-fs.img of=$@ seek=$(PART_OFFSET_SECTORS) count=$(PART_SECTOR_COUNT) conv=notrunc > /dev/null 2>&1
 
@@ -33,6 +36,10 @@ $(BUILD)/nox-disk.img: $(BUILD)/nox-fs.img
 
 $(BUILD)/nox-fs.img: $(IMAGE_ASSETS)
 	@echo "MKDOSFS $<"
+
+# Remove if it already exists to prevent error from mkdosfs
+	@rm -f $@
+
 	@mkdosfs -h $(PART_OFFSET_SECTORS) -C -n "NOX" -F 12 $@ $(PART_MKDOSFS_SIZE) > /dev/null
 
 # Blit in our VBR
