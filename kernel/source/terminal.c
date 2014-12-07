@@ -2,8 +2,8 @@
 #include <stdbool.h> // C Does not have bool :(
 #endif
 
-#include <stddef.h>
-#include <stdint.h>
+#include "stddef.h"
+#include "stdint.h"
 #include "terminal.h"
 
 static const size_t VGA_WIDTH = 80;

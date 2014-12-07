@@ -1,7 +1,7 @@
 #ifndef TERMINAL_H
 #define TERMINAL_H
 
-#include <stdint.h>
+#include "stdint.h"
 
 enum vga_color
 {
