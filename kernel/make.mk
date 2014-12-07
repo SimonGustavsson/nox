@@ -31,14 +31,21 @@ CLEAN_DIRS += $(OBJ_DIR)
 
 # Note: Upper case because we use FAT12 and this makes it easy for now 
 $(BUILD)/KERNEL.BIN: $(OBJ_DIR)/kernel.elf
+	@echo "OBJCOPY $<"
+
 	@$(TOOL)-objcopy $^ -O binary $@
 
 # Note: Build into root build directory
 $(OBJ_DIR)/kernel.elf: $(COBJECTS)
+
+	@echo "LD $@"
+
 	@$(TOOL)-ld -T kernel.ld $^ -o $@
 
 $(OBJ_DIR)/%.o : $(CSOURCE_DIR)/%.c
 
 	@mkdir -p $(dir $@)
+
+	@echo "CC $<"
 
 	@$(TOOL)-gcc $< -o $@ $(CINCLUDE) $(CFLAGS)

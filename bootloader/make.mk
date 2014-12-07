@@ -7,10 +7,16 @@ ASM_INCLUDE := $(MODULE)include/
 SOURCE := $(MODULE)source
 
 $(BUILD)/mbr.bin: $(SOURCE)/mbr.asm
-	nasm $^ -o $@ -f bin -i $(ASM_INCLUDE)
+	@echo "NASM $<"
+	
+	@nasm $^ -o $@ -f bin -i $(ASM_INCLUDE)
 
 $(BUILD)/vbr.bin: $(SOURCE)/vbr.asm
-	nasm $^ -o $@ -f bin -i $(ASM_INCLUDE)
+	@echo "NASM $<"
+
+	@nasm $^ -o $@ -f bin -i $(ASM_INCLUDE)
 
 $(BUILD)/BOOT.SYS: $(SOURCE)/kloader.asm
-	nasm $^ -o $@ -f bin -i $(ASM_INCLUDE)
+	@echo "NASM $<"
+
+	@nasm $^ -o $@ -f bin -i $(ASM_INCLUDE)
