@@ -4,9 +4,9 @@
 
 const char* gHcVersionNames[4] = {"UHCI", "OHCI", "EHCI", "xHCI"};
 
-idt_t idtDescriptor = {};
+Idtd idtDescriptor = {};
 
-idt_entry_t idtEntries[256] = {};
+IdtEntry idtEntries[256] = {};
 
 __attribute__((section(".text.boot"))) void _start()
 {
@@ -37,7 +37,6 @@ __attribute__((section(".text.boot"))) void _start()
     idt_install(&idtDescriptor);
 
     uint32_t idtAddressAsNumber = (uint32_t)idt_get();
-
 
     terminal_writehex((uint32_t)&idtDescriptor);
     terminal_writestring(" == ");
