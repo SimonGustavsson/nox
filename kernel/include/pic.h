@@ -1,3 +1,6 @@
+#include "stdint.h"
+#include "pio.h"
+
 // Handled by PIC1
 #define PIC_IRQ_TIMER     0
 #define PIC_IRQ_KEYBOARD  1
@@ -83,21 +86,21 @@
 #define IRQ_8 0x28 // IRQ 8-15 mapped to 0x28-0x36
 
 void pic_remapIrq(uint8_t base0, uint8_t base1);
-inline void pic_sendCommand(uint8_t pic, uint8_t cmd)
+void pic_sendCommand(uint8_t pic, uint8_t cmd)
 {
 	if(pic > 1) return; // Only 2 PICs supported
 
 	outb(pic == 0 ? PIC1_CTRL : PIC2_CTRL, cmd);
 }
 
-inline void pic_sendData(uint8_t pic, uint8_t data)
+void pic_sendData(uint8_t pic, uint8_t data)
 {
 	if(pic > 1) return; // Only 2 PICs supported
 
 	outb(pic == 0 ? PIC1_DATA : PIC2_DATA, data);
 }
 
-inline uint8_t pic_readData(uint8_t pic)
+uint8_t pic_readData(uint8_t pic)
 {
 	if(pic > 1) return 0; // Only supports 2 PICs
 
