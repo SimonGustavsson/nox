@@ -4,7 +4,7 @@ x86 kernel for USB HC development
 
 # Running it
 
-After building it, just hit `make run` to launch the kernel in Bochs.
+After building, just hit `make run` to test in Bochs.
 
 # Building
 `make`
@@ -12,6 +12,7 @@ Yes, it's that simple! Make creates a harddrive image file with the following:
 * Custom MBR
 * FAT16 Filesystem with a custom VBR
 * A kernel bootloader (BOOT.SYS) on the FAT16 partition
+* A 32-bit flat binary kernel (KERNEL.BIN)
 
 # Build requirements:
 
@@ -32,6 +33,7 @@ to run nox, to ensure Nox runs correctly, please configure Bochs with the follow
 the remaining options are all required to run the kernel. For an explanation of the available
 options see the [Bochs documentation](http://bochs.sourceforge.net/doc/docbook/user/compiling.html#CONFIG-OPTS).
 
+# GCC
 See [GCC Cross-Compiler](http://wiki.osdev.org/GCC_Cross-Compiler) for instructions on building
 a cross compiler required to build this project.
 
