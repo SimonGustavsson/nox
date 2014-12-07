@@ -51,8 +51,8 @@ $(BUILD)/nox-fs.img: $(IMAGE_ASSETS)
 directories:
 	@mkdir -p $(BUILD)
 
-run: nox
-	bochs -rc bochs_run_on_launch.rc -q
+run:
+	@bochs -rc bochs_run_on_launch.rc -q
 
 fire:
 	@echo *fire crackles*
