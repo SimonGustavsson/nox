@@ -38,3 +38,6 @@ bochsout.txt
 
 # Directories
 build/
+
+# C Dependency files
+*.d
