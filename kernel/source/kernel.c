@@ -14,7 +14,7 @@ __attribute__((section(".text.boot"))) void _start()
     //__asm("xchg %bx, %bx");
 
     terminal_initialize();
-    terminal_writestring("NOX is here, bow down puny mortal...\n");
+    terminal_writeString("NOX is here, bow down puny mortal...\n");
 
     PciDevice dev;
     PciAddress addr;
@@ -22,13 +22,13 @@ __attribute__((section(".text.boot"))) void _start()
     addr.device = 0;
     addr.func = 0;    
 
-    terminal_writestring("Finding USB host controllers...\n");
+    terminal_writeString("Finding USB host controllers...\n");
 
     while(getNextUsbController(&addr, &dev))
     {
-        terminal_writestring("* Found ");
-        terminal_writestring(gHcVersionNames[dev.progInterface]);
-        terminal_writestring(" USB host controller.");
+        terminal_writeString("* Found ");
+        terminal_writeString(gHcVersionNames[dev.progInterface]);
+        terminal_writeString(" USB host controller.");
         addr.func++;
     }
 
@@ -38,9 +38,9 @@ __attribute__((section(".text.boot"))) void _start()
 
     uint32_t idtAddressAsNumber = (uint32_t)idt_get();
 
-    terminal_writehex((uint32_t)&idtDescriptor);
-    terminal_writestring(" == ");
-    terminal_writehex(idtAddressAsNumber);
+    terminal_writeHex((uint32_t)&idtDescriptor);
+    terminal_writeString(" == ");
+    terminal_writeHex(idtAddressAsNumber);
 
 	while(1);
 }

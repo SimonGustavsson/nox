@@ -14,18 +14,18 @@ size_t terminal_column;
 uint8_t terminal_color;
 uint16_t* terminal_buffer;
 
-uint8_t make_color(enum vga_color fg, enum vga_color bg)
+uint8_t terminal_createColor(VgaColor fg, VgaColor bg)
 {
 	return fg | bg << 4;
 }
- 
-uint16_t make_vgaentry(char c, uint8_t color)
+
+uint16_t vgaentry_create(char c, uint8_t color)
 {
 	uint16_t c16 = c;
 	uint16_t color16 = color;
 	return c16 | color16 << 8;
 }
- 
+
 size_t strlen(const char* str)
 {
 	size_t ret = 0;
@@ -33,35 +33,35 @@ size_t strlen(const char* str)
 		ret++;
 	return ret;
 }
- 
+
 void terminal_initialize()
 {
 	terminal_row = 0;
 	terminal_column = 0;
-	terminal_color = make_color(COLOR_LIGHT_GREY, COLOR_BLACK);
+	terminal_color = terminal_createColor(COLOR_LIGHT_GREY, COLOR_BLACK);
 	terminal_buffer = (uint16_t*) 0xB8000;
-/*	for ( size_t y = 0; y < VGA_HEIGHT; y++ )
+	for ( size_t y = 0; y < VGA_HEIGHT; y++ )
 	{
 		for ( size_t x = 0; x < VGA_WIDTH; x++ )
 		{
 			const size_t index = y * VGA_WIDTH + x;
-			terminal_buffer[index] = make_vgaentry(' ', terminal_color);
+			terminal_buffer[index] = vgaentry_create(' ', terminal_color);
 		}
-	} */
+	}
 }
 
-void terminal_setcolor(uint8_t color)
+void terminal_setColor(uint8_t color)
 {
 	terminal_color = color;
 }
- 
-void terminal_putentryat(char c, uint8_t color, size_t x, size_t y)
+
+void terminal_putEntryAt(char c, uint8_t color, size_t x, size_t y)
 {
 	const size_t index = y * VGA_WIDTH + x;
-	terminal_buffer[index] = make_vgaentry(c, color);
+	terminal_buffer[index] = vgaentry_create(c, color);
 }
- 
-void terminal_putchar(char c)
+
+void terminal_putChar(char c)
 {
 	if(c == '\n')
 	{
@@ -70,22 +70,22 @@ void terminal_putchar(char c)
 		return;
 	}
 
-	terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
-	if ( ++terminal_column == VGA_WIDTH )
+	terminal_putEntryAt(c, terminal_color, terminal_column, terminal_row);
+	if (++terminal_column == VGA_WIDTH)
 	{
 		terminal_column = 0;
-		if ( ++terminal_row == VGA_HEIGHT )
+		if (++terminal_row == VGA_HEIGHT)
 		{
 			terminal_row = 0;
 		}
 	}
 }
- 
-void terminal_writestring(const char* data)
+
+void terminal_writeString(const char* data)
 {
 	size_t datalen = strlen(data);
-	for ( size_t i = 0; i < datalen; i++ )
-		terminal_putchar(data[i]);
+	for (size_t i = 0; i < datalen; i++)
+		terminal_putChar(data[i]);
 }
 
 void itoa(int number, char* buf)
@@ -122,37 +122,33 @@ void itoa(int number, char* buf)
 		*--buf = '-';
 }
 
-void print_int(uint32_t val)
+void terminal_writeUint32(uint32_t val)
 {
 	char buf[9];
-	itoa(val,  buf);
-	terminal_writestring(buf);
+	itoa(val, buf);
+	terminal_writeString(buf);
 }
 
 uint8_t nybbleToAscii(uint8_t val)
 {
-    if (val < 0x0A) {
-        return '0' + val;
-    }
-    else {
-        return 'A' + (val - 10);
-    } 
+	if (val < 0x0A)
+		return '0' + val;
+	else
+		return 'A' + (val - 10);
 }
 
 void terminal_writeHexByte(uint8_t val)
 {
-    terminal_putchar(nybbleToAscii((val >> 4) & 0xF));
-    terminal_putchar(nybbleToAscii((val >> 0) & 0xF));
+	terminal_putChar(nybbleToAscii((val >> 4) & 0xF));
+	terminal_putChar(nybbleToAscii((val >> 0) & 0xF));
 }
 
-void terminal_writehex(uint32_t val)
+void terminal_writeHex(uint32_t val)
 {
-    terminal_putchar('0');
-    terminal_putchar('x');
-    terminal_writeHexByte((val >> 24) & 0xFF);
-    terminal_writeHexByte((val >> 16) & 0xFF);
-    terminal_writeHexByte((val >> 8) & 0xFF);    
-    terminal_writeHexByte((val >> 0) & 0xFF);
+	terminal_putChar('0');
+	terminal_putChar('x');
+	terminal_writeHexByte((val >> 24) & 0xFF);
+	terminal_writeHexByte((val >> 16) & 0xFF);
+	terminal_writeHexByte((val >> 8) & 0xFF);
+	terminal_writeHexByte((val >> 0) & 0xFF);
 }
-
-
