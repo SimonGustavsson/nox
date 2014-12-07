@@ -16,8 +16,8 @@ __attribute__((section(".text.boot"))) void _start()
     terminal_initialize();
     terminal_writestring("NOX is here, bow down puny mortal...\n");
 
-    PCI_DEVICE dev;
-    PCI_ADDRESS addr;
+    PciDevice dev;
+    PciAddress addr;
     addr.bus = 0;
     addr.device = 0;
     addr.func = 0;    
