@@ -1,7 +1,7 @@
 #include "uhci.h"
 #include "pio.h"
 
-int uhci_detect_root(uint16_t baseAddr, bool ioAddr)
+int32_t uhci_detectRoot(uint16_t baseAddr, bool ioAddr)
 {
 	if(!ioAddr)
 		return -1; // Not currently supported

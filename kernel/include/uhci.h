@@ -73,6 +73,6 @@
 
 #define wait(x) // x is MS
 
-int uhci_detect_root(uint16_t baseAddr, bool ioAddr);
+int uhci_detectRoot(uint16_t baseAddr, bool ioAddr);
 
 #endif
