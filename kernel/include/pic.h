@@ -85,27 +85,11 @@
 #define IRQ_0 0x20 // IRQ 0-7 mapped to 0x20-0x27
 #define IRQ_8 0x28 // IRQ 8-15 mapped to 0x28-0x36
 
-void pic_remapIrq(uint8_t base0, uint8_t base1);
-void pic_sendCommand(uint8_t pic, uint8_t cmd)
-{
-	if(pic > 1) return; // Only 2 PICs supported
-
-	outb(pic == 0 ? PIC1_CTRL : PIC2_CTRL, cmd);
-}
-
-void pic_sendData(uint8_t pic, uint8_t data)
-{
-	if(pic > 1) return; // Only 2 PICs supported
-
-	outb(pic == 0 ? PIC1_DATA : PIC2_DATA, data);
-}
-
-uint8_t pic_readData(uint8_t pic)
-{
-	if(pic > 1) return 0; // Only supports 2 PICs
-
-	return inb(pic == 0 ? PIC1_DATA : PIC2_DATA);
-}
+void pic_initialize(uint8_t base0, uint8_t base1);
+void pic_sendEOI(uint8_t irq);
+void pic_sendCommand(uint8_t pic, uint8_t cmd);
+void pic_sendData(uint8_t pic, uint8_t data);
+uint8_t pic_readData(uint8_t pic);
 
 /*  Addr   IRQ      Desc
 	0x000	0		Divide by 0
