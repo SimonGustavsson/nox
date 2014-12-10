@@ -29,8 +29,8 @@ void idt_installHandler(uint8_t irq, uint32_t handler, GateType type, uint8_t pr
 	IdtEntry* entry = &idts[irq];
 	entry->offsetLow = (uint16_t)(handler & 0xFFFF);
 	entry->offsetHigh = (uint16_t)((handler >> 16) & 0xFFFF);
-    entry->selector = (privLevel & 0x3) | 0 /* TI */ | 0x08 << 3;
-	entry->typeAttr.bits.present = 1;
+    entry->selector = 0x08;
+    entry->typeAttr.bits.present = 1;
 	entry->typeAttr.bits.privLevel = privLevel;
 	entry->typeAttr.bits.segment = 0;
 	entry->typeAttr.bits.type = type;

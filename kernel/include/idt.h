@@ -29,11 +29,11 @@ typedef union {
 } IdtTypeAttr;
 
 typedef struct PACKED {
-	uint16_t       offsetHigh;  // 31:16 of offset
-	IdtTypeAttr    typeAttr;
-	uint8_t        zero;
-	uint16_t       selector;   // Code segment selector in GDT/LDT
 	uint16_t       offsetLow; // 15:0 of offset
+	uint16_t       selector;   // Code segment selector in GDT/LDT
+	uint8_t        zero;
+	IdtTypeAttr    typeAttr;
+	uint16_t       offsetHigh;  // 31:16 of offset
 } IdtEntry;
 
 Idtd idt_get();
