@@ -3,16 +3,20 @@ MODULE := $(dir $(lastword $(MAKEFILE_LIST)))
 
 # Calculate directories to get sources from, and our object directory
 CSOURCE_DIR := $(MODULE)source
+ASOURCE_DIR := $(MODULE)source
 OBJ_DIR := $(MODULE)obj
 INCLUDE_DIR := $(MODULE)include
 DEP_DIR := $(MODULE)deps
 
 # Find all candidates for compiling
+ASOURCE := $(shell find $(ASOURCE_DIR) -name '*.asm')
 CSOURCE := $(shell find $(CSOURCE_DIR) -name '*.c')
 
 # Construct a list of all object files
 COBJECTS := $(CSOURCE:.c=.o)
 COBJECTS := $(subst $(CSOURCE_DIR), $(OBJ_DIR), $(COBJECTS))
+AOBJECTS := $(ASOURCE:.asm=.o)
+AOBJECTS := $(subst $(ASOURCE_DIR), $(OBJ_DIR), $(AOBJECTS))
 
 #
 # Compiler options
@@ -42,7 +46,7 @@ $(BUILD)/KERNEL.BIN: $(OBJ_DIR)/kernel.elf
 	@$(TOOL)-objcopy $^ -O binary $@
 
 # Note: Build into root build directory
-$(OBJ_DIR)/kernel.elf: kernel_directories $(COBJECTS)
+$(OBJ_DIR)/kernel.elf: kernel_directories $(COBJECTS) $(AOBJECTS)
 
 	@echo "LD $^"
 
@@ -55,6 +59,14 @@ $(OBJ_DIR)/%.o : $(CSOURCE_DIR)/%.c
 	@echo "CC $<"
 
 	@$(TOOL)-gcc $< -o $@ $(CINCLUDE) $(CFLAGS) -MD -MF $(DEP_DIR)/$*.d 
+
+$(OBJ_DIR)/%.o : $(ASOURCE_DIR)/%.asm
+
+	@mkdir -p $(dir $@)
+
+	@echo "AS $<"
+
+	nasm $< -o $@ -f elf32 -i $(INCLUDE_DIR)
 
 kernel_directories:
 	@mkdir -p $(DEP_DIR)
