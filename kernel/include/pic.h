@@ -85,7 +85,7 @@
 #define IRQ_0 0x20 // IRQ 0-7 mapped to 0x20-0x27
 #define IRQ_8 0x28 // IRQ 8-15 mapped to 0x28-0x36
 
-void pic_initialize(uint8_t base0, uint8_t base1);
+void pic_initialize();
 void pic_sendEOI(uint8_t irq);
 void pic_sendCommand(uint8_t pic, uint8_t cmd);
 void pic_sendData(uint8_t pic, uint8_t data);

@@ -1,3 +1,4 @@
+extern isr_sysCall
 
 ; Sys call (0x80)
 global isr_sysCallWrapper
@@ -7,7 +8,11 @@ isr_sysCallWrapper:
 
 	xchg bx, bx ; Bochs breakpoint
 
-	call isr_sysCallWrapper
+	call isr_sysCall
 
 	popad
 	iret
+
+; NASM Syntax
+; vim: ft=nasm expandtab
+

@@ -1,6 +1,9 @@
 #include "terminal.h"
 #include "pci.h"
+#include "pic.h"
 #include "idt.h"
+
+extern void isr_sysCallWrapper();
 
 const char* gHcVersionNames[4] = {"UHCI", "OHCI", "EHCI", "xHCI"};
 
@@ -16,31 +19,22 @@ __attribute__((section(".text.boot"))) void _start()
     terminal_initialize();
     terminal_writeString("NOX is here, bow down puny mortal...\n");
 
-    PciDevice dev;
-    PciAddress addr;
-    addr.bus = 0;
-    addr.device = 0;
-    addr.func = 0;    
-
-    terminal_writeString("Finding USB host controllers...\n");
-
-    while(getNextUsbController(&addr, &dev))
-    {
-        terminal_writeString("* Found ");
-        terminal_writeString(gHcVersionNames[dev.progInterface]);
-        terminal_writeString(" USB host controller.");
-        addr.func++;
-    }
 
     idtDescriptor.limit = sizeof(idtEntries) - 1;
     idtDescriptor.base = (uint32_t)&idtEntries;
     idt_install(&idtDescriptor);
 
-    uint32_t idtAddressAsNumber = (uint32_t)idt_get();
+    // __asm("xchg %bx, %bx");
+    idt_installHandler(0x80, (uint32_t)isr_sysCallWrapper, GateType_Trap32, 0); 
+    
+    pic_initialize();
 
-    terminal_writeHex((uint32_t)&idtDescriptor);
-    terminal_writeString(" == ");
-    terminal_writeHex(idtAddressAsNumber);
+    __asm("int $0x80");
 
-	while(1);
+    while(1);
+}
+
+void isr_sysCall()
+{
+    terminal_writeString("0x80 Sys Call");
 }

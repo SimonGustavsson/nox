@@ -30,7 +30,7 @@ void pic_sendEOI(uint8_t irq)
 	pic_sendCommand(0, PIC_OCW2_MASK_EOI);
 }
 
-void pic_initialize(uint8_t base0, uint8_t base1)
+void pic_initialize_inner(uint8_t base0, uint8_t base1)
 {
 	// Normally reading the data register returns the IMR register.
 	// Save it before we start sending data so that we can restore it once
@@ -62,3 +62,9 @@ void pic_initialize(uint8_t base0, uint8_t base1)
 	pic_sendData(0, pic0Data);
 	pic_sendData(0, pic1Data);
 }
+
+void pic_initialize()
+{
+    pic_initialize_inner(IRQ_0, IRQ_8);
+}
+
