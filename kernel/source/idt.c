@@ -35,7 +35,7 @@ void idt_installHandler(uint8_t irq, uint32_t handler, GateType type, uint8_t pr
 	entry->typeAttr.bits.segment = 0;
 	entry->typeAttr.bits.type = type;
 
-     __asm("xchg %bx, %bx");
+//     __asm("xchg %bx, %bx");
 }
 
 void idt_removeHandler(uint8_t irq)

@@ -6,8 +6,9 @@ align 4
 isr_sysCallWrapper:
 	pushad
 
-	xchg bx, bx ; Bochs breakpoint
+    xchg bx, bx ; Bochs breakpoint
 
+    push eax
 	call isr_sysCall
 
 	popad

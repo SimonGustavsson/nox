@@ -11,6 +11,15 @@ Idtd idtDescriptor = {};
 
 IdtEntry idtEntries[256] = {};
 
+void callTestSysCall(uint32_t foo)
+{
+    __asm("mov %0, %%eax" 
+            : 
+            : "r"(foo)
+            : "eax");
+    __asm("int $0x80");
+}
+
 __attribute__((section(".text.boot"))) void _start()
 {
     // This is how to break in Bochs
@@ -29,12 +38,16 @@ __attribute__((section(".text.boot"))) void _start()
     
     pic_initialize();
 
-    __asm("int $0x80");
+    callTestSysCall(0x1234);
 
+    terminal_writeString("\nKernel done, halting!\n");
     while(1);
 }
 
-void isr_sysCall()
+void isr_sysCall(uint32_t foo)
 {
-    terminal_writeString("0x80 Sys Call");
+    terminal_writeString("0x80 Sys Call, foo: ");
+    terminal_writeHex(foo);
+    terminal_writeString("\n");
+
 }
