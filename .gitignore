@@ -42,3 +42,6 @@ obj/
 
 # C Dependency files
 *.d
+
+# Tags
+tags

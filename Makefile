@@ -12,13 +12,13 @@ MODULES := kernel bootloader
 IMAGE_ASSETS :=
 CLEAN_DIRS := $(BUILD)
 
-nox: directories $(BUILD)/nox-disk.img
+nox: directories tags $(BUILD)/nox-disk.img
 
 include $(patsubst %, %/make.mk, $(MODULES))
 
 $(BUILD)/nox-disk.img: $(BUILD)/nox-fs.img
 	@echo "FDISK $<"
-	
+
 # Empty file for the disk image
 	@dd if=/dev/zero of=$@ count=$(DISK_SECTOR_COUNT) > /dev/null 2>&1
 
@@ -50,6 +50,11 @@ $(BUILD)/nox-fs.img: $(IMAGE_ASSETS)
 
 directories:
 	@mkdir -p $(BUILD)
+
+TAG_FILES := $(shell find . '(' -name *.c -o -name *.h -o -name *.asm ')')
+
+tags: $(TAG_FILES)
+	@ctags $^
 
 run:
 	@bochs -rc bochs_run_on_launch.rc -q
