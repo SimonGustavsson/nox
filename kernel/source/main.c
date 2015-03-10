@@ -2,8 +2,11 @@
 #include "pci.h"
 #include "pic.h"
 #include "idt.h"
+#include "pit.h"
+#include "pio.h"
 
 extern void isr_sysCallWrapper();
+extern void isr_timerWrapper();
 
 const char* gHcVersionNames[4] = {"UHCI", "OHCI", "EHCI", "xHCI"};
 
@@ -35,10 +38,20 @@ __attribute__((section(".text.boot"))) void _start()
 
     // __asm("xchg %bx, %bx");
     idt_installHandler(0x80, (uint32_t)isr_sysCallWrapper, GateType_Trap32, 0); 
-    
+    idt_installHandler(IRQ_0, (uint32_t)isr_timerWrapper, GateType_Interrupt32, 0);
+
+    // Enable keyboard interrupts
+    outb(0x21, 0xFD);
+    outb(0xA1, 0xFF);
+
     pic_initialize();
 
-    callTestSysCall(0x1234);
+    //callTestSysCall(0x1234);
+
+    terminal_writeString("Setting up PIT to fire at some point\n");
+    idt_installHandler(0x80, (uint32_t)isr_sysCallWrapper, GateType_Trap32, 0); 
+
+    PIT_Set(1000);
 
     terminal_writeString("\nKernel done, halting!\n");
     while(1);

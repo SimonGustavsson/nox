@@ -314,7 +314,8 @@ kernelFound:
         mov fs, edx
         mov gs, edx
         mov ss, edx
-
+        
+        sti ; Now we care about the interrupts!
         ; Jump to the kernel
         jmp 0x08:0x7c00
 

@@ -55,7 +55,7 @@ void pic_initialize_inner(uint8_t base0, uint8_t base1)
 	pic_sendData(0, PIC_ICW4_UPM_86MODE);
 	pic_sendData(1, PIC_ICW4_UPM_86MODE);
 
-	pic_sendData(0, ~(1<<2));         /* Mask all interrupts but IRQ2 */
+	pic_sendData(0, 0);         /* Mask all interrupts but IRQ2 */
 	pic_sendData(1, 0xFF); 
 
 	// Restore saved data values
