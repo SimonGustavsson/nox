@@ -22,22 +22,67 @@ uint8_t pic_readData(uint8_t pic)
 	return inb(pic == 0 ? PIC1_DATA : PIC2_DATA);
 }
 
+void pic_sendEOI_toPic(uint8_t whichPic)
+{
+		pic_sendCommand(whichPic, PIC_OCW2_MASK_EOI);
+
+    // If resetting the slave PIC, we need to
+    // do the master too
+    if (whichPic == 1) {
+      pic_sendCommand(0, PIC_OCW2_MASK_EOI);
+    }
+}
+
 void pic_sendEOI(uint8_t irq)
 {
-	if(irq >= 8)
-		pic_sendCommand(1, PIC_OCW2_MASK_EOI);
+	if(irq >= 8) {
+		pic_sendEOI_toPic(1);
+  }
+  else {
+		pic_sendEOI_toPic(0);
+  }
+}
 
-	pic_sendCommand(0, PIC_OCW2_MASK_EOI);
+void pic_enableIRQ_onPic(uint8_t whichPic, uint8_t irqBitIndex) {
+  uint8_t originalValue = pic_readData(whichPic);
+  uint8_t newValue = originalValue & ~(1 << irqBitIndex);
+  pic_sendData(whichPic, newValue);
+}
+
+void pic_enableIRQ(uint8_t irq) {
+	if(irq >= 8) {
+
+    // IRQ8 is the zeroeth bit on the slave
+    // PIC
+    pic_enableIRQ_onPic(1, irq - 8);
+
+  }
+  else {
+    pic_enableIRQ_onPic(0, irq);
+  }
+}
+
+void pic_disableIRQ_onPic(uint8_t whichPic, uint8_t irqBitIndex) {
+  uint8_t originalValue = pic_readData(whichPic);
+  uint8_t newValue = originalValue | (1 << irqBitIndex);
+  pic_sendData(whichPic, newValue);
+}
+
+void pic_disableIRQ(uint8_t irq) {
+	if(irq >= 8) {
+
+    // IRQ8 is the zeroeth bit on the slave
+    // PIC
+    pic_disableIRQ_onPic(1, irq - 8);
+
+  }
+  else {
+    pic_disableIRQ_onPic(0, irq);
+  }
 }
 
 void pic_initialize_inner(uint8_t base0, uint8_t base1)
 {
-	// Normally reading the data register returns the IMR register.
-	// Save it before we start sending data so that we can restore it once
-	// the initialization is complete
-	uint8_t pic0Data = pic_readData(0);
-	uint8_t pic1Data = pic_readData(1);
-
 	// Send ICW1 - To start initialization sequence in cascade mode which
 	//             causes the PIC to wait for 3 init words on the data channel
 	pic_sendCommand(0, PIC_ICW1_MASK_INIT + PIC_ICW1_IC4_EXPECT);
@@ -55,12 +100,10 @@ void pic_initialize_inner(uint8_t base0, uint8_t base1)
 	pic_sendData(0, PIC_ICW4_UPM_86MODE);
 	pic_sendData(1, PIC_ICW4_UPM_86MODE);
 
-	pic_sendData(0, 0);         /* Mask all interrupts but IRQ2 */
-	pic_sendData(1, 0xFF); 
-
-	// Restore saved data values
-	pic_sendData(0, pic0Data);
-	pic_sendData(0, pic1Data);
+  // Disable all interrupts by default, except for IRQ2 which
+  // is used by the slave to send IRQs via the master
+	pic_sendData(0, 0xFF & ~(1 << PIC_IRQ_SLAVE));
+	pic_sendData(1, 0xFF);
 }
 
 void pic_initialize()

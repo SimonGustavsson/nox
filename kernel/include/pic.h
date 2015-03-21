@@ -4,6 +4,7 @@
 // Handled by PIC1
 #define PIC_IRQ_TIMER     0
 #define PIC_IRQ_KEYBOARD  1
+#define PIC_IRQ_SLAVE     2
 #define PIC_IRQ_SERIAL2   3
 #define PIC_IRQ_SERIAL1   4
 #define PIC_IRQ_PARALLEL2 5
@@ -56,7 +57,7 @@
 
 // ICW4
 #define PIC_ICW4_MASK_UPM  0x1  // 00000001b - Mode
-#define PIC_ICW4_MASK_AEOI 0x2  // 00000010b - Automatic EOI 
+#define PIC_ICW4_MASK_AEOI 0x2  // 00000010b - Automatic EOI
 #define PIC_ICW4_MASK_MS   0x4  // 00000100b - Buffer Type
 #define PIC_ICW4_MASK_BUF  0x8  // 00001000b - Buffered Mode
 #define PIC_ICW4_MASK_SFNM 0x10 // 00010000b - Special fully-nested mode
@@ -64,7 +65,7 @@
 #define PIC_ICW4_UPM_86MODE          1 // 1b
 #define PIC_ICW4_UPM_MMCSMODE        0
 #define PIC_ICW4_AEOI_AUTOEOI        2 // 10b
-#define PIC_ICW4_AEOI_NOAUTOEOI      0 
+#define PIC_ICW4_AEOI_NOAUTOEOI      0
 #define PIC_ICW4_MS_BUFFEREDMASTER   4 // 100b
 #define PIC_ICW4_MS_BUFFERSLAVE      0
 #define PIC_ICW4_BUF_MODEYES         8 // 1000b
@@ -82,13 +83,17 @@
 #define PIC2_DATA   0xA1 // Write-Only
 #define PIC2_IMR    0xA1 // Read-Only
 
-#define IRQ_0 0x20 // IRQ 0-7 mapped to 0x20-0x27
-#define IRQ_8 0x28 // IRQ 8-15 mapped to 0x28-0x36
+#define IRQ_0 0x20                // IRQ 0-7 mapped to 0x20-0x27 - this is the PIT
+#define IRQ_1 (IRQ_0 + 1)         // This is the Keyboard
+#define IRQ_8 0x28                // IRQ 8-15 mapped to 0x28-0x36
 
 void pic_initialize();
 void pic_sendEOI(uint8_t irq);
+void pic_sendEOI_toPic(uint8_t whichPic);
 void pic_sendCommand(uint8_t pic, uint8_t cmd);
 void pic_sendData(uint8_t pic, uint8_t data);
+void pic_disableIRQ(uint8_t irq);
+void pic_enableIRQ(uint8_t irq);
 uint8_t pic_readData(uint8_t pic);
 
 /*  Addr   IRQ      Desc

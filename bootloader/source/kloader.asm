@@ -50,7 +50,7 @@ gdtDescriptor:
 .end:
 
 ; Relocate
-start: 
+start:
 mov cx, kloaderEnd
 xor ax, ax
 mov es, ax
@@ -60,7 +60,7 @@ mov di, 0x600
 rep movsb
 
 ; Far Jump to Relocated Code
-jmp 0:loader 
+jmp 0:loader
 
 version  dw 0x0001
 kernel_name db "KERNEL  BIN" ; DO NOT EDIT, 11 chars
@@ -91,14 +91,14 @@ print:
 .print_done:
     ret
 
-loader: 
- 	
+loader:
+
  	; Setup stack pointer
  	mov esp, KERNEL_STACK_START
 
 .printPre:
     xor ax, ax                      ; DS:SI is the address of the message, clear ES
-    mov es, ax  
+    mov es, ax
     mov si, msg_pre
     call print
 
@@ -236,16 +236,16 @@ kernelFound:
     xor eax, eax
     mov ecx, eax
     mov ax, [LOADED_VBR+bpb.dirEntryCount]
-    
+
     mov cl, 32
-    mul ecx 
+    mul ecx
     mov ecx, 512
     div ecx
 
     add eax, [variables.rootDirectoryStart]
     mov [variables.dataRegionStart], eax
 
-; FILE LBA = DATA Region + 
+; FILE LBA = DATA Region +
 ;            ({CLUSTER_NUMBER} * SECTORS_PER_CLUSTER);
 
     xor eax, eax
@@ -260,27 +260,27 @@ kernelFound:
     ; eax = relative lba
     ; result = file absolute lba
     add eax, [variables.dataRegionStart]
-    
+
     ; EAX Now contains the LBA of KERNEL.BIN
     mov word [readPacketNumBlocks], 16 ; TODO: Sectors per cluster here
     mov [readPacketLBA], eax
 
     ; Read kernel to a familiar place
     mov dword [readPacketBuffer], 0x7c00
-    
+
     ; Get the BIOS to read the sectors
     mov si, readPacket
     mov ah, 0x42
     mov dl, 0x80
     int 0x13
 
-    ; Before we switch into protected mode, 
-    ; we want to make sure that we've got the 
+    ; Before we switch into protected mode,
+    ; we want to make sure that we've got the
     ; right video mode
     mov ah, 0x00        ; set video mode
     mov al, 0x03        ; vga 80x25, 16 colours
     int 0x10
-    
+
     ;
     ; Kernel is now loaded to 0x7C00
     ;
@@ -314,8 +314,10 @@ kernelFound:
         mov fs, edx
         mov gs, edx
         mov ss, edx
-        
-        sti ; Now we care about the interrupts!
+
+        ; NOTE: We leave interrupts disabled - the Kernel can
+        ; re-enable them when it thinks it is ready for them
+
         ; Jump to the kernel
         jmp 0x08:0x7c00
 
@@ -331,7 +333,7 @@ enableA20:
 
 	.fail:
 	    xor ax, ax                      ; DS:SI is the address of the message, clear ES
-    	mov es, ax  
+    	mov es, ax
     	mov si, msg_a20_interrupt_failed
     	call print
 		jmp halt
