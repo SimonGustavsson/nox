@@ -87,14 +87,14 @@
 #define IRQ_1 (IRQ_0 + 1)         // This is the Keyboard
 #define IRQ_8 0x28                // IRQ 8-15 mapped to 0x28-0x36
 
-void pic_initialize();
-void pic_sendEOI(uint8_t irq);
-void pic_sendEOI_toPic(uint8_t whichPic);
-void pic_sendCommand(uint8_t pic, uint8_t cmd);
-void pic_sendData(uint8_t pic, uint8_t data);
-void pic_disableIRQ(uint8_t irq);
-void pic_enableIRQ(uint8_t irq);
-uint8_t pic_readData(uint8_t pic);
+void pic_init();
+void pic_send_eoi(uint8_t irq);
+void pic_send_eoi_to_pic(uint8_t which_pic);
+void pic_send_command(uint8_t pic, uint8_t cmd);
+void pic_send_data(uint8_t pic, uint8_t data);
+void pic_disable_irq(uint8_t irq);
+void pic_enable_irq(uint8_t irq);
+uint8_t pic_read_data(uint8_t pic);
 
 /*  Addr   IRQ      Desc
 	0x000	0		Divide by 0

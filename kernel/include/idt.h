@@ -5,17 +5,17 @@
 
 // Gate Types for 3:0 of typeAttr in idt_entry_t
 typedef enum {
-	GateType_Task32      = 0x5,
-	GateType_Interrupt16 = 0x6,
-	GateType_Trap16      = 0x7,
-	GateType_Interrupt32 = 0xE,
-	GateType_Trap32      = 0xF	
-} GateType;
+	gate_type_task32      = 0x5,
+	gate_type_interrupt16 = 0x6,
+	gate_type_trap16      = 0x7,
+	gate_type_interrupt32 = 0xE,
+    gate_type_trap32      = 0xF	
+} gate_type;
 
 typedef struct PACKED {
 	uint16_t limit; // Length of IDT in bytes - 1
 	uint32_t base; // Linear start address
-} Idtd;
+} idt_descriptor;
 
 typedef union {
 	uint8_t raw;
@@ -26,19 +26,19 @@ typedef union {
 	    uint8_t        privLevel: 2; // Gate call protection (minimum caller level)
 	    uint8_t        present:   1; // 0 for unused interrupts
 	} bits;
-} IdtTypeAttr;
+} idt_type_attribute;
 
 typedef struct PACKED {
-	uint16_t       offsetLow; // 15:0 of offset
-	uint16_t       selector;   // Code segment selector in GDT/LDT
-	uint8_t        zero;
-	IdtTypeAttr    typeAttr;
-	uint16_t       offsetHigh;  // 31:16 of offset
-} IdtEntry;
+	uint16_t              offsetLow; // 15:0 of offset
+	uint16_t              selector;   // Code segment selector in GDT/LDT
+	uint8_t               zero;
+	idt_type_attribute    typeAttr;
+	uint16_t              offsetHigh;  // 31:16 of offset
+} idt_entry;
 
-Idtd idt_get();
-void idt_install(Idtd* idt);
+idt_descriptor idt_get();
+void idt_install(idt_descriptor* idt);
 void idt_remove();
-void idt_installHandler(uint8_t irq, uint32_t handler, GateType type, uint8_t privLevel);
-void idt_enableHandler(uint8_t irq);
-void idt_disableHandler(uint8_t irq);
+void idt_install_handler(uint8_t irq, uint32_t handler, gate_type type, uint8_t priv_level);
+void idt_enable_handler(uint8_t irq);
+void idt_disable_handler(uint8_t irq);

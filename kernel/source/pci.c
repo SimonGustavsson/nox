@@ -18,9 +18,9 @@ uint32_t pci_read(uint8_t bus, uint8_t dev, uint8_t func, uint8_t port, uint8_t 
 		(func << 8) |
 		(port & 0xFC);
 
-	outd(PCI_ADDR, val);
+	OUTD(PCI_ADDR, val);
 
-	ret = ind(PCI_DATA + (port & 0x3));
+	ret = IND(PCI_DATA + (port & 0x3));
 
 	ret &= (0xFFFFFFFF >> ((4-len) * 8));
 
@@ -36,10 +36,10 @@ void pci_write(uint8_t bus, uint8_t dev, uint8_t func, uint8_t port, uint8_t len
 		(func << 8) |
 		(port & 0xFC);
 
-	outd(PCI_ADDR, val);
+	OUTD(PCI_ADDR, val);
 
 	// get current value
-	val = ind(PCI_DATA+(port & 0x3));
+	val = IND(PCI_DATA+(port & 0x3));
 	
 	// mask out new section
 	if (len != 4)
@@ -49,11 +49,11 @@ void pci_write(uint8_t bus, uint8_t dev, uint8_t func, uint8_t port, uint8_t len
 
 	val |= value;
 
-	outd(PCI_DATA + (port & 0x3), val);
+	OUTD(PCI_DATA + (port & 0x3), val);
 }
 
 // addr is the adress to start scanning at, and will be the address when the function returns
-bool getNextUsbController(PciAddress* addr, PciDevice* resDevice)
+bool pci_get_next_usbhc(pci_address* addr, pci_device* resDevice)
 {
 	uint32_t* resDevicePtr = (uint32_t*)(resDevice);
 
@@ -73,7 +73,7 @@ bool getNextUsbController(PciAddress* addr, PciDevice* resDevice)
 				for (uint32_t i = 0; i < 64; i++)
 					resDevicePtr[i] = pci_read(addr->bus, addr->device, addr->func, (i << 2), sizeof(uint32_t));
 
-				if(resDevice->devClass != USB_CLASS_CODE || resDevice->devSubClass != USB_SUBCLASS_CODE)
+				if(resDevice->devClass != USB_CLASS_CODE || resDevice->dev_sub_class != USB_SUBCLASS_CODE)
 					continue; // Not a usb device
 
 				// We found a usb device!

@@ -2,82 +2,82 @@
 #include "stdint.h"
 #include "pic.h"
 
-void pic_sendCommand(uint8_t pic, uint8_t cmd)
+void pic_send_command(uint8_t pic, uint8_t cmd)
 {
 	if(pic > 1) return; // Only 2 PICs supported
-	outb(pic == 0 ? PIC1_CTRL : PIC2_CTRL, cmd);
+	OUTB(pic == 0 ? PIC1_CTRL : PIC2_CTRL, cmd);
 }
 
-void pic_sendData(uint8_t pic, uint8_t data)
+void pic_send_data(uint8_t pic, uint8_t data)
 {
 	if(pic > 1) return; // Only 2 PICs supported
 
-	outb(pic == 0 ? PIC1_DATA : PIC2_DATA, data);
+	OUTB(pic == 0 ? PIC1_DATA : PIC2_DATA, data);
 }
 
-uint8_t pic_readData(uint8_t pic)
+uint8_t pic_read_data(uint8_t pic)
 {
 	if(pic > 1) return 0; // Only supports 2 PICs
 
-	return inb(pic == 0 ? PIC1_DATA : PIC2_DATA);
+	return INB(pic == 0 ? PIC1_DATA : PIC2_DATA);
 }
 
-void pic_sendEOI_toPic(uint8_t whichPic)
+void pic_send_eoi_to_pic(uint8_t whichPic)
 {
-		pic_sendCommand(whichPic, PIC_OCW2_MASK_EOI);
+    pic_send_command(whichPic, PIC_OCW2_MASK_EOI);
 
     // If resetting the slave PIC, we need to
     // do the master too
     if (whichPic == 1) {
-      pic_sendCommand(0, PIC_OCW2_MASK_EOI);
+      pic_send_command(0, PIC_OCW2_MASK_EOI);
     }
 }
 
-void pic_sendEOI(uint8_t irq)
+void pic_send_eoi(uint8_t irq)
 {
 	if(irq >= 8) {
-		pic_sendEOI_toPic(1);
+		pic_send_eoi_to_pic(1);
   }
   else {
-		pic_sendEOI_toPic(0);
+		pic_send_eoi_to_pic(0);
   }
 }
 
-void pic_enableIRQ_onPic(uint8_t whichPic, uint8_t irqBitIndex) {
-  uint8_t originalValue = pic_readData(whichPic);
+void pic_enable_irq_on_pic(uint8_t whichPic, uint8_t irqBitIndex) {
+  uint8_t originalValue = pic_read_data(whichPic);
   uint8_t newValue = originalValue & ~(1 << irqBitIndex);
-  pic_sendData(whichPic, newValue);
+  pic_send_data(whichPic, newValue);
 }
 
-void pic_enableIRQ(uint8_t irq) {
+void pic_enable_irq(uint8_t irq) {
 	if(irq >= 8) {
 
     // IRQ8 is the zeroeth bit on the slave
     // PIC
-    pic_enableIRQ_onPic(1, irq - 8);
+    pic_enable_irq_on_pic(1, irq - 8);
 
   }
   else {
-    pic_enableIRQ_onPic(0, irq);
+    pic_enable_irq_on_pic(0, irq);
   }
 }
 
-void pic_disableIRQ_onPic(uint8_t whichPic, uint8_t irqBitIndex) {
-  uint8_t originalValue = pic_readData(whichPic);
+void pic_disable_irq_on_pic(uint8_t whichPic, uint8_t irqBitIndex) {
+  uint8_t originalValue = pic_read_data(whichPic);
   uint8_t newValue = originalValue | (1 << irqBitIndex);
-  pic_sendData(whichPic, newValue);
+  pic_send_data(whichPic, newValue);
 }
 
-void pic_disableIRQ(uint8_t irq) {
+void pic_disable_irq(uint8_t irq) {
 	if(irq >= 8) {
 
     // IRQ8 is the zeroeth bit on the slave
     // PIC
-    pic_disableIRQ_onPic(1, irq - 8);
+    pic_disable_irq_on_pic(1, irq - 8);
 
   }
   else {
-    pic_disableIRQ_onPic(0, irq);
+    pic_disable_irq_on_pic(0, irq);
   }
 }
 

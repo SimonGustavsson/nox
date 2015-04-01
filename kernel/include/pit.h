@@ -1,1 +1,1 @@
-void PIT_Set(uint16_t frequencyDivisor);
+void pit_set(uint16_t frequency_divisor);
