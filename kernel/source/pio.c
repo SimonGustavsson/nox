@@ -3,7 +3,7 @@
 #include "pio.h" 
 
 // in port double (32-bit) __inline__ 
-uint32_t ind(uint16_t port) 
+uint32_t IND(uint16_t port) 
 {
     uint32_t rv;
     __asm__ __volatile__ ("inl %1, %0"
@@ -12,7 +12,7 @@ uint32_t ind(uint16_t port)
     return rv;
 }
 
-uint16_t inw(uint16_t port)
+uint16_t INW(uint16_t port)
 {
     uint16_t rv;
     __asm__ __volatile__ ("in %1, %0"
@@ -22,7 +22,7 @@ uint16_t inw(uint16_t port)
     return rv;
 }
 
-uint8_t inb(uint16_t port)
+uint8_t INB(uint16_t port)
 {
     uint8_t rv;
     __asm__ __volatile__ ("in %1, %0"
@@ -32,14 +32,14 @@ uint8_t inb(uint16_t port)
     return rv;
 }
 
-void outd(uint16_t port, uint32_t data) {
+void OUTD(uint16_t port, uint32_t data) {
     __asm__ __volatile__ ("outl %1, %0"
             :
             : "dN" (port),
             "a" (data));
 }
 
-void outw(uint16_t port, uint16_t data)
+void OUTW(uint16_t port, uint16_t data)
 {
     __asm__ __volatile__ ("out %1, %0"
             :
@@ -47,7 +47,7 @@ void outw(uint16_t port, uint16_t data)
             "a" (data));
 }
 
-void outb(uint16_t port, uint8_t data)
+void OUTB(uint16_t port, uint8_t data)
 {
     __asm__ __volatile__ ("out %1, %0"
             :

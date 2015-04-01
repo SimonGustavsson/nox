@@ -7,10 +7,10 @@
 
 #define SECTION_BOOT __attribute__((section(".text.boot"))) 
 
-extern void isr_sysCallWrapper();
-extern void isr_timerWrapper();
-extern void isr_keyboardWrapper();
-extern void isr_unknownWrapper();
+extern void isr_sys_call_wrapper();
+extern void isr_timer_wrapper();
+extern void isr_keyboard_wrapper();
+extern void isr_unknown_wrapper();
 
 const char* gHcVersionNames[4] = {"UHCI", "OHCI", "EHCI", "xHCI"};
 
@@ -40,12 +40,12 @@ SECTION_BOOT void _start()
     idt_install(&idtDescriptor);
 
     for (int handlerIndex = 0x20; handlerIndex <= 0xFF; handlerIndex++) {
-      idt_install_handler(handlerIndex, (uint32_t)isr_unknownWrapper, gate_type_interrupt32, 0);
+      idt_install_handler(handlerIndex, (uint32_t)isr_unknown_wrapper, gate_type_interrupt32, 0);
     }
 
-    idt_install_handler(0x80, (uint32_t)isr_sysCallWrapper, gate_type_trap32, 0);
-    idt_install_handler(IRQ_0, (uint32_t)isr_timerWrapper, gate_type_interrupt32, 0);
-    idt_install_handler(IRQ_1, (uint32_t)isr_keyboardWrapper, gate_type_interrupt32, 0);
+    idt_install_handler(0x80, (uint32_t)isr_sys_call_wrapper, gate_type_trap32, 0);
+    idt_install_handler(IRQ_0, (uint32_t)isr_timer_wrapper, gate_type_interrupt32, 0);
+    idt_install_handler(IRQ_1, (uint32_t)isr_keyboard_wrapper, gate_type_interrupt32, 0);
 
     // Remap the interrupts fired by the PICs
     pic_init();

@@ -85,28 +85,28 @@ void pic_initialize_inner(uint8_t base0, uint8_t base1)
 {
 	// Send ICW1 - To start initialization sequence in cascade mode which
 	//             causes the PIC to wait for 3 init words on the data channel
-	pic_sendCommand(0, PIC_ICW1_MASK_INIT + PIC_ICW1_IC4_EXPECT);
-	pic_sendCommand(1, PIC_ICW1_MASK_INIT + PIC_ICW1_IC4_EXPECT);
+	pic_send_command(0, PIC_ICW1_MASK_INIT + PIC_ICW1_IC4_EXPECT);
+	pic_send_command(1, PIC_ICW1_MASK_INIT + PIC_ICW1_IC4_EXPECT);
 
 	// Init word 1: Set base addr of IRQs
-	pic_sendData(0, base0);
-	pic_sendData(1, base1);
+	pic_send_data(0, base0);
+	pic_send_data(1, base1);
 
 	// Init word 2: Tell the PIC that there's a slave PIC at IRQ2
-	pic_sendData(0, 0x4);
-	pic_sendData(1, 0x2); // Tell the slave it's cascade identity (decimal)
+	pic_send_data(0, 0x4);
+	pic_send_data(1, 0x2); // Tell the slave it's cascade identity (decimal)
 
 	// Init word3: Enable i86 Mode
-	pic_sendData(0, PIC_ICW4_UPM_86MODE);
-	pic_sendData(1, PIC_ICW4_UPM_86MODE);
+	pic_send_data(0, PIC_ICW4_UPM_86MODE);
+	pic_send_data(1, PIC_ICW4_UPM_86MODE);
 
   // Disable all interrupts by default, except for IRQ2 which
   // is used by the slave to send IRQs via the master
-	pic_sendData(0, 0xFF & ~(1 << PIC_IRQ_SLAVE));
-	pic_sendData(1, 0xFF);
+	pic_send_data(0, 0xFF & ~(1 << PIC_IRQ_SLAVE));
+	pic_send_data(1, 0xFF);
 }
 
-void pic_initialize()
+void pic_init()
 {
     pic_initialize_inner(IRQ_0, IRQ_8);
 }

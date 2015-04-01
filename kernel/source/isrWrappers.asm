@@ -1,23 +1,23 @@
-extern isr_sysCall
+extern isr_sys_call
 extern isr_timer
 extern isr_keyboard
 extern isr_unknown
 
 ; Sys call (0x80)
-global isr_sysCallWrapper
+global isr_sys_call_wrapper
 align 4
-isr_sysCallWrapper:
+isr_sys_call_wrapper:
 	pushad
 
   push eax
-	call isr_sysCall
+	call isr_sys_call
 
 	popad
 	iret
 
-global isr_timerWrapper
+global isr_timer_wrapper
 align 4
-isr_timerWrapper:
+isr_timer_wrapper:
   pushad
 
   call isr_timer
@@ -25,9 +25,9 @@ isr_timerWrapper:
   popad
   iret
 
-global isr_keyboardWrapper
+global isr_keyboard_wrapper
 align 4
-isr_keyboardWrapper:
+isr_keyboard_wrapper:
   pushad
 
   call isr_keyboard
@@ -35,9 +35,9 @@ isr_keyboardWrapper:
   popad
   iret
 
-global isr_unknownWrapper
+global isr_unknown_wrapper
 align 4
-isr_unknownWrapper:
+isr_unknown_wrapper:
   pushad
 
   call isr_unknown

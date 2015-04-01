@@ -13,7 +13,7 @@ typedef enum
     vga_color_magenta      = 5,
     vga_color_brown        = 6,
     vga_color_grey         = 7,
-    vga_color_dark_grey    = 8,
+    vga_color_light_grey   = 8,
     vga_color_light_blue   = 9,
     vga_color_light_green  = 10,
     vga_color_light_cyan   = 11,
@@ -21,7 +21,7 @@ typedef enum
     vga_color_light_magenta = 13,
     vga_color_light_brown   = 14,
     vga_color_white         = 15,
-} vgs_color;
+} vga_color;
 
 void terminal_init();
 uint8_t terminal_create_color(vga_color fg, vga_color bg);
