@@ -12,6 +12,8 @@ typedef enum {
 } gate_type;
 
 void interrupt_init_system();
+void interrupt_disable_all();
+void interrupt_enable_all();
 void interrupt_install_handler(uint8_t irq, interrupt_handler handler, gate_type type, uint8_t priv_level);
 void interrupt_enable_handler(uint8_t irq);
 void interrupt_disable_handler(uint8_t irq);

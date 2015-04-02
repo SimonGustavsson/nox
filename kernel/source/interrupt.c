@@ -48,6 +48,16 @@ void interrupt_init_system()
     idt_install(&idt_descriptor);
 }
 
+void interrupt_disable_all()
+{
+    __asm("cli");
+}
+
+void interrupt_enable_all()
+{
+    __asm("sti");
+}
+
 void interrupt_install_handler(uint8_t irq, interrupt_handler handler, gate_type type, uint8_t priv_level)
 {
     struct idt_descriptor idt_descriptor;

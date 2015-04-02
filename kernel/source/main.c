@@ -45,6 +45,7 @@ SECTION_BOOT void _start()
     pic_init();
 
     // Re-enable interrupts, we're ready now!
+    interrupt_enable_all();
     __asm("sti");
 
     // Enable the keyboard
