@@ -21,7 +21,7 @@ AOBJECTS := $(subst $(ASOURCE_DIR), $(OBJ_DIR), $(AOBJECTS))
 #
 # Compiler options
 #
-CFLAGS=-std=c11 -ffreestanding -nostdlib -c
+CFLAGS=-std=c11 -ffreestanding -nostdlib -c -D TARGET_BOCHS
 CINCLUDE := $(patsubst %,-I%, $(shell find $(INCLUDE_DIR) -type d))
 
 # Add prerequisites for full build
@@ -39,7 +39,7 @@ CLEAN_DIRS += $(OBJ_DIR) $(DEP_DIR)
 # Actually building stuff
 #
 
-# Note: Upper case because we use FAT12 and this makes it easy for now 
+# Note: Upper case because we use FAT12 and this makes it easy for now
 $(BUILD)/KERNEL.BIN: $(OBJ_DIR)/kernel.elf
 	@echo "OBJCOPY $<"
 
@@ -58,7 +58,7 @@ $(OBJ_DIR)/%.o : $(CSOURCE_DIR)/%.c
 
 	@echo "CC $<"
 
-	@$(TOOL)-gcc $< -o $@ $(CINCLUDE) $(CFLAGS) -MD -MF $(DEP_DIR)/$*.d 
+	@$(TOOL)-gcc $< -o $@ $(CINCLUDE) $(CFLAGS) -MD -MF $(DEP_DIR)/$*.d
 
 $(OBJ_DIR)/%.o : $(ASOURCE_DIR)/%.asm
 

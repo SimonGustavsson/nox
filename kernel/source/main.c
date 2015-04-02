@@ -1,4 +1,5 @@
 #include <kernel.h>
+#include <debug.h>
 #include <types.h>
 #include <terminal.h>
 #include <pci.h>
@@ -25,9 +26,6 @@ void call_test_sys_call(uint32_t foo)
 
 SECTION_BOOT void _start()
 {
-    // This is how to break in Bochs
-    //__asm("xchg %bx, %bx");
-
     terminal_init();
     terminal_write_string("NOX is here, bow down puny mortal...\n");
 
@@ -46,7 +44,6 @@ SECTION_BOOT void _start()
 
     // Re-enable interrupts, we're ready now!
     interrupt_enable_all();
-    __asm("sti");
 
     // Enable the keyboard
     pic_enable_irq(PIC_IRQ_KEYBOARD);
@@ -75,6 +72,7 @@ void isr_keyboard()
     terminal_write_hex(scanCode);
     terminal_write_string("\n");
     pic_send_eoi(PIC_IRQ_KEYBOARD);
+    BREAK();
 }
 
 void isr_unknown()
