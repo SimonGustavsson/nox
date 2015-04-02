@@ -31,7 +31,6 @@
 interrupt_dispatcher_1 isr_sys_call
 interrupt_dispatcher_0 isr_timer
 interrupt_dispatcher_0 isr_keyboard
-interrupt_dispatcher_0 isr_unknown
 
 ; NASM Syntax
 ; vim: ft=nasm expandtab

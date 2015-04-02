@@ -1,4 +1,5 @@
 #include <kernel.h>
+#include <debug.h>
 #include <types.h>
 #include <interrupt.h>
 
@@ -31,6 +32,7 @@ typedef struct PACKED {
 // -------------------------------------------------------------------------
 static struct idt_descriptor idt_get();
 static void idt_install(struct idt_descriptor* idt);
+static void default_dispatchers_init();
 
 // -------------------------------------------------------------------------
 // Globals
@@ -46,6 +48,8 @@ void interrupt_init_system()
     idt_descriptor.limit = sizeof(idt_entries) - 1;
     idt_descriptor.base = &idt_entries;
     idt_install(&idt_descriptor);
+
+    default_dispatchers_init();
 }
 
 void interrupt_disable_all()
@@ -116,3 +120,73 @@ static struct idt_descriptor idt_get()
 
     return addr;
 }
+
+struct PACKED default_dispatcher
+{
+    uint8_t pusha;
+    uint8_t push_imm;
+    uint8_t push_imm_arg;
+    uint8_t call;
+    void*   target;
+    uint8_t add_imm;
+    uint8_t add_imm_reg;
+    uint8_t add_imm_arg;
+    uint8_t popa;
+    uint8_t iret;
+};
+
+static struct default_dispatcher default_dispatchers[256] = {};
+
+static struct default_dispatcher mk_default_dispatcher(void* target, uint8_t which)
+{
+    // CALL is relative to the next instruction
+    void* next_instruction = &default_dispatchers[which].add_imm;
+    void* relative = target - next_instruction;
+
+    struct default_dispatcher result = {
+        //
+        // PUSHA
+        .pusha = 0x60,
+        .push_imm = 0x6A,
+        .push_imm_arg = which,
+
+        // CALL target
+        .call = 0xE8,
+        .target = relative,
+
+        // ADD ESP, 0x04 (unwind arg from CALL)
+        .add_imm = 0x83,
+        .add_imm_reg = 0xC4,
+        .add_imm_arg = 0x04,
+
+        // POPA
+        .popa = 0x61,
+
+        // IRET
+        .iret = 0xCF
+    };
+
+    return result;
+}
+
+static void default_handler(uint8_t which)
+{
+    // TODO: PoC only...
+    #include <terminal.h>
+
+    terminal_write_string("In unknown interrupt: ");
+    terminal_write_hex(which);
+    terminal_write_string("\n");
+}
+
+static void default_dispatchers_init()
+{
+    for (int i = 0x00; i <= 0xFF; i++) {
+        default_dispatchers[i] = mk_default_dispatcher(default_handler, i);
+    }
+
+    for (int i = 0x20; i <= 0xFF; i++) {
+        interrupt_install_handler(i, (void*)&default_dispatchers[i], gate_type_interrupt32, 0);
+    }
+}
+
