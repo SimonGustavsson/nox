@@ -8,10 +8,10 @@
 #include <pit.h>
 #include <pio.h>
 
-extern void isr_sys_call_wrapper();
-extern void isr_timer_wrapper();
-extern void isr_keyboard_wrapper();
-extern void isr_unknown_wrapper();
+extern void isr_sys_call_dispatcher();
+extern void isr_timer_dispatcher();
+extern void isr_keyboard_dispatcher();
+extern void isr_unknown_dispatcher();
 
 const char* gHcVersionNames[4] = {"UHCI", "OHCI", "EHCI", "xHCI"};
 
@@ -32,12 +32,12 @@ SECTION_BOOT void _start()
     interrupt_init_system();
 
     for (int handlerIndex = 0x20; handlerIndex <= 0xFF; handlerIndex++) {
-        interrupt_receive(handlerIndex, isr_unknown_wrapper);
+        interrupt_receive(handlerIndex, isr_unknown_dispatcher);
     }
 
-    interrupt_receive_trap(0x80, isr_sys_call_wrapper);
-    interrupt_receive(IRQ_0, isr_timer_wrapper);
-    interrupt_receive(IRQ_1, isr_keyboard_wrapper);
+    interrupt_receive_trap(0x80, isr_sys_call_dispatcher);
+    interrupt_receive(IRQ_0, isr_timer_dispatcher);
+    interrupt_receive(IRQ_1, isr_keyboard_dispatcher);
 
     // Remap the interrupts fired by the PICs
     pic_init();

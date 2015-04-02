@@ -1,49 +1,19 @@
-extern isr_sys_call
-extern isr_timer
-extern isr_keyboard
-extern isr_unknown
+%macro interrupt_dispatcher 1
+    global %1_dispatcher
+    extern %1
+    align 4
 
-; Sys call (0x80)
-global isr_sys_call_wrapper
-align 4
-isr_sys_call_wrapper:
-	pushad
+    %1_dispatcher:
+        pushad
+        call %1
+        popad
+        iret
+%endmacro
 
-  push eax
-	call isr_sys_call
-
-	popad
-	iret
-
-global isr_timer_wrapper
-align 4
-isr_timer_wrapper:
-  pushad
-
-  call isr_timer
-
-  popad
-  iret
-
-global isr_keyboard_wrapper
-align 4
-isr_keyboard_wrapper:
-  pushad
-
-  call isr_keyboard
-
-  popad
-  iret
-
-global isr_unknown_wrapper
-align 4
-isr_unknown_wrapper:
-  pushad
-
-  call isr_unknown
-
-  popad
-  iret
+interrupt_dispatcher isr_sys_call
+interrupt_dispatcher isr_timer
+interrupt_dispatcher isr_keyboard
+interrupt_dispatcher isr_unknown
 
 ; NASM Syntax
 ; vim: ft=nasm expandtab
