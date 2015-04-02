@@ -11,10 +11,10 @@ typedef union {
     uint8_t raw;
 
     struct PACKED {
-        uint8_t        type:      4;
-        uint8_t        segment:   1; // Storage segment (0 for interrupt gates)
-        uint8_t        privLevel: 2; // Gate call protection (minimum caller level)
-        uint8_t        present:   1; // 0 for unused interrupts
+        uint8_t        type:        4;
+        uint8_t        segment:     1; // Storage segment (0 for interrupt gates)
+        uint8_t        priv_level:  2; // Gate call protection (minimum caller level)
+        uint8_t        present:     1; // 0 for unused interrupts
     } bits;
 } idt_type_attribute;
 
@@ -50,12 +50,12 @@ void interrupt_init_system()
 
 void interrupt_disable_all()
 {
-    __asm("cli");
+    __asm volatile ("cli");
 }
 
 void interrupt_enable_all()
 {
-    __asm("sti");
+    __asm volatile ("sti");
 }
 
 void interrupt_install_handler(uint8_t irq, interrupt_handler handler, gate_type type, uint8_t priv_level)
@@ -70,7 +70,7 @@ void interrupt_install_handler(uint8_t irq, interrupt_handler handler, gate_type
     entry->offset_high = (uint16_t)((handler_ptr >> 16) & 0xFFFF);
     entry->selector = 0x08;
     entry->type_attr.bits.present = 1;
-    entry->type_attr.bits.privLevel = priv_level;
+    entry->type_attr.bits.priv_level = priv_level;
     entry->type_attr.bits.segment = 0;
     entry->type_attr.bits.type = type;
 }
