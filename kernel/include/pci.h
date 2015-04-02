@@ -1,12 +1,6 @@
 #ifndef PCI_H
 #define PCI_H
 
-#if !defined(__cplusplus)
-#include <stdbool.h> // C Does not have bool :(
-#endif
-
-#include <stdint.h>
-
 #define  PCI_ADDR     0x0CF8
 #define  PCI_DATA     0x0CFC
 

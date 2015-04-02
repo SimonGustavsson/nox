@@ -1,11 +1,11 @@
-#include "terminal.h"
-#include "pci.h"
-#include "pic.h"
-#include "idt.h"
-#include "pit.h"
-#include "pio.h"
-
-#define SECTION_BOOT __attribute__((section(".text.boot"))) 
+#include <kernel.h>
+#include <types.h>
+#include <terminal.h>
+#include <pci.h>
+#include <pic.h>
+#include <interrupt.h>
+#include <pit.h>
+#include <pio.h>
 
 extern void isr_sys_call_wrapper();
 extern void isr_timer_wrapper();
@@ -13,10 +13,6 @@ extern void isr_keyboard_wrapper();
 extern void isr_unknown_wrapper();
 
 const char* gHcVersionNames[4] = {"UHCI", "OHCI", "EHCI", "xHCI"};
-
-idt_descriptor idtDescriptor = {};
-
-idt_entry idtEntries[256] = {};
 
 void call_test_sys_call(uint32_t foo)
 {
@@ -35,17 +31,15 @@ SECTION_BOOT void _start()
     terminal_init();
     terminal_write_string("NOX is here, bow down puny mortal...\n");
 
-    idtDescriptor.limit = sizeof(idtEntries) - 1;
-    idtDescriptor.base = (uint32_t)&idtEntries;
-    idt_install(&idtDescriptor);
+    interrupt_init_system();
 
     for (int handlerIndex = 0x20; handlerIndex <= 0xFF; handlerIndex++) {
-      idt_install_handler(handlerIndex, (uint32_t)isr_unknown_wrapper, gate_type_interrupt32, 0);
+        interrupt_receive(handlerIndex, isr_unknown_wrapper);
     }
 
-    idt_install_handler(0x80, (uint32_t)isr_sys_call_wrapper, gate_type_trap32, 0);
-    idt_install_handler(IRQ_0, (uint32_t)isr_timer_wrapper, gate_type_interrupt32, 0);
-    idt_install_handler(IRQ_1, (uint32_t)isr_keyboard_wrapper, gate_type_interrupt32, 0);
+    interrupt_receive_trap(0x80, isr_sys_call_wrapper);
+    interrupt_receive(IRQ_0, isr_timer_wrapper);
+    interrupt_receive(IRQ_1, isr_keyboard_wrapper);
 
     // Remap the interrupts fired by the PICs
     pic_init();
