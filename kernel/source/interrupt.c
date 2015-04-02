@@ -50,12 +50,12 @@ void interrupt_init_system()
 
 void interrupt_disable_all()
 {
-    __asm volatile ("cli");
+    __asm("cli");
 }
 
 void interrupt_enable_all()
 {
-    __asm volatile ("sti");
+    __asm ("sti");
 }
 
 void interrupt_install_handler(uint8_t irq, interrupt_handler handler, gate_type type, uint8_t priv_level)
