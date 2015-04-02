@@ -50,7 +50,7 @@ SECTION_BOOT void _start()
     OUTB(0x60, 0xF4); // Enable on the encoder
     OUTB(0x64, 0xAE); // Enable on the controller
 
-    //callTestSysCall(0x1234);
+    call_test_sys_call(0x1234);
 
     pit_set(1000);
 
@@ -72,7 +72,8 @@ void isr_keyboard()
     terminal_write_hex(scanCode);
     terminal_write_string("\n");
     pic_send_eoi(PIC_IRQ_KEYBOARD);
-    BREAK();
+
+    // BREAK();
 }
 
 void isr_unknown()
