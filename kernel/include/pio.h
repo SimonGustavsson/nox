@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 
-// in port double (32-bit) __inline__ 
 uint32_t IND(uint16_t port);
 uint16_t INW(uint16_t port);
 uint8_t INB(uint16_t port);

@@ -31,25 +31,26 @@
 #define IRQ_8 0x28                // IRQ 8-15 mapped to 0x28-0x36
 
 // IRQs handled by the master pic
-enum pic1_irq {
-    pic1_irq_timer     = 0,
-    pic1_irq_keyboard  = 1,
-    pic1_irq_slave     = 2,
-    pic1_irq_serial2   = 3,
-    pic1_irq_serial1   = 4,
-    pic1_irq_parallel2 = 5,
-    pic1_irq_diskette  = 6,
-    pic1_irq_parallel1 = 7
-};
+enum pic_irq {
+    pic_irq_timer       = 0,
+    pic_irq_keyboard    = 1,
+    pic_irq_slave       = 2,
+    pic_irq_serial2     = 3,
+    pic_irq_serial1     = 4,
+    pic_irq_parallel2   = 5,
+    pic_irq_diskette    = 6,
+    pic_irq_parallel1   = 7,
 
-// IRQs handled by the slave pic
-// (These IRQ numbers overlap with the pic1 interrupts, should we really expose this?)
-enum pic2_irq {
-    pic2_irq_cmos_timer  = 0,
-    pic2_irq_caret_trace = 1,
-    pic2_irq_aux         = 4,
-    pic2_irq_fpu         = 5,
-    pic2_irq_hdc         = 6
+    // IRQs handled by the slave pic
+    // Note: The actual IRQ number for these are 0-6,
+    //       we subtract 8 from all IRQs > 7 and send to
+    //       the slave, that's why these all have a value
+    //       that is 8 higher than the real IRQ number
+    pic_irq_cmos_timer  = 8,
+    pic_irq_caret_trace = 9,
+    pic_irq_aux         = 10,
+    pic_irq_fpu         = 11,
+    pic_irq_hdc         = 12
 };
 
 void pic_init();

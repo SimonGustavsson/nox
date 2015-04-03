@@ -54,7 +54,7 @@ void pit_set(uint16_t frequency_divisor)
 
     // Not gonna get any timer interrupts if we don't
     // turn them on dawg
-    pic_enable_irq(pic1_irq_timer);
+    pic_enable_irq(pic_irq_timer);
 
     // Set the PIT to fire off an interrupt in the specified time
     OUTB(PIT_IO_PORT_COMMAND, pit_mode_oneshot|
@@ -86,6 +86,6 @@ void isr_timer()
     //PIT_Set(1000);
 
     // Tell the PIC we have handled the interrupt
-    pic_send_eoi(pic1_irq_timer);
+    pic_send_eoi(pic_irq_timer);
 }
 

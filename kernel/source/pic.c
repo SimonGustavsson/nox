@@ -206,6 +206,6 @@ void pic_init_inner(uint8_t base0, uint8_t base1)
 
     // Disable all interrupts by default, except for IRQ2 which
     // is used by the slave to send IRQs via the master
-	pic_send_data(0, 0xFF & ~(1 << pic1_irq_slave));
+	pic_send_data(0, 0xFF & ~(1 << pic_irq_slave));
 	pic_send_data(1, 0xFF);
 }

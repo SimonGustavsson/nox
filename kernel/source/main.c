@@ -46,7 +46,7 @@ SECTION_BOOT void _start()
     interrupt_enable_all();
 
     // Enable the keyboard
-    pic_enable_irq(pic1_irq_keyboard);
+    pic_enable_irq(pic_irq_keyboard);
     OUTB(0x60, 0xF4); // Enable on the encoder
     OUTB(0x64, 0xAE); // Enable on the controller
 
@@ -71,7 +71,7 @@ void isr_keyboard()
     uint8_t scanCode = INB(0x60);
     terminal_write_hex(scanCode);
     terminal_write_string("\n");
-    pic_send_eoi(pic1_irq_keyboard);
+    pic_send_eoi(pic_irq_keyboard);
 
     // BREAK();
 }
