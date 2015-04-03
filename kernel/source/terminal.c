@@ -1,7 +1,4 @@
-#if !defined(__cplusplus)
 #include <stdbool.h> // C Does not have bool :(
-#endif
-
 #include "string.h"
 #include "stddef.h"
 #include "stdint.h"
