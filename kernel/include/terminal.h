@@ -24,8 +24,8 @@ typedef enum
 } vga_color;
 
 void terminal_init();
-uint8_t terminal_create_color(vga_color fg, vga_color bg);
-void terminal_set_color(uint8_t color);
+void terminal_reset_color();
+void terminal_set_color(vga_color fg, vga_color bg);
 void terminal_write_string(const char* data);
 void terminal_write_uint32(uint32_t val);
 void terminal_write_hex(uint32_t val);

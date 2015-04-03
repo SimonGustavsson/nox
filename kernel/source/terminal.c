@@ -21,6 +21,8 @@ static uint16_t* g_buffer;
 // -------------------------------------------------------------------------
 // Forward declaractions
 // -------------------------------------------------------------------------
+void terminal_reset_color();
+static uint8_t terminal_create_color(vga_color fg, vga_color bg);
 static uint16_t vgaentry_create(char c, uint8_t color);
 static void terminal_put_entry_at(char c, uint8_t color, size_t x, size_t y);
 static void terminal_put_char(char c);
@@ -29,17 +31,12 @@ static void terminal_put_char(char c);
 // Externs
 // -------------------------------------------------------------------------
 
-uint8_t terminal_create_color(vga_color fg, vga_color bg)
-{
-	return fg | bg << 4;
-}
-
 void terminal_init()
 {
 	g_current_row = 0;
 	g_current_column = 0;
-	g_current_color = terminal_create_color(vga_color_light_grey, vga_color_black);
 	g_buffer = (uint16_t*) 0xB8000;
+    terminal_reset_color();
 	for ( size_t y = 0; y < VGA_HEIGHT; y++ )
 	{
 		for ( size_t x = 0; x < VGA_WIDTH; x++ )
@@ -50,11 +47,15 @@ void terminal_init()
 	}
 }
 
-void terminal_set_color(uint8_t color)
+void terminal_reset_color()
 {
-	g_current_color = color;
+    terminal_set_color(vga_color_light_grey, vga_color_black);
 }
 
+void terminal_set_color(vga_color fg, vga_color bg)
+{
+	g_current_color = terminal_create_color(fg, bg);
+}
 
 void terminal_write_string(const char* data)
 {
@@ -120,5 +121,10 @@ static void terminal_put_char(char c)
 			g_current_row = 0;
 		}
 	}
+}
+
+static uint8_t terminal_create_color(vga_color fg, vga_color bg)
+{
+	return fg | bg << 4;
 }
 

@@ -1,7 +1,8 @@
-#include <kernel.h>
 #include <types.h>
 #include <interrupt.h>
+#include <kernel.h>
 
+;
 struct PACKED idt_descriptor {
     uint16_t  limit; // Length of IDT in bytes - 1
     void*     base; // Linear start address

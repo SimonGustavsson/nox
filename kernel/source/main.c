@@ -55,6 +55,7 @@ SECTION_BOOT void _start()
     pit_set(1000);
 
     terminal_write_string("\nKernel done, halting!\n");
+    KWARN("Nox has colored output, lets use it!");
     while(1);
 }
 
