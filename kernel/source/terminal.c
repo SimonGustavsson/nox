@@ -70,14 +70,6 @@ void terminal_write_uint32(uint32_t val)
 	terminal_write_string(buf);
 }
 
-uint8_t nybble_to_ascii(uint8_t val)
-{
-	if (val < 0x0A)
-		return '0' + val;
-	else
-		return 'A' + (val - 10);
-}
-
 void terminal_write_hex_byte(uint8_t val)
 {
 	terminal_put_char(nybble_to_ascii((val >> 4) & 0xF));

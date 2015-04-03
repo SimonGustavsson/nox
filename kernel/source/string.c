@@ -42,3 +42,11 @@ void itoa(int number, char* buf)
 		*--buf = '-';
 }
 
+uint8_t nybble_to_ascii(uint8_t val)
+{
+	if (val < 0x0A)
+		return '0' + val;
+	else
+		return 'A' + (val - 10);
+}
+
