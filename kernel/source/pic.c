@@ -1,6 +1,7 @@
 // PIC.c
 #include "stdint.h"
 #include "pic.h"
+#include "pio.h"
 
 #define ICW_1 0x11 // 000100001b - Enable init mode, send ICW4
 
