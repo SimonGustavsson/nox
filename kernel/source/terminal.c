@@ -2,6 +2,7 @@
 #include <stdbool.h> // C Does not have bool :(
 #endif
 
+#include "string.h"
 #include "stddef.h"
 #include "stdint.h"
 #include "terminal.h"
@@ -9,10 +10,10 @@
 static const size_t VGA_WIDTH = 80;
 static const size_t VGA_HEIGHT = 25;
  
-size_t terminal_row;
-size_t terminal_column;
-uint8_t terminal_color;
-uint16_t* terminal_buffer;
+static size_t g_row;
+static size_t g_column;
+static uint8_t g_color;
+static uint16_t* g_buffer;
 
 uint8_t terminal_create_color(vga_color fg, vga_color bg)
 {
@@ -26,57 +27,49 @@ uint16_t vgaentry_create(char c, uint8_t color)
 	return c16 | color16 << 8;
 }
 
-size_t strlen(const char* str)
-{
-	size_t ret = 0;
-	while ( str[ret] != 0 )
-		ret++;
-	return ret;
-}
-
 void terminal_init()
 {
-	terminal_row = 0;
-	terminal_column = 0;
-	terminal_color = terminal_create_color(vga_color_light_grey, vga_color_black);
-	terminal_buffer = (uint16_t*) 0xB8000;
+	g_row = 0;
+	g_column = 0;
+	g_color = terminal_create_color(vga_color_light_grey, vga_color_black);
+	g_buffer = (uint16_t*) 0xB8000;
 	for ( size_t y = 0; y < VGA_HEIGHT; y++ )
 	{
 		for ( size_t x = 0; x < VGA_WIDTH; x++ )
 		{
 			const size_t index = y * VGA_WIDTH + x;
-			terminal_buffer[index] = vgaentry_create(' ', terminal_color);
+			g_buffer[index] = vgaentry_create(' ', g_color);
 		}
 	}
 }
 
 void terminal_set_color(uint8_t color)
 {
-	terminal_color = color;
+	g_color = color;
 }
 
 void terminal_put_entry_at(char c, uint8_t color, size_t x, size_t y)
 {
 	const size_t index = y * VGA_WIDTH + x;
-	terminal_buffer[index] = vgaentry_create(c, color);
+	g_buffer[index] = vgaentry_create(c, color);
 }
 
 void terminal_put_char(char c)
 {
 	if(c == '\n')
 	{
-		terminal_row++;
-		terminal_column = 0;
+		g_row++;
+	    g_column = 0;
 		return;
 	}
 
-	terminal_put_entry_at(c, terminal_color, terminal_column, terminal_row);
-	if (++terminal_column == VGA_WIDTH)
+	terminal_put_entry_at(c, g_color, g_column, g_row);
+	if (++g_column == VGA_WIDTH)
 	{
-		terminal_column = 0;
-		if (++terminal_row == VGA_HEIGHT)
+		g_column = 0;
+		if (++g_row == VGA_HEIGHT)
 		{
-			terminal_row = 0;
+			g_row = 0;
 		}
 	}
 }
@@ -86,40 +79,6 @@ void terminal_write_string(const char* data)
 	size_t datalen = strlen(data);
 	for (size_t i = 0; i < datalen; i++)
 		terminal_put_char(data[i]);
-}
-
-void itoa(int number, char* buf)
-{
-	// We populate the string backwards, increment to make room for \0
-	buf++;
-
-	int negative = number < 0;
-	if(negative)
-	{
-		buf++;
-		number = -number;
-	}
-
-	// Find where our string will end
-	int shifter = number;
-	do
-	{
-		buf++;
-		shifter /= 10;
-	}while(shifter > 0);
-
-	// Make sure the string is terminated nicely
-	*--buf = '\0';
-	
-	// Start converting the digits into characters
-	do
-	{
-		*--buf = '0' + (number % 10); // Muahaha!
-		number /= 10;
-	}while(number > 0);
-
-	if(negative)
-		*--buf = '-';
 }
 
 void terminal_write_uint32(uint32_t val)

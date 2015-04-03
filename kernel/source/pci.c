@@ -73,7 +73,7 @@ bool pci_get_next_usbhc(pci_address* addr, pci_device* resDevice)
 				for (uint32_t i = 0; i < 64; i++)
 					res_device_ptr[i] = pci_read(addr->bus, addr->device, addr->func, (i << 2), sizeof(uint32_t));
 
-				if(resDevice->devClass != USB_CLASS_CODE || resDevice->dev_sub_class != USB_SUBCLASS_CODE)
+				if(resDevice->dev_class != USB_CLASS_CODE || resDevice->dev_sub_class != USB_SUBCLASS_CODE)
 					continue; // Not a usb device
 
 				// We found a usb device!
