@@ -15,7 +15,7 @@ extern void isr_unknown_dispatcher();
 
 const char* gHcVersionNames[4] = {"UHCI", "OHCI", "EHCI", "xHCI"};
 
-void call_test_sys_call(uint32_t foo)
+static void call_test_sys_call(uint32_t foo)
 {
     __asm("mov %0, %%eax"
             :

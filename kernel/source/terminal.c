@@ -18,7 +18,6 @@ static uint16_t* g_buffer;
 // -------------------------------------------------------------------------
 // Forward declaractions
 // -------------------------------------------------------------------------
-void terminal_reset_color();
 static uint8_t terminal_create_color(vga_color fg, vga_color bg);
 static uint16_t vgaentry_create(char c, uint8_t color);
 static void terminal_put_entry_at(char c, uint8_t color, size_t x, size_t y);

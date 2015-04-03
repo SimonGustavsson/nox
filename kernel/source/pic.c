@@ -100,10 +100,10 @@ enum pic_icw4_sfnm {
 // -------------------------------------------------------------------------
 // Forward declaractions
 // -------------------------------------------------------------------------
-void pic_send_eoi_to_pic(uint8_t which_pic);
-void pic_enable_irq_on_pic(uint8_t which_pic, uint8_t irq_bit_index);
-void pic_disable_irq_on_pic(uint8_t which_pic, uint8_t irq_bit_index);
-void pic_init_inner(uint8_t irq0, uint8_t irq8);
+static void pic_send_eoi_to_pic(uint8_t which_pic);
+static void pic_enable_irq_on_pic(uint8_t which_pic, uint8_t irq_bit_index);
+static void pic_disable_irq_on_pic(uint8_t which_pic, uint8_t irq_bit_index);
+static void pic_init_inner(uint8_t irq0, uint8_t irq8);
 
 // -------------------------------------------------------------------------
 // Extern
@@ -140,28 +140,28 @@ void pic_init()
 // -------------------------------------------------------------------------
 // Private 
 // -------------------------------------------------------------------------
-void pic_send_command(uint8_t pic, uint8_t cmd)
+static void pic_send_command(uint8_t pic, uint8_t cmd)
 {
 	if(pic > 1) return; // Only 2 PICs supported
 
     OUTB(pic == 0 ? PIC1_IO_PORT_CTRL : PIC2_IO_PORT_CTRL, cmd);
 }
 
-void pic_send_data(uint8_t pic, uint8_t data)
+static void pic_send_data(uint8_t pic, uint8_t data)
 {
 	if(pic > 1) return; // Only 2 PICs supported
 
 	OUTB(pic == 0 ? PIC1_IO_PORT_DATA : PIC2_IO_PORT_DATA, data);
 }
 
-uint8_t pic_read_data(uint8_t pic)
+static uint8_t pic_read_data(uint8_t pic)
 {
 	if(pic > 1) return 0; // Only supports 2 PICs
 
 	return INB(pic == 0 ? PIC1_IO_PORT_DATA : PIC2_IO_PORT_DATA);
 }
 
-void pic_send_eoi_to_pic(uint8_t which_pic)
+static void pic_send_eoi_to_pic(uint8_t which_pic)
 {
     pic_send_command(which_pic, pic_ocw2_mask_eoi);
 
@@ -171,21 +171,21 @@ void pic_send_eoi_to_pic(uint8_t which_pic)
       pic_send_command(0, pic_ocw2_mask_eoi);
 }
 
-void pic_enable_irq_on_pic(uint8_t which_pic, uint8_t irq_bit_index)
+static void pic_enable_irq_on_pic(uint8_t which_pic, uint8_t irq_bit_index)
 {
     uint8_t original_value = pic_read_data(which_pic);
     uint8_t new_value = original_value & ~(1 << irq_bit_index);
     pic_send_data(which_pic, new_value);
 }
 
-void pic_disable_irq_on_pic(uint8_t which_pic, uint8_t irqBitIndex)
+static void pic_disable_irq_on_pic(uint8_t which_pic, uint8_t irqBitIndex)
 {
     uint8_t original_value = pic_read_data(which_pic);
     uint8_t new_value = original_value | (1 << irqBitIndex);
     pic_send_data(which_pic, new_value);
 }
 
-void pic_init_inner(uint8_t base0, uint8_t base1)
+static void pic_init_inner(uint8_t base0, uint8_t base1)
 {
 	// Send ICW1 - To start initialization sequence in cascade mode which
 	//             causes the PIC to wait for 3 init words on the data channel
