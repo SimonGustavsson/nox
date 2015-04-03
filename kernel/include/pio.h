@@ -1,5 +1,5 @@
-#ifndef PIO_H
-#define PIO_H
+#ifndef NOX_PIO_H
+#define NOX_PIO_H
 
 #include <stdint.h>
 

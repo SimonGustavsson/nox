@@ -1,5 +1,5 @@
-#ifndef TERMINAL_H
-#define TERMINAL_H
+#ifndef NOX_TERMINAL_H
+#define NOX_TERMINAL_H
 
 #include "stdint.h"
 

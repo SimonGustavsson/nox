@@ -1,5 +1,5 @@
-#ifndef PCI_H
-#define PCI_H
+#ifndef NOX_PCI_H
+#define NOX_PCI_H
 
 #define  PCI_ADDR     0x0CF8
 #define  PCI_DATA     0x0CFC

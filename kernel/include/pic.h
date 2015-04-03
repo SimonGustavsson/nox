@@ -1,5 +1,7 @@
+#ifndef NOX_PIC_H
+#define NOX_PIC_H
+
 #include "stdint.h"
-#include "pio.h"
 
 /*  Addr   IRQ      Desc
 	0x000	0		Divide by 0
@@ -58,3 +60,4 @@ void pic_send_eoi(uint8_t irq);
 void pic_enable_irq(uint8_t irq);
 void pic_disable_irq(uint8_t irq);
 
+#endif
