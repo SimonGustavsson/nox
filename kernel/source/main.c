@@ -31,8 +31,8 @@ SECTION_BOOT void _start()
 
     interrupt_init_system();
 
-    for (int handlerIndex = 0x20; handlerIndex <= 0xFF; handlerIndex++) {
-        interrupt_receive(handlerIndex, isr_unknown_dispatcher);
+    for (int i = 0x20; i <= 0xFF; i++) {
+        interrupt_receive(i, isr_unknown_dispatcher);
     }
 
     interrupt_receive_trap(0x80, isr_sys_call_dispatcher);
@@ -46,7 +46,7 @@ SECTION_BOOT void _start()
     interrupt_enable_all();
 
     // Enable the keyboard
-    pic_enable_irq(PIC_IRQ_KEYBOARD);
+    pic_enable_irq(pic1_irq_keyboard);
     OUTB(0x60, 0xF4); // Enable on the encoder
     OUTB(0x64, 0xAE); // Enable on the controller
 
@@ -71,7 +71,7 @@ void isr_keyboard()
     uint8_t scanCode = INB(0x60);
     terminal_write_hex(scanCode);
     terminal_write_string("\n");
-    pic_send_eoi(PIC_IRQ_KEYBOARD);
+    pic_send_eoi(pic1_irq_keyboard);
 
     // BREAK();
 }

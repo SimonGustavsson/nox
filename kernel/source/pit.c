@@ -2,70 +2,90 @@
 #include "pic.h"
 #include "terminal.h"
 
-#define PIT_CHANNEL_0_PORT 0x40
-#define PIT_CHANNEL_1_PORT 0x41
-#define PIT_CHANNEL_2_PORT 0x42
-#define PIT_COMMAND_PORT   0x43
-
-#define PIT_MODE_ONESHOT      (0 << 1)
-#define PIT_MODE_RETRIGGER    (1 << 1)
-#define PIT_MODE_RATE         (2 << 1)
-#define PIT_MODE_SUARE_WAVE   (3 << 1)
-#define PIT_MODE_SW_STROBE    (4 << 1)
-#define PIT_MODE_HW_STROBE    (5 << 1)
-#define PIT_MODE_RATE2        (6 << 1)
-#define PIT_MODE_SQUARE_WAVE2 (7 << 1)
-
-#define PIT_ACCESS_LATCH (0 << 4)
-#define PIT_ACCESS_LOW   (1 << 4)
-#define PIT_ACCESS_HIGH  (2 << 4)
-#define PIT_ACCESS_BOTH  (3 << 4)
-
-#define PIT_CHANNEL_0        (0 << 6)
-#define PIT_CHANNEL_1        (1 << 6)
-#define PIT_CHANNEL_2        (2 << 6)
-#define PIT_CHANNEL_READBACK (3 << 6)
-
+#define PIT_IO_PORT_CHANNEL_0 0x40
+#define PIT_IO_PORT_CHANNEL_1 0x41
+#define PIT_IO_PORT_CHANNEL_2 0x42
+#define PIT_IO_PORT_COMMAND   0x43
 #define PIT_BINARY_MODE 0 // 16-bit Binary mode
 #define PIT_BCD_MODE 1    // four-digit BCD
 
-int gPitCounter = 0;
+// -------------------------------------------------------------------------
+// Local types
+// -------------------------------------------------------------------------
 
-void pit_set(uint16_t frequencyDivisor) {
-    gPitCounter = 0;
+enum pit_mode {
+    pit_mode_oneshot      = (0 << 1),
+    pit_mode_retrigger    = (1 << 1),
+    pit_mode_rate         = (2 << 1),
+    pit_mode_square_wave  = (3 << 1),
+    pit_mode_sw_strobe    = (4 << 1),
+    pit_mode_hw_strobe    = (5 << 1),
+    pit_mode_rate2        = (6 << 1),
+    pit_mode_square_wave2 = (7 << 1)
+};
+
+enum pit_access {
+    pit_access_latch = (0 << 4),
+    pit_access_low   = (1 << 4),
+    pit_access_high  = (2 << 4),
+    pit_access_both  = (3 << 4) 
+};
+
+enum pit_channel {
+    pit_channel_0        = (0 << 6),
+    pit_channel_1        = (1 << 6),
+    pit_channel_2        = (2 << 6),
+    pit_channel_readback = (3 << 6),
+};
+
+// -------------------------------------------------------------------------
+// Global variables
+// -------------------------------------------------------------------------
+
+int g_pit_counter = 0;
+
+// -------------------------------------------------------------------------
+// Exports
+// -------------------------------------------------------------------------
+
+void pit_set(uint16_t frequency_divisor)
+{
+    g_pit_counter = 0;
 
     // Not gonna get any timer interrupts if we don't
     // turn them on dawg
-    pic_enable_irq(PIC_IRQ_TIMER);
+    pic_enable_irq(pic1_irq_timer);
 
     // Set the PIT to fire off an interrupt in the specified time
-    OUTB(PIT_COMMAND_PORT, PIT_MODE_ONESHOT |
-                          PIT_CHANNEL_0 |
-                        PIT_ACCESS_BOTH);
+    OUTB(PIT_IO_PORT_COMMAND, pit_mode_oneshot|
+                          pit_channel_0 |
+                        pit_access_both);
 
-    uint16_t reloadValue = frequencyDivisor; // this correct?
+    uint16_t reload_value = frequency_divisor; // this correct?
 
-    OUTB(PIT_CHANNEL_0_PORT, (uint8_t)(reloadValue & 0xFF));
-    OUTB(PIT_CHANNEL_0_PORT, (uint8_t)((reloadValue >> 8) & 0xFF));
+    OUTB(PIT_IO_PORT_CHANNEL_0, (uint8_t)(reload_value & 0xFF));
+    OUTB(PIT_IO_PORT_CHANNEL_0, (uint8_t)((reload_value >> 8) & 0xFF));
 
-    terminal_write_string("I set up us the PIT, we have signal\n");
+    terminal_write_string("I set up us the PIT\n");
 }
 
-void isr_timer() {
-
+void isr_timer()
+{
     // The amount of time we set to wait has now passed
-    gPitCounter++;
+    g_pit_counter++;
 
     terminal_write_string("Holy shitballs, Timer interrupt!!\n");
 
-    if(gPitCounter == 140) {
+    if(g_pit_counter == 140) {
         terminal_write_string("Timer hit!\n");
-        gPitCounter = 0;
+        g_pit_counter = 0;
     }
 
+    // To keep track of time in the kernel - 
+    // we set the interrupt to fire again
     //PIT_Set(1000);
 
-   // Tell the PIC we have handled the interrupt
-    pic_send_eoi(PIC1_CTRL);
+    // Tell the PIC we have handled the interrupt
+    pic_send_eoi(pic1_irq_timer);
 }
 
