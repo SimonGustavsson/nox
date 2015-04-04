@@ -1,7 +1,7 @@
 #ifndef NOX_INTERRUPT_H
 #define NOX_INTERRUPT_H
 
-typedef void (*interrupt_handler)();
+typedef void (*interrupt_handler)(uint8_t irq);
 
 typedef enum {
     gate_type_task32      = 0x5,
@@ -11,12 +11,12 @@ typedef enum {
     gate_type_trap32      = 0xF
 } gate_type;
 
-void interrupt_init_system();
-void interrupt_disable_all();
-void interrupt_enable_all();
-void interrupt_install_handler(uint8_t irq, interrupt_handler handler, gate_type type, uint8_t priv_level);
-void interrupt_enable_handler(uint8_t irq);
-void interrupt_disable_handler(uint8_t irq);
+void            interrupt_init_system();
+void            interrupt_disable_all();
+void            interrupt_enable_all();
+enum kresult    interrupt_install_handler(uint8_t irq, interrupt_handler handler, gate_type type, uint8_t priv_level);
+void            interrupt_enable_handler(uint8_t irq);
+void            interrupt_disable_handler(uint8_t irq);
 
 #define interrupt_receive(irq, handler) interrupt_install_handler(irq, handler, gate_type_interrupt32, 0)
 #define interrupt_receive_trap(irq, handler) interrupt_install_handler(irq, handler, gate_type_trap32, 0)
