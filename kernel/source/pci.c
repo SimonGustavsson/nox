@@ -1,6 +1,4 @@
-#if !defined(__cplusplus)
 #include <stdbool.h> // C Does not have bool :(
-#endif
 #include <stddef.h>
 #include <stdint.h>
 
@@ -55,7 +53,7 @@ void pci_write(uint8_t bus, uint8_t dev, uint8_t func, uint8_t port, uint8_t len
 // addr is the adress to start scanning at, and will be the address when the function returns
 bool pci_get_next_usbhc(pci_address* addr, pci_device* resDevice)
 {
-	uint32_t* resDevicePtr = (uint32_t*)(resDevice);
+	uint32_t* res_device_ptr = (uint32_t*)(resDevice);
 
 	for(; addr->bus < MAX_PCI_BUS_NR; addr->bus++)
 	{
@@ -71,9 +69,9 @@ bool pci_get_next_usbhc(pci_address* addr, pci_device* resDevice)
 				// TODO: This fills the result thing with loads of data, that might not
 				// be a valid device, if we end up never finding a device, we end up returning garbage
 				for (uint32_t i = 0; i < 64; i++)
-					resDevicePtr[i] = pci_read(addr->bus, addr->device, addr->func, (i << 2), sizeof(uint32_t));
+					res_device_ptr[i] = pci_read(addr->bus, addr->device, addr->func, (i << 2), sizeof(uint32_t));
 
-				if(resDevice->devClass != USB_CLASS_CODE || resDevice->dev_sub_class != USB_SUBCLASS_CODE)
+				if(resDevice->dev_class != USB_CLASS_CODE || resDevice->dev_sub_class != USB_SUBCLASS_CODE)
 					continue; // Not a usb device
 
 				// We found a usb device!

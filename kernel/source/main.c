@@ -10,7 +10,7 @@
 
 const char* gHcVersionNames[4] = {"UHCI", "OHCI", "EHCI", "xHCI"};
 
-void call_test_sys_call(uint32_t foo)
+static void call_test_sys_call(uint32_t foo)
 {
     __asm("mov %0, %%eax"
             :
@@ -32,7 +32,7 @@ void isr_keyboard(uint8_t irq, struct irq_regs* regs)
     uint8_t scanCode = INB(0x60);
     terminal_write_hex(scanCode);
     terminal_write_string("\n");
-    pic_send_eoi(PIC_IRQ_KEYBOARD);
+    pic_send_eoi(pic_irq_keyboard);
 }
 
 SECTION_BOOT void _start()
@@ -51,7 +51,7 @@ SECTION_BOOT void _start()
     interrupt_enable_all();
 
     // Enable the keyboard
-    pic_enable_irq(PIC_IRQ_KEYBOARD);
+    pic_enable_irq(pic_irq_keyboard);
     OUTB(0x60, 0xF4); // Enable on the encoder
     OUTB(0x64, 0xAE); // Enable on the controller
 
@@ -60,5 +60,6 @@ SECTION_BOOT void _start()
     pit_set(1000);
 
     terminal_write_string("\nKernel done, halting!\n");
+    KWARN("Nox has colored output, lets use it!");
     while(1);
 }

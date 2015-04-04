@@ -1,5 +1,5 @@
-#ifndef PCI_H
-#define PCI_H
+#ifndef NOX_PCI_H
+#define NOX_PCI_H
 
 #define  PCI_ADDR     0x0CF8
 #define  PCI_DATA     0x0CFC
@@ -19,7 +19,7 @@ typedef struct {
      uint8_t  revision_id;         // Revision ID
      uint8_t  prog_interface;      //
      uint8_t  dev_sub_class;       //
-     uint8_t  devClass;            //
+     uint8_t  dev_class;            //
      uint8_t  cache_line_size;     // Cache Line Size
      uint8_t  latency_timer;       // Latency Timer
      uint8_t  header_type;         // Header Type (0,1,2, if bit 7 set, multifunction device)
