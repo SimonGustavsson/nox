@@ -19,28 +19,20 @@ void call_test_sys_call(uint32_t foo)
     __asm("int $0x80");
 }
 
-void isr_syscall(uint8_t irq, void* regs)
+void isr_syscall(uint8_t irq, struct irq_regs* regs)
 {
-    uint32_t eax = 0;
     terminal_write_string("0x80 Sys Call, foo: ");
-    terminal_write_hex(eax);
+    terminal_write_hex(regs->eax);
     terminal_write_string("\n");
 }
 
-void isr_keyboard(uint8_t irq)
+void isr_keyboard(uint8_t irq, struct irq_regs* regs)
 {
     terminal_write_string("In keyboard ISR, scan code: ");
     uint8_t scanCode = INB(0x60);
     terminal_write_hex(scanCode);
     terminal_write_string("\n");
     pic_send_eoi(PIC_IRQ_KEYBOARD);
-}
-
-void isr_test(uint8_t irq)
-{
-    terminal_write_string("In isr for irq ");
-    terminal_write_hex(irq);
-    terminal_write_string("\n");
 }
 
 SECTION_BOOT void _start()
@@ -63,7 +55,7 @@ SECTION_BOOT void _start()
     OUTB(0x60, 0xF4); // Enable on the encoder
     OUTB(0x64, 0xAE); // Enable on the controller
 
-    // call_test_sys_call(0x1234);
+    call_test_sys_call(0x1234);
 
     pit_set(1000);
 

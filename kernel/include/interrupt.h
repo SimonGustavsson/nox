@@ -1,7 +1,19 @@
 #ifndef NOX_INTERRUPT_H
 #define NOX_INTERRUPT_H
 
-typedef void (*interrupt_handler)(uint8_t irq);
+struct irq_regs
+{
+    uintptr_t   edi;
+    uintptr_t   esi;
+    uintptr_t   ebp;
+    uintptr_t   esp;
+    uintptr_t   ebx;
+    uintptr_t   edx;
+    uintptr_t   ecx;
+    uintptr_t   eax;
+};
+
+typedef void (*interrupt_handler)(uint8_t irq, struct irq_regs* regs);
 
 typedef enum {
     gate_type_task32      = 0x5,

@@ -31,7 +31,7 @@
 #define PIT_BINARY_MODE 0 // 16-bit Binary mode
 #define PIT_BCD_MODE 1    // four-digit BCD
 
-static void isr_timer(uint8_t irq);
+static void isr_timer(uint8_t irq, struct irq_regs* irq_regs);
 
 static int gPitCounter = 0;
 
@@ -56,7 +56,7 @@ void pit_set(uint16_t frequencyDivisor) {
     terminal_write_string("I set up us the PIT, we have signal\n");
 }
 
-static void isr_timer(uint8_t irq) {
+static void isr_timer(uint8_t irq, struct irq_regs* regs) {
 
     // The amount of time we set to wait has now passed
     gPitCounter++;

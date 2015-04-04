@@ -34,6 +34,7 @@ struct PACKED idt_entry
 struct PACKED dispatcher
 {
     uint8_t             pusha;
+    uint8_t             push_esp;
     uint8_t             push_imm;
     uint8_t             push_imm_arg;
     uint8_t             call;
@@ -57,7 +58,7 @@ static struct idt_descriptor        idt_get();
 static void                         idt_install(struct idt_descriptor* idt);
 static void                         idt_entry_setup(struct idt_entry* entry, uint8_t irq, gate_type type, uint8_t priv_level);
 static enum kresult                 idt_entry_verify(struct idt_entry const * const entry, uint8_t const irq, gate_type const type, uint8_t const priv_level);
-static void                         irq_dispatcher(uint8_t irq);
+static void                         irq_dispatcher(uint8_t irq, struct irq_regs* regs);
 
 // -------------------------------------------------------------------------
 // Globals
@@ -152,18 +153,18 @@ static struct idt_descriptor idt_get()
     return addr;
 }
 
-static void irq_dispatcher(uint8_t which)
+static void irq_dispatcher(uint8_t irq, struct irq_regs* regs)
 {
-    struct dispatcher_data* data = &g_dispatcher_data[which];
+    struct dispatcher_data* data = &g_dispatcher_data[irq];
 
     if (data->handler == 0) {
         terminal_write_string("irq_dispatcher, missing handler for interrupt ");
-        terminal_write_hex(which);
+        terminal_write_hex(irq);
         terminal_write_string("\n");
         return;
     }
 
-    data->handler(which);
+    data->handler(irq, regs);
 }
 
 static void irq_dispatcher_create(struct dispatcher* destination, uint8_t irq)
@@ -177,6 +178,12 @@ static void irq_dispatcher_create(struct dispatcher* destination, uint8_t irq)
         //
         // PUSHA
         .pusha = 0x60,
+
+        // PUSH a pointer to the registers
+        // saved on the stack
+        .push_esp = 0x54,
+
+        // PUSH the IRQ Number
         .push_imm = 0x6A,
         .push_imm_arg = irq,
 
@@ -184,10 +191,10 @@ static void irq_dispatcher_create(struct dispatcher* destination, uint8_t irq)
         .call = 0xE8,
         .target = relative,
 
-        // ADD ESP, 0x04 (unwind arg from CALL)
+        // ADD ESP, 0x08 (unwind args from CALL)
         .add_imm = 0x83,
         .add_imm_reg = 0xC4,
-        .add_imm_arg = 0x04,
+        .add_imm_arg = 0x08,
 
         // POPA
         .popa = 0x61,
