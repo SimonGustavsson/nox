@@ -59,12 +59,13 @@ void pit_set(uint16_t frequency_divisor)
 
     // Not gonna get any timer interrupts if we don't
     // turn them on dawg
+    interrupt_receive(IRQ_0, isr_timer);
     pic_enable_irq(pic_irq_timer);
 
     // Set the PIT to fire off an interrupt in the specified time
     OUTB(PIT_IO_PORT_COMMAND, pit_mode_oneshot|
-                          pit_channel_0 |
-                        pit_access_both);
+            pit_channel_0 |
+            pit_access_both);
 
     uint16_t reload_value = frequency_divisor; // this correct?
 

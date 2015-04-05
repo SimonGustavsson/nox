@@ -10,6 +10,11 @@
 
 const char* gHcVersionNames[4] = {"UHCI", "OHCI", "EHCI", "xHCI"};
 
+static void gpf(uint8_t irq, struct irq_regs* regs)
+{
+    terminal_write_string("General Protection Fault!\n");
+}
+
 static void call_test_sys_call(uint32_t foo)
 {
     __asm("mov %0, %%eax"
@@ -41,6 +46,7 @@ SECTION_BOOT void _start()
     terminal_write_string("NOX is here, bow down puny mortal...\n");
 
     interrupt_init_system();
+    interrupt_receive_trap(0x0D, gpf);
     interrupt_receive_trap(0x80, isr_syscall);
     interrupt_receive(IRQ_1, isr_keyboard);
 
