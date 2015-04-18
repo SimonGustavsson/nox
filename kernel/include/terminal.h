@@ -3,7 +3,7 @@
 
 #include "stdint.h"
 
-typedef enum 
+typedef enum
 {
     vga_color_black         = 0,
     vga_color_blue          = 1,
@@ -27,6 +27,7 @@ void terminal_init();
 void terminal_reset_color();
 void terminal_set_color(vga_color fg, vga_color bg);
 void terminal_write_string(const char* data);
+void terminal_write_char(const char c);
 void terminal_write_uint32(uint32_t val);
 void terminal_write_hex(uint32_t val);
 

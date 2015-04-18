@@ -55,7 +55,6 @@ static int g_pit_counter = 0;
 // -------------------------------------------------------------------------
 void pit_set(uint16_t frequency_divisor)
 {
-    g_pit_counter = 0;
 
     // Not gonna get any timer interrupts if we don't
     // turn them on dawg
@@ -71,8 +70,6 @@ void pit_set(uint16_t frequency_divisor)
 
     OUTB(PIT_IO_PORT_CHANNEL_0, (uint8_t)(reload_value & 0xFF));
     OUTB(PIT_IO_PORT_CHANNEL_0, (uint8_t)((reload_value >> 8) & 0xFF));
-
-    terminal_write_string("I set up us the PIT\n");
 }
 
 static void isr_timer(uint8_t irq, struct irq_regs* regs)
@@ -80,16 +77,18 @@ static void isr_timer(uint8_t irq, struct irq_regs* regs)
     // The amount of time we set to wait has now passed
     g_pit_counter++;
 
-    terminal_write_string("Holy shitballs, Timer interrupt!!\n");
-
-    if(g_pit_counter == 140) {
+    // Show a message roughly once every couple of seconds
+    if(g_pit_counter == 36) {
         terminal_write_string("Timer hit!\n");
         g_pit_counter = 0;
     }
 
     // To keep track of time in the kernel -
     // we set the interrupt to fire again
-    //PIT_Set(1000);
+    //
+    // 0 gives a divisor of 65,536, which yields an interval
+    // of ~18Hz
+    pit_set(0);
 
     // Tell the PIC we have handled the interrupt
     pic_send_eoi(pic_irq_timer);

@@ -9,7 +9,7 @@
 // -------------------------------------------------------------------------
 static const size_t VGA_WIDTH = 80;
 static const size_t VGA_HEIGHT = 25;
- 
+
 static size_t g_current_row;
 static size_t g_current_column;
 static uint8_t g_current_color;
@@ -21,7 +21,6 @@ static uint16_t* g_buffer;
 static uint8_t terminal_create_color(vga_color fg, vga_color bg);
 static uint16_t vgaentry_create(char c, uint8_t color);
 static void terminal_put_entry_at(char c, uint8_t color, size_t x, size_t y);
-static void terminal_put_char(char c);
 
 // -------------------------------------------------------------------------
 // Externs
@@ -57,7 +56,7 @@ void terminal_write_string(const char* data)
 {
 	size_t datalen = strlen(data);
 	for (size_t i = 0; i < datalen; i++)
-		terminal_put_char(data[i]);
+		terminal_write_char(data[i]);
 }
 
 void terminal_write_uint32(uint32_t val)
@@ -69,37 +68,21 @@ void terminal_write_uint32(uint32_t val)
 
 void terminal_write_hex_byte(uint8_t val)
 {
-	terminal_put_char(nybble_to_ascii((val >> 4) & 0xF));
-	terminal_put_char(nybble_to_ascii((val >> 0) & 0xF));
+	terminal_write_char(nybble_to_ascii((val >> 4) & 0xF));
+	terminal_write_char(nybble_to_ascii((val >> 0) & 0xF));
 }
 
 void terminal_write_hex(uint32_t val)
 {
-	terminal_put_char('0');
-	terminal_put_char('x');
+	terminal_write_char('0');
+	terminal_write_char('x');
 	terminal_write_hex_byte((val >> 24) & 0xFF);
 	terminal_write_hex_byte((val >> 16) & 0xFF);
 	terminal_write_hex_byte((val >> 8) & 0xFF);
 	terminal_write_hex_byte((val >> 0) & 0xFF);
 }
 
-// -------------------------------------------------------------------------
-// Private
-// -------------------------------------------------------------------------
-static uint16_t vgaentry_create(char c, uint8_t color)
-{
-	uint16_t c16 = c;
-	uint16_t color16 = color;
-	return c16 | color16 << 8;
-}
-
-static void terminal_put_entry_at(char c, uint8_t color, size_t x, size_t y)
-{
-	const size_t index = y * VGA_WIDTH + x;
-	g_buffer[index] = vgaentry_create(c, color);
-}
-
-static void terminal_put_char(char c)
+void terminal_write_char(const char c)
 {
 	if(c == '\n')
 	{
@@ -117,6 +100,22 @@ static void terminal_put_char(char c)
 			g_current_row = 0;
 		}
 	}
+}
+
+// -------------------------------------------------------------------------
+// Private
+// -------------------------------------------------------------------------
+static uint16_t vgaentry_create(char c, uint8_t color)
+{
+	uint16_t c16 = c;
+	uint16_t color16 = color;
+	return c16 | color16 << 8;
+}
+
+static void terminal_put_entry_at(char c, uint8_t color, size_t x, size_t y)
+{
+	const size_t index = y * VGA_WIDTH + x;
+	g_buffer[index] = vgaentry_create(c, color);
 }
 
 static uint8_t terminal_create_color(vga_color fg, vga_color bg)
