@@ -72,6 +72,8 @@ void pit_set(uint16_t frequency_divisor)
     OUTB(PIT_IO_PORT_CHANNEL_0, (uint8_t)((reload_value >> 8) & 0xFF));
 }
 
+uint32_t g_num_timer_hits = 0;
+
 static void isr_timer(uint8_t irq, struct irq_regs* regs)
 {
     // The amount of time we set to wait has now passed
@@ -79,7 +81,10 @@ static void isr_timer(uint8_t irq, struct irq_regs* regs)
 
     // Show a message roughly once every couple of seconds
     if(g_pit_counter == 36) {
-        terminal_write_string("Timer hit!\n");
+        g_num_timer_hits++;
+        terminal_write_string("Timer hit!");
+        terminal_write_hex(g_num_timer_hits);
+        terminal_write_string("\n");
         g_pit_counter = 0;
     }
 
