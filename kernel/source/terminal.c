@@ -13,7 +13,12 @@ static const size_t VGA_HEIGHT = 25;
 static size_t g_current_row;
 static size_t g_current_column;
 static uint8_t g_current_color;
-static uint16_t* g_buffer;
+static uint16_t* g_terminal;
+
+// TODO: This kinda goes against our conventions of large
+//       objects in the data region, but we don't support
+//       dynamic allocations yet. :-(
+
 
 // -------------------------------------------------------------------------
 // Forward declaractions
@@ -30,14 +35,14 @@ void terminal_init()
 {
 	g_current_row = 0;
 	g_current_column = 0;
-	g_buffer = (uint16_t*) 0xB8000;
+	g_terminal = (uint16_t*) 0xB8000;
     terminal_reset_color();
 	for ( size_t y = 0; y < VGA_HEIGHT; y++ )
 	{
 		for ( size_t x = 0; x < VGA_WIDTH; x++ )
 		{
 			const size_t index = y * VGA_WIDTH + x;
-			g_buffer[index] = vgaentry_create(' ', g_current_color);
+			g_terminal[index] = vgaentry_create(' ', g_current_color);
 		}
 	}
 }
@@ -115,7 +120,7 @@ static uint16_t vgaentry_create(char c, uint8_t color)
 static void terminal_put_entry_at(char c, uint8_t color, size_t x, size_t y)
 {
 	const size_t index = y * VGA_WIDTH + x;
-	g_buffer[index] = vgaentry_create(c, color);
+	g_terminal[index] = vgaentry_create(c, color);
 }
 
 static uint8_t terminal_create_color(vga_color fg, vga_color bg)
