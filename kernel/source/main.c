@@ -49,10 +49,21 @@ void key_up(enum keys key)
     terminal_write_string(" was released!");
 }
 
+void print_welcome()
+{
+    terminal_write_string("| \\ | |/ __ \\ \\ / /  \n");
+    terminal_write_string("|  \\| | |  | \\ V /   \n");
+    terminal_write_string("| . ` | |  | |> <    \n");
+    terminal_write_string("| |\\  | |__| / . \\   \n");
+    terminal_write_string("|_| \\_|\\____/_/ \\_\\  \n");
+    terminal_write_string("Welcome to the glorious wunderkind of Philip & Simon!\n");
+}
+
 SECTION_BOOT void _start()
 {
     terminal_init();
-    terminal_write_string("NOX is here, bow down puny mortal...\n");
+
+    print_welcome();
 
     interrupt_init_system();
     interrupt_receive_trap(0x0D, gpf);
@@ -77,7 +88,10 @@ SECTION_BOOT void _start()
 
     pit_set(1000);
 
-    terminal_write_string("\nKernel done, halting!\n");
     KWARN("Nox has colored output, lets use it!");
+
+    terminal_write_string("Kernel initialized, off to you, interrupts!\n");
+
     while(1);
 }
+
