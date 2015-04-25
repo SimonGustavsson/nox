@@ -86,7 +86,10 @@ enum keys {
     keys_pause,
     keys_insert,
     keys_delete,
-
+    keys_home,
+    keys_pagedown,
+    keys_pageup,
+    keys_end,
     keys_shift      = 16384,
     keys_ctrl       = 16385,
     keys_alt        = 16386,

@@ -37,6 +37,12 @@ char* kb_get_special_key_name(enum keys key)
         case keys_ralt: return "r-alt";
         case keys_enter: return "enter";
         case keys_escape: return "escape";
+        case keys_insert: return "insert";
+        case keys_home: return "home";
+        case keys_pageup: return "page-up";
+        case keys_pagedown: return "page-down";
+        case keys_delete: return "delete";
+        case keys_end: return "end";
         case keys_f1: return "f1";
         case keys_f2: return "f2";
         case keys_f3: return "f3";
@@ -167,13 +173,13 @@ static void kb_handle_interrupt(uint8_t irq, struct irq_regs* regs)
 
         switch (sc_entry->type) {
             case sc_map_entry_type_press:
-                g_current_subscriber->down(sc_entry->data);
                 reset_map();
+                g_current_subscriber->down(sc_entry->data);
                 break;
 
             case sc_map_entry_type_release:
-                g_current_subscriber->up(sc_entry->data);
                 reset_map();
+                g_current_subscriber->up(sc_entry->data);
                 break;
 
             case sc_map_entry_type_map:
