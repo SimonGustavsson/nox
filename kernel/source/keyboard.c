@@ -23,14 +23,33 @@ static void kb_handle_interrupt(uint8_t irq, struct irq_regs* regs);
 char kb_key_to_ascii(enum keys key)
 {
     switch(key) {
-        case keys_a:
-            return 'a';
-        case keys_b:
-            return 'b';
-        case keys_c:
-            return 'c';
-        case keys_up:
-            return '^';
+        case keys_a:  return 'a';
+        case keys_b:  return 'b';
+        case keys_c:  return 'c';
+        case keys_d:  return 'd';
+        case keys_e:  return 'e';
+        case keys_f:  return 'f';
+        case keys_g:  return 'g';
+        case keys_h:  return 'h';
+        case keys_i:  return 'i';
+        case keys_j:  return 'j';
+        case keys_k:  return 'k';
+        case keys_l:  return 'l';
+        case keys_m:  return 'm';
+        case keys_n:  return 'n';
+        case keys_o:  return 'o';
+        case keys_p:  return 'p';
+        case keys_q:  return 'q';
+        case keys_r:  return 'r';
+        case keys_s:  return 's';
+        case keys_t:  return 't';
+        case keys_u:  return 'u';
+        case keys_v:  return 'v';
+        case keys_w:  return 'w';
+        case keys_x:  return 'x';
+        case keys_y:  return 'y';
+        case keys_z:  return 'z';
+        case keys_up: return '^';
         default:
             return -1;
     }
