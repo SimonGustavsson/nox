@@ -37,6 +37,18 @@ char* kb_get_special_key_name(enum keys key)
         case keys_ralt: return "r-alt";
         case keys_enter: return "enter";
         case keys_escape: return "escape";
+        case keys_f1: return "f1";
+        case keys_f2: return "f2";
+        case keys_f3: return "f3";
+        case keys_f4: return "f4";
+        case keys_f5: return "f5";
+        case keys_f6: return "f6";
+        case keys_f7: return "f7";
+        case keys_f8: return "f8";
+        case keys_f9: return "f9";
+        case keys_f10: return "f10";
+        case keys_f11: return "f11";
+        case keys_f12: return "f12";
         default:
             return "<unknown>";
     }
@@ -134,9 +146,9 @@ static void kb_handle_interrupt(uint8_t irq, struct irq_regs* regs)
 {
     uint8_t scan_code = INB(0x60);
 
-    terminal_write_string("KB IRQ Scan code: ");
-    terminal_write_hex(scan_code);
-    terminal_write_string("\n");
+    //terminal_write_string("KB IRQ Scan code: ");
+    //terminal_write_hex(scan_code);
+    //terminal_write_string("\n");
 
     // Translate scancode
     int sc_index = sc_get_entry_index(g_current_map, scan_code);
@@ -151,9 +163,6 @@ static void kb_handle_interrupt(uint8_t irq, struct irq_regs* regs)
         reset_map();
     }
     else {
-        terminal_write_string("SC index found: ");
-        terminal_write_hex(sc_index);
-        terminal_write_string("\n");
         struct sc_map_entry* sc_entry = &g_current_map->entries[sc_index];
 
         switch (sc_entry->type) {

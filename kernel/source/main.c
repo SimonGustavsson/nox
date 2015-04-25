@@ -45,7 +45,6 @@ void key_up(enum keys key)
         // Perhaps it's a key such as ctrl?
         char* key_name = kb_get_special_key_name(key);
 
-        terminal_write_char('~');
         if(key_name != NULL) {
             terminal_write_string(key_name);
         }
