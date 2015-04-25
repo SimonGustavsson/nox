@@ -262,7 +262,14 @@ kernelFound:
     add eax, [variables.dataRegionStart]
 
     ; EAX Now contains the LBA of KERNEL.BIN
-    mov word [readPacketNumBlocks], 16 ; TODO: Sectors per cluster here
+
+    ;
+    ; TODO
+    ;   This currently just loads 10240 bytes, assuming the size of the kernel
+    ;   does not exceed this. We keep hitting the limit and incrementing it.
+    ;   We'll get around to actually just reading the file size one of these days I'm sure..
+    ;
+    mov word [readPacketNumBlocks], 20 ; TODO: Sectors per cluster here
     mov [readPacketLBA], eax
 
     ; Read kernel to a familiar place
