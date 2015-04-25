@@ -269,7 +269,7 @@ kernelFound:
     ;   does not exceed this. We keep hitting the limit and incrementing it.
     ;   We'll get around to actually just reading the file size one of these days I'm sure..
     ;
-    mov word [readPacketNumBlocks], 20 ; TODO: Sectors per cluster here
+    mov word [readPacketNumBlocks], 40 ; TODO: Sectors per cluster here
     mov [readPacketLBA], eax
 
     ; Read kernel to a familiar place
