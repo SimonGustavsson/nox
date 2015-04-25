@@ -7,6 +7,7 @@
 #include <kernel.h>
 #include <keyboard.h>
 #include <scan_code.h>
+#include <terminal.h>
 
 enum key_event_type {
     key_event_type_down,
@@ -49,6 +50,18 @@ char kb_key_to_ascii(enum keys key)
         case keys_x:  return 'x';
         case keys_y:  return 'y';
         case keys_z:  return 'z';
+
+        case keys_1:  return '1';
+        case keys_2:  return '2';
+        case keys_3:  return '3';
+        case keys_4:  return '4';
+        case keys_5:  return '5';
+        case keys_6:  return '6';
+        case keys_7:  return '7';
+        case keys_8:  return '8';
+        case keys_9:  return '9';
+        case keys_0:  return '0';
+
         case keys_up: return '^';
         default:
             return -1;
@@ -94,7 +107,9 @@ static void kb_handle_interrupt(uint8_t irq, struct irq_regs* regs)
     if (sc_index < 0) {
 
         // Unknown scan-code
-
+        terminal_write_string("Unknown scan code value: ");
+        terminal_write_hex(scan_code);
+        terminal_write_string("\n");
         // Reset to the first map in the set
         reset_map();
     }

@@ -29,6 +29,17 @@ enum keys {
     keys_y,
     keys_z,
 
+    keys_0,
+    keys_1,
+    keys_2,
+    keys_3,
+    keys_4,
+    keys_5,
+    keys_6,
+    keys_7,
+    keys_8,
+    keys_9,
+
     keys_shift      = 16384,
     keys_ctrl       = 16385,
     keys_alt        = 16386,
