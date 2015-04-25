@@ -21,6 +21,27 @@ struct sc_map*          g_current_map;
 
 static void kb_handle_interrupt(uint8_t irq, struct irq_regs* regs);
 
+char* kb_get_special_key_name(enum keys key)
+{
+    switch(key) {
+        case keys_backspace: return "backspace";
+        case keys_tab: return "tab";
+        case keys_capslock: return "caps-lock";
+        case keys_lshift: return "l-shift";
+        case keys_lctrl: return "l-ctrl";
+        case keys_lgui: return "l-gui";
+        case keys_lalt: return "l-alt";
+        case keys_rshift: return "r-shift";
+        case keys_rctrl: return "r-ctrl";
+        case keys_rgui: return "r-gui";
+        case keys_ralt: return "r-alt";
+        case keys_enter: return "enter";
+        case keys_escape: return "escape";
+        default:
+            return "<unknown>";
+    }
+}
+
 char kb_key_to_ascii(enum keys key)
 {
     switch(key) {
@@ -62,6 +83,18 @@ char kb_key_to_ascii(enum keys key)
         case keys_9:  return '9';
         case keys_0:  return '0';
 
+        case keys_acute:  return '`';
+        case keys_hyphen:  return '-';
+        case keys_equals:  return '=';
+        case keys_space:  return ' ';
+        case keys_apostrophe:  return '\'';
+        case keys_comma: return ',';
+        case keys_period: return '.';
+        case keys_semicolon: return ';';
+        case keys_lsquarebracket: return '[';
+        case keys_rsquarebracket: return ']';
+        case keys_forwardslash: return '/';
+        case keys_backslash: return '\\';
         case keys_up: return '^';
         default:
             return -1;
@@ -101,6 +134,10 @@ static void kb_handle_interrupt(uint8_t irq, struct irq_regs* regs)
 {
     uint8_t scan_code = INB(0x60);
 
+    terminal_write_string("KB IRQ Scan code: ");
+    terminal_write_hex(scan_code);
+    terminal_write_string("\n");
+
     // Translate scancode
     int sc_index = sc_get_entry_index(g_current_map, scan_code);
 
@@ -114,6 +151,9 @@ static void kb_handle_interrupt(uint8_t irq, struct irq_regs* regs)
         reset_map();
     }
     else {
+        terminal_write_string("SC index found: ");
+        terminal_write_hex(sc_index);
+        terminal_write_string("\n");
         struct sc_map_entry* sc_entry = &g_current_map->entries[sc_index];
 
         switch (sc_entry->type) {

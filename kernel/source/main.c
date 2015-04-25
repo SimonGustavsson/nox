@@ -34,32 +34,30 @@ void isr_syscall(uint8_t irq, struct irq_regs* regs)
 
 void key_down(enum keys key)
 {
-    char c = kb_key_to_ascii(key);
-    if(c < 0) {
-        terminal_write_string("Unprintable key pressed. keys_ value: ");
-        terminal_write_hex((uint32_t)key);
-        terminal_write_string("\n");
-        return;
-    }
-
-    //terminal_write_string("\n");
-    //terminal_write_char(c);
-    //terminal_write_string(" was pressed!");
+    // We deal with all input in key up! :-)
 }
 
 void key_up(enum keys key)
 {
     char c = kb_key_to_ascii(key);
     if(c < 0) {
-        terminal_write_string("Unprintable key released. keys_ value: ");
-        terminal_write_hex((uint32_t)key);
-        terminal_write_string("\n");
-        return;
-    }
+    
+        // Perhaps it's a key such as ctrl?
+        char* key_name = kb_get_special_key_name(key);
 
-    //terminal_write_string("\n");
-    terminal_write_char(c);
-    //terminal_write_string(" was released!");
+        terminal_write_char('~');
+        if(key_name != NULL) {
+            terminal_write_string(key_name);
+        }
+        else {
+            terminal_write_string("Unprintable key released. keys_ value: ");
+            terminal_write_hex((uint32_t)key);
+            terminal_write_string("\n");
+        }
+    }
+    else {
+        terminal_write_char(c);
+    }
 }
 
 void print_welcome()

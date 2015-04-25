@@ -40,6 +40,34 @@ enum keys {
     keys_8,
     keys_9,
 
+    keys_acute,
+    keys_hashtag,
+    keys_hyphen,
+    keys_equals,
+    keys_backslash,
+    keys_backspace,
+    keys_space,
+    keys_tab,
+    keys_capslock,
+    keys_lshift,
+    keys_lctrl,
+    keys_lgui,
+    keys_lalt,
+
+    keys_rshift,
+    keys_rctrl,
+    keys_rgui,
+    keys_ralt,
+    keys_enter,
+    keys_escape,
+    keys_apostrophe,
+    keys_semicolon,
+    keys_comma,
+    keys_period,
+    keys_rsquarebracket,
+    keys_lsquarebracket,
+    keys_forwardslash,
+
     keys_shift      = 16384,
     keys_ctrl       = 16385,
     keys_alt        = 16386,
@@ -56,5 +84,6 @@ void kb_subscribe(struct kb_subscriber* subscriber);
 void kb_init();
 void kb_unsubscribe(struct kb_subscriber* subscriber);
 char kb_key_to_ascii(enum keys key);
+char* kb_get_special_key_name(enum keys key);
 
 #endif
