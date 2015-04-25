@@ -55,6 +55,8 @@ char* kb_get_special_key_name(enum keys key)
         case keys_f10: return "f10";
         case keys_f11: return "f11";
         case keys_f12: return "f12";
+        case keys_numlock: return "num-lock";
+        case keys_num_enter: return "num-enter";
         default:
             return "<unknown>";
     }
@@ -113,6 +115,21 @@ char kb_key_to_ascii(enum keys key)
         case keys_rsquarebracket: return ']';
         case keys_forwardslash: return '/';
         case keys_backslash: return '\\';
+        case keys_num_divide: return '/';
+        case keys_num_multiply: return '*';
+        case keys_num_subtract: return '-';
+        case keys_num_add: return '+';
+        case keys_num_comma: return '.';
+        case keys_num_0: return '0';
+        case keys_num_1: return '1';
+        case keys_num_2: return '2';
+        case keys_num_3: return '3';
+        case keys_num_4: return '4';
+        case keys_num_5: return '5';
+        case keys_num_6: return '6';
+        case keys_num_7: return '7';
+        case keys_num_8: return '8';
+        case keys_num_9: return '9';
         case keys_up: return '^';
         default:
             return -1;
