@@ -93,7 +93,7 @@ static void isr_timer(uint8_t irq, struct irq_regs* regs)
     //
     // 0 gives a divisor of 65,536, which yields an interval
     // of ~18Hz
-    pit_set(0);
+    //pit_set(0);
 
     // Tell the PIC we have handled the interrupt
     pic_send_eoi(pic_irq_timer);
