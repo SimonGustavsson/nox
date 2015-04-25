@@ -90,6 +90,7 @@ enum keys {
     keys_pagedown,
     keys_pageup,
     keys_end,
+    keys_apps,
 
     keys_numlock,
     keys_num_subtract,
@@ -114,6 +115,9 @@ enum keys {
     keys_alt        = 16386,
 
     keys_up         = 32768,
+    keys_down,
+    keys_right,
+    keys_left,
 };
 
 struct kb_subscriber {

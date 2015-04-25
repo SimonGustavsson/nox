@@ -29,4 +29,5 @@ struct sc_set {
 };
 
 struct sc_set*              sc_get_set_1();
+struct sc_set*              sc_get_set_2();
 int                         sc_get_entry_index(struct sc_map* map, uint8_t scan_code);
