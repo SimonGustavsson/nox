@@ -57,6 +57,10 @@ char* kb_get_special_key_name(enum keys key)
         case keys_f12: return "f12";
         case keys_numlock: return "num-lock";
         case keys_num_enter: return "num-enter";
+        case keys_left: return "left";
+        case keys_up: return "up";
+        case keys_right: return "right";
+        case keys_down: return "down";
         default:
             return "<unknown>";
     }
@@ -130,7 +134,6 @@ char kb_key_to_ascii(enum keys key)
         case keys_num_7: return '7';
         case keys_num_8: return '8';
         case keys_num_9: return '9';
-        case keys_up: return '^';
         default:
             return -1;
     }
