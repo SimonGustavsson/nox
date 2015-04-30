@@ -1,6 +1,6 @@
 # Nox
 
-Welcome! Nox is a hobby kernel developed by two guys with a keen interest in kernels and operating system.
+Welcome! Nox is a hobby kernel developed by two guys with a keen interest in kernels and operating systems.
 This is our common project that we work on as much as time and life allows. It is most definitely *not* ready
 for any sort of real world use.
 
