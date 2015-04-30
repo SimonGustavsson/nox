@@ -3,6 +3,13 @@
 
 #include "stdint.h"
 
+// Concepts
+//  - Screen - data rendering, NOT input
+//  - Keyboard - low level keyboard handling, delivers to the active terminal
+//  - Terminal - a thing that ties input and output together, visual or text
+//  - Terminal Manager - Manages which terminal is currently active
+//  - Interpreter - reads input and turns it into something the terminal understands
+
 typedef enum
 {
     vga_color_black         = 0,
