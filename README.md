@@ -1,9 +1,26 @@
 # Nox
 
-x86 kernel for USB HC development
+Welcome! Nox is a hobby kernel developed by two guys with a keen interest in kernels and operating system.
+This is our common project that we work on as much as time and life allows. It is most definitely *not* ready
+for any sort of real world use.
+
+# What does it do *now*?
+* Protected mode
+* Paging (in the simpliest form)
+* Interrupts
+* PIT support for timing
+* PS/2 keyboard
+* Scan code Set 1 interpreter
+
+# What we're planning on doing
+* Terminals (multiple, text and visual)
+* Threads
+* User mode
+* USB stack
+* PATA support
+* Networking
 
 # Running it
-
 After building, just hit `make run` to test in Bochs.
 
 # Building
