@@ -153,6 +153,9 @@ static void dispatch_command(uint8_t* args[], size_t arg_count)
     else if(kstrcmp(args[0], "clear")) {
         terminal_clear();
     }
+    else if(kstrcmp(args[0], "help")) {
+        terminal_write_string("RTFM\n");
+    }
     else {
         print_invalid_command(args, arg_count);
     }
