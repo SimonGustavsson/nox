@@ -12,7 +12,6 @@
                 terminal_reset_color();          \
             } while(0)
 
-
 #define KINFO(str) PRINTK(str, vga_color_light_grey, vga_color_black)
 #define KWARN(str) PRINTK(str, vga_color_light_red, vga_color_black)
 #define KERROR(str) PRINTK(str, vga_color_red, vga_color_black)

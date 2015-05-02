@@ -1,6 +1,7 @@
+#include <types.h>
+#include <screen.h>
 #include <kernel.h>
 #include <debug.h>
-#include <types.h>
 #include <terminal.h>
 #include <pci.h>
 #include <pic.h>
@@ -71,6 +72,7 @@ void print_welcome()
 
 SECTION_BOOT void _start()
 {
+    screen_init();
     terminal_init();
 
     print_welcome();

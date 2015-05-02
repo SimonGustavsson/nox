@@ -1,7 +1,5 @@
-#ifndef NOX_TERMINAL_H
-#define NOX_TERMINAL_H
-
-#include "stdint.h"
+#ifndef NOX_SCREEN_H
+#define NOX_SCREEN_H
 
 // Concepts
 //  - Screen - data rendering, NOT input
@@ -33,7 +31,7 @@
 //     screen_put_pixel(x,y,p);
 // };
 
-typedef enum
+enum vga_color
 {
     vga_color_black         = 0,
     vga_color_blue          = 1,
@@ -51,14 +49,16 @@ typedef enum
     vga_color_light_magenta = 13,
     vga_color_light_brown   = 14,
     vga_color_white         = 15,
-} vga_color;
+};
 
-void terminal_init();
-void terminal_reset_color();
-void terminal_set_color(vga_color fg, vga_color bg);
-void terminal_write_string(const char* data);
-void terminal_write_char(const char c);
-void terminal_write_uint32(uint32_t val);
-void terminal_write_hex(uint32_t val);
+typedef uint8_t screen_color;
+
+void screen_init();
+screen_color screen_create_color(enum vga_color foreground, enum vga_color background);
+void screen_put_char(char c, screen_color color, size_t x, size_t y);
+void screen_put_entry(uint16_t entry, size_t x, size_t y);
+uint16_t screen_create_entry(char c, enum vga_color color);
+uint32_t screen_width_get();
+uint32_t screen_height_get();
 
 #endif
