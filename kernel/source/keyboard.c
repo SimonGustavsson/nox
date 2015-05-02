@@ -16,7 +16,7 @@ enum key_event_type {
 };
 
 struct kb_subscriber*   g_current_subscriber;
-
+bool g_initial_ack_received;
 struct sc_set*          g_current_set;
 struct sc_map*          g_current_map;
 
@@ -159,6 +159,8 @@ static void reset_map()
 
 void kb_init()
 {
+    g_initial_ack_received = false;
+
     // Get scan-code info
     g_current_set = sc_get_set_1();
     reset_map();
@@ -174,6 +176,19 @@ void kb_init()
 static void kb_handle_interrupt(uint8_t irq, struct irq_regs* regs)
 {
     uint8_t scan_code = INB(0x60);
+
+    if(scan_code == 0xFA && !g_initial_ack_received) {
+
+        // Currently, we seem to be getting an interrupt
+        // right after enabling the keyboard and interrupts.
+        // The scan code is 0xFA, and the current set is 1.
+        // This is not a valid scan code, and we currently do not
+        // know why this is being sent. We have only ever seen it
+        // get "sent" once, in this instance. So we simply ignore it.
+        g_initial_ack_received = true;
+        pic_send_eoi(pic_irq_keyboard);
+        return;
+    }
 
     //terminal_write_string("KB IRQ Scan code: ");
     //terminal_write_hex(scan_code);
