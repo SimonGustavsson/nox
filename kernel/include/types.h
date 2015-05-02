@@ -3,7 +3,6 @@
 
 #include <stdbool.h> // C Does not have bool :(
 #include <stdint.h>
-
-#define NULL 0
+#include <stddef.h>
 
 #endif
