@@ -3,6 +3,7 @@
 #include "stddef.h"
 #include "stdint.h"
 #include <screen.h>
+#include <pio.h>
 
 // -------------------------------------------------------------------------
 // Globals
@@ -35,6 +36,19 @@ void screen_init()
 			g_terminal[index] = screen_create_color(' ', vga_color_black);
 		}
 	}
+}
+
+void screen_cursor_hide()
+{
+    // Tell the VGA text mode
+    // THING that we want to access the cursor start register
+    // which is at index 0xA
+    OUTB(0x3D4, 0xA);
+    uint8_t val = INB(0x3D5);
+
+    val |= (1 << 5);
+
+    OUTB(0x3D5, val);
 }
 
 uint32_t screen_width_get()

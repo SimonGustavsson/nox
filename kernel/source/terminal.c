@@ -1,5 +1,4 @@
-#include "stddef.h"
-#include "stdint.h"
+#include <types.h>
 #include <screen.h>
 #include <terminal.h>
 #include "string.h"
@@ -26,15 +25,31 @@ static size_t g_buffer_row_offset = 0;
 // Forward declaractions
 // -------------------------------------------------------------------------
 static void sync_buffer_with_screen();
-void terminal_set_color(enum vga_color fg, enum vga_color bg);
 static uint16_t vgaentry_create(char c, uint8_t color);
-void terminal_write_char(const char c);
+static void buffer_sync_with_screen();
 
 void terminal_init()
 {
 	g_current_row = 0;
 	g_current_column = 0;
     terminal_reset_color();
+}
+
+void terminal_clear()
+{
+    uint16_t empty = vgaentry_create(' ', g_current_color);
+
+    for(size_t x = 0; x < BUFFER_MAX_COLUMNS; x++) {
+        for(size_t y = 0; y < BUFFER_MAX_ROWS; y++) {
+            g_buffer[y][x] = empty;
+        }
+    }
+
+    g_current_row = 0;
+    g_current_column = 0;
+    g_buffer_row_offset = 0;
+
+    buffer_sync_with_screen();
 }
 
 void terminal_reset_color()

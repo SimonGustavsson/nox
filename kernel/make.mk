@@ -54,8 +54,8 @@ $(OBJ_DIR)/kernel.elf: kernel_directories $(COBJECTS) $(AOBJECTS)
 
 $(OBJ_DIR)/%.o : $(CSOURCE_DIR)/%.c
 
-	@mkdir -p $(dir $@)
-
+	mkdir -p $(dir $@)
+	mkdir -p $(DEP_DIR)/$(dir $*)
 	@echo "CC $<"
 
 	@$(TOOL)-gcc $< -o $@ $(CINCLUDE) $(CFLAGS) -MD -MF $(DEP_DIR)/$*.d

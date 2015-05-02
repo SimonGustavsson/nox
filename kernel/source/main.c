@@ -47,6 +47,7 @@ void print_welcome()
 SECTION_BOOT void _start()
 {
     screen_init();
+    screen_cursor_hide();
     terminal_init();
 
     print_welcome();

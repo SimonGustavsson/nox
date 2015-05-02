@@ -5,6 +5,8 @@
 #include <keyboard.h>
 #include <terminal.h>
 #include <debug.h>
+#include <arch/x86/cpu.h>
+#include <string.h>
 
 #define MAX_COMMAND_SIZE 1024
 #define COMMAND_BUFFER_SIZE (MAX_COMMAND_SIZE + 1)
@@ -120,6 +122,13 @@ static void print_invalid_command(uint8_t* args[], size_t arg_count)
 {
     terminal_write_string("Unknown command '");
     terminal_write_string(args[0]);
+
+    if(arg_count == 1)
+    {
+        terminal_write_string("'\n");
+        return;
+    }
+
     terminal_write_string("', with arguments:\n");
 
     for (int i = 1; i < arg_count; i++) {
@@ -135,6 +144,14 @@ static void dispatch_command(uint8_t* args[], size_t arg_count)
 {
     if(arg_count == 0) {
         terminal_write_string("Uhm, not sure what you're trying to do there son...\n");
+        return;
+    }
+
+    if(kstrcmp(args[0], "reset")) {
+        cpu_reset();
+    }
+    else if(kstrcmp(args[0], "clear")) {
+        terminal_clear();
     }
     else {
         print_invalid_command(args, arg_count);
