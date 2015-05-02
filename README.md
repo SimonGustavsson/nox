@@ -44,9 +44,9 @@ Yes, it's that simple! Make creates a harddrive image file with the following:
 The default configuration for Bochs does not enable everything required
 to run nox, to ensure Nox runs correctly, please configure Bochs with the following:
 
-`./configure --enable-usb --enable-x86-64 --enable-sb16 --enable-debugger --disable-debugger-gui --disable-gtk`
+`./configure --enable-usb --enable-x86-64 --enable-sb16 --enable-debugger --disable-debugger-gui`
 
-*Note:*--disable-debugger-gui and --disable-gtk is a personal preference and not required,
+*Note:*--disable-debugger-gui is a personal preference and not required,
 the remaining options are all required to run the kernel. For an explanation of the available
 options see the [Bochs documentation](http://bochs.sourceforge.net/doc/docbook/user/compiling.html#CONFIG-OPTS).
 
