@@ -8,6 +8,7 @@
 #include <keyboard.h>
 #include <scan_code.h>
 #include <terminal.h>
+#include <debug.h>
 
 enum key_event_type {
     key_event_type_down,
@@ -107,6 +108,8 @@ char kb_key_to_ascii(enum keys key)
         case keys_9:  return '9';
         case keys_0:  return '0';
 
+        case keys_enter: return '\n';
+        case keys_tab: return '\t';
         case keys_acute:  return '`';
         case keys_hyphen:  return '-';
         case keys_equals:  return '=';
@@ -194,12 +197,16 @@ static void kb_handle_interrupt(uint8_t irq, struct irq_regs* regs)
         switch (sc_entry->type) {
             case sc_map_entry_type_press:
                 reset_map();
-                g_current_subscriber->down(sc_entry->data);
+                if(g_current_subscriber->down != NULL) {
+                    g_current_subscriber->down(sc_entry->data);
+                }
                 break;
 
             case sc_map_entry_type_release:
                 reset_map();
-                g_current_subscriber->up(sc_entry->data);
+                if(g_current_subscriber->up != NULL) {
+                    g_current_subscriber->up(sc_entry->data);
+                }
                 break;
 
             case sc_map_entry_type_map:

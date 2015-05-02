@@ -9,6 +9,7 @@
 #include <pit.h>
 #include <pio.h>
 #include <keyboard.h>
+#include <cli.h>
 
 const char* gHcVersionNames[4] = {"UHCI", "OHCI", "EHCI", "xHCI"};
 
@@ -31,33 +32,6 @@ void isr_syscall(uint8_t irq, struct irq_regs* regs)
     terminal_write_string("0x80 Sys Call, foo: ");
     terminal_write_hex(regs->eax);
     terminal_write_string("\n");
-}
-
-void key_down(enum keys key)
-{
-    // We deal with all input in key up! :-)
-}
-
-void key_up(enum keys key)
-{
-    char c = kb_key_to_ascii(key);
-    if(c < 0) {
-    
-        // Perhaps it's a key such as ctrl?
-        char* key_name = kb_get_special_key_name(key);
-
-        if(key_name != NULL) {
-            terminal_write_string(key_name);
-        }
-        else {
-            terminal_write_string("Unprintable key released. keys_ value: ");
-            terminal_write_hex((uint32_t)key);
-            terminal_write_string("\n");
-        }
-    }
-    else {
-        terminal_write_char(c);
-    }
 }
 
 void print_welcome()
@@ -86,13 +60,6 @@ SECTION_BOOT void _start()
 
     kb_init();
 
-    struct kb_subscriber kb = {
-        .down = key_down,
-        .up = key_up
-    };
-
-    kb_subscribe(&kb);
-
     // Re-enable interrupts, we're ready now!
     interrupt_enable_all();
 
@@ -102,7 +69,9 @@ SECTION_BOOT void _start()
 
     KWARN("Nox has colored output, lets use it!");
 
-    terminal_write_string("Kernel initialized, off to you, interrupts!\n");
+    cli_init();
+    cli_run();
+   // terminal_write_string("Kernel initialized, off to you, interrupts!\n");
 
     while(1);
 }
