@@ -1,10 +1,9 @@
-; ***************************************************
+;*******************************************************************************
 ;
 ;  nTh stage bootloader, located in the root directory
 ;  of the partition, in a file called BOOT.SYS
 ;
-;****************************************************
-
+;*******************************************************************************
 %include "fat12.inc"
 
 org 0x600
@@ -19,11 +18,14 @@ VBR_SIZE                EQU 0x200
 LOADED_ROOTDIR          EQU LOADED_VBR + VBR_SIZE
 KERNEL_STACK_START      EQU 0x7FFFC ; First aligned by at the End of available RAM
                                     ; the stack grows downwards, remember!
+KERNEL_LOAD_ADDR        EQU 0x7C00
+MEM_MAP_ADDR            EQU (KERNEL_LOAD_ADDR - (128 * 24))
 
 variables:
     .fatStart            dd     0
     .rootDirectoryStart  dd     0
     .dataRegionStart     dd     0
+    .memMapEntries       dd     0
 .endvariables:
 
 gdt:
@@ -297,6 +299,9 @@ kernelFound:
 	; into protect mode
 	cli
 
+    ; Create a memory map to pass to the kernel
+    call detect_memory
+
 	; Enable A20
 	call enableA20
 
@@ -310,28 +315,84 @@ kernelFound:
 
     jmp 0x08:enterProtectedMode
 
-    enterProtectedMode:
-
-        ; We're in protectec mode now, make sure nasm spits
-        ; out 32-bit wide instructions, or very, very, VERY bad things happen!
-        bits 32
-
-        mov edx, 0x10
-        mov ds, edx
-        mov es, edx
-        mov fs, edx
-        mov gs, edx
-        mov ss, edx
-
-        ; NOTE: We leave interrupts disabled - the Kernel can
-        ; re-enable them when it thinks it is ready for them
-
-        ; Jump to the kernel
-        jmp 0x08:0x7c00
-
 halt:
     cli
     hlt
+
+detect_memory:
+
+    ; TODO: ES:DI to address of buffer we want to use
+    mov edi, MEM_MAP_ADDR
+    xor ebx, ebx
+    mov edx, 0x534D4150
+    mov ecx, 0x18
+    mov eax, 0xE820 ; Query System Memory Map
+    int 0x15
+
+    ; These only need checking for the zeroeth pass
+    jc .done
+    cmp eax, 0x534D4150
+    jne .done
+
+    .read_entry:
+        ; NOTE: don't touch EBX - We need it for the next INT
+
+        ; CL contains entry size
+        cmp cl, 20
+        jne .twenty_four_byte_entry
+        .twenty_byte_entry:
+            mov dword [ds:edi + 16], 1
+        .twenty_four_byte_entry:
+
+        mov eax, [variables.memMapEntries]
+        inc eax
+        mov [variables.memMapEntries], eax
+
+        ; Some BIOSes, set ebx to 0, /on/
+        ; the last entry, in which case we
+        ; should not enumerate further
+        test ebx, ebx
+        jz .done
+
+        ; Advance to the buffer address entry
+        add edi, 24
+
+        ; Query next entry in System Memory map
+        mov eax, 0xE820
+        mov ecx, 0x18
+        int 0x15
+
+        ; If the carry flag is set, it means
+        ; that ebx on the /last/ pass was non-zero
+        ; but, we didn't get an entry on this pass
+        ; so we need to, forget whatever we got
+        ; on this pass, and stop enumerating
+        jc .done
+
+        inc edx ; This is the entry count
+
+        ; All good, read next entry
+        jmp .read_entry
+
+    .done:
+        ret
+
+    ; Entries are stored in ES:DI
+    ; Entry format:
+    ;   uin64_t  - Base address
+    ;   uint64_t - "Length of region" (ignore 0 values)
+    ;   uint32_t - Region type
+    ;       Type 1: Usable (normal) RAM
+    ;       Type 2: Reserved
+    ;       Type 3: ACPI reclaimable memory
+    ;       Type 4: ACPI NVS memory
+    ;       Type 5: Bad memory
+    ;   uint32_t - Ext attr (if 24 bytes are returned)
+    ;       0 : ignore entry if 0
+    ;       1 : Non-volatile
+    ;    31:2 : Unused
+
+    ret
 
 enableA20:
 	mov ax, 0x2401
@@ -345,6 +406,36 @@ enableA20:
     	mov si, msg_a20_interrupt_failed
     	call print
 		jmp halt
+
+; THIS MUST GO LAST IN THE FILE BECAUSE IT CHANGES
+; CODE GENERATION TO USE 32-bit INSTRUCTIONS
+enterProtectedMode:
+
+    ; We're in protectec mode now, make sure nasm spits
+    ; out 32-bit wide instructions, or very, very, VERY bad things happen!
+    bits 32
+
+    mov edx, 0x10
+    mov ds, edx
+    mov es, edx
+    mov fs, edx
+    mov gs, edx
+    mov ss, edx
+
+    ; NOTE: We leave interrupts disabled - the Kernel can
+    ; re-enable them when it thinks it is ready for them
+
+    ; Tell the kernel how many entries there are
+    push dword [variables.memMapEntries]
+    push dword MEM_MAP_ADDR
+
+    ; Push a dummy return address on to the stack
+    ; so that C can find its parameters, also, if it
+    ; attempts to ret, a GPF will occur
+    push dword 0
+
+    ; Jump to the kernel
+    jmp 0x08:0x7c00
 
 ; Note: This label is used to calculate the size of the binary! :-)
 kloaderEnd:

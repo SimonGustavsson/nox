@@ -44,7 +44,7 @@ void print_welcome()
     terminal_write_string("Welcome to the glorious wunderkind of Philip & Simon!\n");
 }
 
-SECTION_BOOT void _start()
+SECTION_BOOT void _start(uint32_t* mem_map, uint32_t mem_entry_count)
 {
     screen_init();
     screen_cursor_hide();
@@ -69,6 +69,12 @@ SECTION_BOOT void _start()
     pit_set(1000);
 
     KWARN("Nox has colored output, lets use it!");
+
+    terminal_write_string("We have ");
+    terminal_write_uint32(mem_entry_count);
+    terminal_write_string(" entries at ");
+    terminal_write_hex((uint32_t)mem_map);
+    terminal_write_string("\n");
 
     cli_init();
     cli_run();
