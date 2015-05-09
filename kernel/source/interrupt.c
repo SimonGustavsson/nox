@@ -107,6 +107,8 @@ enum kresult interrupt_install_handler(uint8_t irq, interrupt_handler handler, g
     // Add the handler to the dispatch table
     struct dispatcher_data* data = &g_dispatcher_data[irq];
     data->handler = handler;
+
+    return kresult_ok;
 }
 
 void interrupt_remove_handler(uint8_t irq)

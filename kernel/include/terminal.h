@@ -1,6 +1,9 @@
 #ifndef NOX_TERMINAL_H
 #define NOX_TERMINAL_H
 
+#include <screen.h>
+#include <types.h>
+
 void terminal_init();
 void terminal_clear();
 void terminal_reset_color();

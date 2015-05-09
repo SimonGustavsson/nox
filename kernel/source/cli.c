@@ -14,9 +14,9 @@
 #define INPUT_BUFFER_SIZE 256
 
 // Forward declarations
-static size_t read_line(uint8_t* buffer, size_t buffer_size);
-static void dispatch_command(uint8_t** args, size_t arg_count);
-static size_t parse_command(uint8_t* buffer, size_t buffer_size, uint8_t** args, size_t args_size);
+static size_t read_line(char* buffer, size_t buffer_size);
+static void dispatch_command(char** args, size_t arg_count);
+static size_t parse_command(char* buffer, size_t buffer_size, char** args, size_t args_size);
 static void cli_key_up(enum keys key);
 
 // Globals
@@ -40,7 +40,7 @@ void cli_run()
 {
     kb_subscribe(&g_subscriber);
 
-    uint8_t command_buffer[COMMAND_BUFFER_SIZE];
+    char command_buffer[COMMAND_BUFFER_SIZE];
 
     while (true) {
 
@@ -51,7 +51,7 @@ void cli_run()
         command_buffer[character_count] = ' ';
         character_count += 1;
 
-        uint8_t* args[MAX_ARGS];
+        char* args[MAX_ARGS];
         size_t arg_len = parse_command(command_buffer, character_count, args, MAX_ARGS);
 
         dispatch_command(args, arg_len);
@@ -95,7 +95,7 @@ static char read_character(bool eat)
     return ch;
 }
 
-static size_t read_line(uint8_t* buffer, size_t buffer_size)
+static size_t read_line(char* buffer, size_t buffer_size)
 {
     terminal_write_string("nox> ");
 
@@ -116,9 +116,11 @@ static size_t read_line(uint8_t* buffer, size_t buffer_size)
     // input
     while ('\n' != read_character(true)) {
     }
+
+    return len;
 }
 
-static void print_invalid_command(uint8_t* args[], size_t arg_count)
+static void print_invalid_command(char* args[], size_t arg_count)
 {
     terminal_write_string("Unknown command '");
     terminal_write_string(args[0]);
@@ -140,7 +142,7 @@ static void print_invalid_command(uint8_t* args[], size_t arg_count)
     }
 }
 
-static void dispatch_command(uint8_t* args[], size_t arg_count)
+static void dispatch_command(char* args[], size_t arg_count)
 {
     if(arg_count == 0) {
         terminal_write_string("Uhm, not sure what you're trying to do there son...\n");
@@ -161,12 +163,12 @@ static void dispatch_command(uint8_t* args[], size_t arg_count)
     }
 }
 
-static size_t parse_command(uint8_t* buffer, size_t buffer_size, uint8_t** args, size_t args_size)
+static size_t parse_command(char* buffer, size_t buffer_size, char** args, size_t args_size)
 {
     // This isn't at all production code, ffs, don't use it people, we could
     // do a better job, but we've got no malloc yet, so just fuck off and stop
     // complaining
-    uint8_t* arg_start = buffer;
+    char* arg_start = buffer;
     size_t   arg_count = 0;
 
     for (int i = 0; i < buffer_size; i++) {
@@ -174,7 +176,7 @@ static size_t parse_command(uint8_t* buffer, size_t buffer_size, uint8_t** args,
             continue;
         }
 
-        uint8_t* arg_end = &buffer[i];
+        char* arg_end = &buffer[i];
 
         if (arg_end == arg_start) {
             arg_start++;

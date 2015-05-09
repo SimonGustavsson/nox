@@ -1,6 +1,8 @@
 #ifndef NOX_SCREEN_H
 #define NOX_SCREEN_H
 
+#include <types.h>
+
 // Concepts
 //  - Screen - data rendering, NOT input
 //  - Keyboard - low level keyboard handling, delivers to the active terminal

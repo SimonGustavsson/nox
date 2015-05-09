@@ -20,19 +20,19 @@ SECTIONS
 	}
 
 	/* Read-only data. */
-	.rodata :
+	.rodata ALIGN(4):
 	{
 		*(.rodata)
 	}
 
 	/* Read-write data (initialized) */
-	.data :
+	.data ALIGN(4):
 	{
 		*(.data)
 	}
 
 	/* Read-write data (uninitialized) and stack */
-	.bss :
+	.bss ALIGN(4):
 	{
 		*(COMMON)
 		*(.bss)

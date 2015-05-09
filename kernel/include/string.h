@@ -1,8 +1,7 @@
 #ifndef NOX_STRING_H
 #define NOX_STRING_H
 
-#include "stddef.h"
-#include "stdint.h"
+#include <types.h>
 
 uint8_t nybble_to_ascii(uint8_t val);
 void itoa(int number, char* buf);

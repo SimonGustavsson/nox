@@ -1,7 +1,5 @@
-#include <stdbool.h> // C Does not have bool :(
-#include "string.h"
-#include "stddef.h"
-#include "stdint.h"
+#include <types.h>
+#include <string.h>
 #include <screen.h>
 #include <pio.h>
 

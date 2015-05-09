@@ -1,9 +1,6 @@
-#include <stdbool.h> // C Does not have bool :(
-#include <stddef.h>
-#include <stdint.h>
-
-#include "pio.h"
-#include "pci.h"
+#include <types.h>
+#include <pio.h>
+#include <pci.h>
 
 // read from the pci config space
 uint32_t pci_read(uint8_t bus, uint8_t dev, uint8_t func, uint8_t port, uint8_t len)
@@ -38,7 +35,7 @@ void pci_write(uint8_t bus, uint8_t dev, uint8_t func, uint8_t port, uint8_t len
 
 	// get current value
 	val = IND(PCI_DATA+(port & 0x3));
-	
+
 	// mask out new section
 	if (len != 4)
 		val &= (0xFFFFFFFF << (len * 8));

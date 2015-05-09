@@ -3,11 +3,12 @@
 
 #define DEBUG(STR, PARAMS...) printf(STR "\n", ##PARAMS);
 
-#ifdef TARGET_GDB
+#if PLATFORM_DEBUG_GDB
     #define BREAK() __asm ("int $3")
-#elif  TARGET_BOCHS
+#elif  PLATFORM_DEBUG_BOCHS
     #define BREAK() __asm ("xchg %bx, %bx")
 #else
+    #warning Unknown Debugging Platform
     #define BREAK()
 #endif
 
