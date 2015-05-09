@@ -17,7 +17,8 @@ jmp 0:0x7C00 + start - 0x600
 LOADED_VBR              EQU 0x1000
 VBR_SIZE                EQU 0x200
 LOADED_ROOTDIR          EQU LOADED_VBR + VBR_SIZE
-KERNEL_STACK_START      EQU 0x7FFFF ; End of available RAM, the stack grows downwards, remember!
+KERNEL_STACK_START      EQU 0x7FFFC ; First aligned by at the End of available RAM
+                                    ; the stack grows downwards, remember!
 
 variables:
     .fatStart            dd     0
