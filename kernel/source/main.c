@@ -44,7 +44,27 @@ void print_welcome()
     terminal_write_string("Welcome to the glorious wunderkind of Philip & Simon!\n");
 }
 
-SECTION_BOOT void _start(uint32_t* mem_map, uint32_t mem_entry_count)
+enum region_type {
+    region_type_normal = 0x01,
+    region_type_reserved = 0x02,
+    region_type_acpi_reclaimable = 0x03,
+    region_type_acpi_nvs = 0x04,
+    region_type_bad = 0x05
+};
+
+enum acpi_attr_flags {
+    acpi_attr_flags_do_not_ignore = 0x01,
+    acpi_attr_flags_non_volatile = 0x02
+};
+
+struct PACKED mem_map_entry {
+    uint64_t base;
+    uint64_t length;
+    uint32_t type;
+    uint32_t acpi_attr;
+};
+
+SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
 {
     screen_init();
     screen_cursor_hide();
@@ -61,13 +81,6 @@ SECTION_BOOT void _start(uint32_t* mem_map, uint32_t mem_entry_count)
 
     kb_init();
 
-    // Re-enable interrupts, we're ready now!
-    interrupt_enable_all();
-
-    call_test_sys_call(0x1234);
-
-    pit_set(1000);
-
     KWARN("Nox has colored output, lets use it!");
 
     terminal_write_string("We have ");
@@ -76,9 +89,27 @@ SECTION_BOOT void _start(uint32_t* mem_map, uint32_t mem_entry_count)
     terminal_write_ptr(mem_map);
     terminal_write_string("\n");
 
+    for (int i = 0; i < mem_entry_count; i++) {
+        terminal_write_string("Entry ");
+        terminal_write_uint32_x(i);
+        terminal_write_string(": ");
+        terminal_write_uint64_x(mem_map[i].base);
+        terminal_write_string(" (");
+        terminal_write_uint64_x(mem_map[i].length);
+        terminal_write_string(") Type: ");
+        terminal_write_uint32_x(mem_map[i].type);
+        terminal_write_string("\n");
+    }
+
+    // Re-enable interrupts, we're ready now!
+    interrupt_enable_all();
+
+    call_test_sys_call(0x1234);
+
+    pit_set(1000);
+
     cli_init();
     cli_run();
-   // terminal_write_string("Kernel initialized, off to you, interrupts!\n");
 
     while(1);
 }
