@@ -83,7 +83,7 @@ static void isr_timer(uint8_t irq, struct irq_regs* regs)
     if(g_pit_counter == 36) {
         g_num_timer_hits++;
         terminal_write_string("Timer hit!");
-        terminal_write_hex(g_num_timer_hits);
+        terminal_write_uint32_x(g_num_timer_hits);
         terminal_write_string("\n");
         g_pit_counter = 0;
     }

@@ -201,7 +201,7 @@ static void kb_handle_interrupt(uint8_t irq, struct irq_regs* regs)
 
         // Unknown scan-code
         terminal_write_string("Unknown scan code value: ");
-        terminal_write_hex(scan_code);
+        terminal_write_uint32_x(scan_code);
         terminal_write_string("\n");
         // Reset to the first map in the set
         reset_map();

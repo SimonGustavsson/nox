@@ -161,7 +161,7 @@ static void irq_dispatcher(uint8_t irq, struct irq_regs* regs)
 
     if (data->handler == 0) {
         terminal_write_string("irq_dispatcher, missing handler for interrupt ");
-        terminal_write_hex(irq);
+        terminal_write_uint32_x(irq);
         terminal_write_string("\n");
         return;
     }

@@ -30,7 +30,7 @@ static void call_test_sys_call(uint32_t foo)
 void isr_syscall(uint8_t irq, struct irq_regs* regs)
 {
     terminal_write_string("0x80 Sys Call, foo: ");
-    terminal_write_hex(regs->eax);
+    terminal_write_uint32_x(regs->eax);
     terminal_write_string("\n");
 }
 
@@ -73,7 +73,7 @@ SECTION_BOOT void _start(uint32_t* mem_map, uint32_t mem_entry_count)
     terminal_write_string("We have ");
     terminal_write_uint32(mem_entry_count);
     terminal_write_string(" entries at ");
-    terminal_write_hex((uint32_t)mem_map);
+    terminal_write_ptr(mem_map);
     terminal_write_string("\n");
 
     cli_init();
