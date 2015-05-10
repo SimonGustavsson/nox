@@ -114,8 +114,6 @@ jmp 0:main
 main:
 
 .printPre:
-    xor ax, ax                      ; DS:SI is the address of the message, clear ES
-    mov es, ax
     mov si, msg_pre
     call printStringZ
 
@@ -228,8 +226,6 @@ main:
         jmp .compareDirEntry
 
 kernelNotFound:
-    xor ax, ax
-    mov ds, ax
     mov si, msg_kernel_notfound
     call printStringZ
 
@@ -238,8 +234,6 @@ kernelNotFound:
 kernelFound:
     mov bx, ax ; make sure we don't trash it
 
-    xor ax, ax
-    mov ds, ax
     mov si, msg_kernel_found
     call printStringZ
 
@@ -437,8 +431,6 @@ enableA20:
 	ret
 
 	.fail:
-	    xor ax, ax                      ; DS:SI is the address of the message, clear ES
-    	mov es, ax
     	mov si, msg_a20_interrupt_failed
     	call printStringZ
 		jmp halt
