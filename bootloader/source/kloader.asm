@@ -111,6 +111,10 @@ jmp 0:main
 ;   AX = 0
 ;*******************************************************************************
 main:
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+    mov sp, 0x09FF
 
 .printPre:
     mov si, msg_pre
@@ -128,12 +132,11 @@ main:
 	;
 	; Step 0: Load MBR into memory
 	;
-	mov word [read_packet+struc_read_packet.dest_offset], LOADED_VBR
-	mov dword [read_packet+struc_read_packet.lba], 0
-	mov si, read_packet
-    mov ah, 0x42
-    mov dl, 0x80 ; Should probably come from Multiboot header info struct?
-    int 0x13
+    mov eax,    0           ; LBA
+    mov dl,     0x80        ; Drive
+    mov cx,     0x01        ; Sector Count
+    mov di,     LOADED_VBR  ; Destination
+    call read_sectors
 
     ; Find LBA of first sector
 	mov ebx, LOADED_VBR + 0x1BE + (0 * 0x10) ; 0 is active part number, get from Multiboot
