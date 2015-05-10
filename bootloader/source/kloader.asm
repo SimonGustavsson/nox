@@ -113,9 +113,7 @@ main:
     call printStringZ
 
 .tryReset:
-    mov ah, 0                       ; Reset floppy/hdd function
-    int 0x13                        ; Call
-    jc .tryReset                    ; Try again if carry flag is set
+    call reset_disk
 
 .findKernel:
 

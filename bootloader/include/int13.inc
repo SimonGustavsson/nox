@@ -10,6 +10,21 @@ struc struc_read_packet
 endstruc
 
 ; arguments:
+;   none
+reset_disk:
+    push ax
+
+    ; Reset floppy/hdd function
+    mov ah, 0
+    int 0x13
+
+    ; Try again if carry flag is set
+    jc reset_disk
+
+    pop ax
+    ret
+
+; arguments:
 ;   eax - LBA
 ;   dl - drive number
 ;   cx - number of sectors
