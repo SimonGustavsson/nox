@@ -127,29 +127,21 @@ main:
 
 .findKernel:
 
-	; TODO: Load MBR from first sector of disc
+    ; TODO: Load MBR from first sector of disc
 
-	;
-	; Step 0: Load MBR into memory
-	;
+    ;
+    ; Step 0: Load MBR into memory
+    ;
     mov eax,    0           ; LBA
     mov dl,     0x80        ; Drive
     mov cx,     0x01        ; Sector Count
     mov di,     LOADED_VBR  ; Destination
     call read_sectors
 
-    ; Find LBA of first sector
-	mov ebx, LOADED_VBR + 0x1BE + (0 * 0x10) ; 0 is active part number, get from Multiboot
-	mov ebx, [ebx + 0x8] ; Store LBA of first sector in EBX
-
-	;
-	; Step 1: Load VBR from active partition
-	;
-	mov dword [read_packet+struc_read_packet.lba], ebx
-	mov si, read_packet
-    mov ah, 0x42
-    mov dl, 0x80 ; Should probably come from Multiboot header info struct?
-    int 0x13
+    ; Load VBR
+    mov eax, LOADED_VBR + 0x1BE + (0 * 0x10) ; 0 is active part number, get from Multiboot
+    mov eax, [eax + 0x8]
+    call read_sectors
 
     ;
     ; calculate the offset to the first FAT
