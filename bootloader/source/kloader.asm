@@ -4,24 +4,43 @@
 ;  of the partition, in a file called BOOT.SYS
 ;
 ;*******************************************************************************
-%include "fat12.inc"
 
-org 0x600
-bits 16                 ; We're in real mode
+;*******************************************************************************
+; Directives
+;*******************************************************************************
+    org 0x600
+    bits 16                 ; We're in real mode
+    [map all build/kloader.map]
 
-[map all build/kloader.map]
-
-jump_start:
-jmp 0:0x7C00 + code_start - 0x600
-
+;*******************************************************************************
+; Defines
+;*******************************************************************************
 LOADED_VBR              EQU 0x1000
 VBR_SIZE                EQU 0x200
-LOADED_ROOTDIR          EQU LOADED_VBR + VBR_SIZE
 KERNEL_LOAD_ADDR        EQU 0x7C00
 MEM_MAP_ADDR            EQU (KERNEL_LOAD_ADDR - (128 * 24))
-
+LOADED_ROOTDIR          EQU LOADED_VBR + VBR_SIZE
 KERNEL_STACK_START_FLAT EQU 0x7FFFF
 
+;*******************************************************************************
+; Entry Point
+;*******************************************************************************
+jmp 0:0x7C00 + relocate_start - 0x600
+
+;*******************************************************************************
+; Constants
+;*******************************************************************************
+version                     dw 0x0001
+kernel_name                 db "KERNEL  BIN" ; DO NOT EDIT, 11 chars
+
+msg_pre                     db "BOOT.SYS Loading...", 0x0D, 0x0A, 0
+msg_kernel_found            db "KERNEL.BIN FOUND", 0x0D, 0x0A, 0
+msg_kernel_notfound         db "KERNEL.BIN NOT FOUND", 0x0D, 0x0A, 0
+msg_a20_interrupt_failed    db "A20 via Int 0x15 failed. Halting.", 0x0D, 0x0A, 0
+
+;*******************************************************************************
+; Variables
+;*******************************************************************************
 variables:
     .fatStart            dd     0
     .rootDirectoryStart  dd     0
@@ -53,28 +72,7 @@ gdtDescriptor:
 		dd              gdt
 .end:
 
-; Relocate
-code_start:
-mov cx, code_end - jump_start
-xor ax, ax
-mov es, ax
-mov ds, ax
-mov si, 0x7C00
-mov di, 0x600
-rep movsb
-
-; Far Jump to Relocated Code
-jmp 0:loader
-
-version  dw 0x0001
-kernel_name db "KERNEL  BIN" ; DO NOT EDIT, 11 chars
-
-msg_pre db "BOOT.SYS Loading...", 0x0D, 0x0A, 0
-msg_kernel_found db "KERNEL.BIN FOUND", 0x0D, 0x0A, 0
-msg_kernel_notfound db "KERNEL.BIN NOT FOUND", 0x0D, 0x0A, 0
-msg_a20_interrupt_failed db "A20 via Int 0x15 failed. Halting.", 0x0D, 0x0A, 0
-
-; Block read package tp send  to int13
+; Block read package to send to int13
 readPacket:
                         db 0x10     ; Packet size (bytes)
                         db 0        ; Reserved
@@ -83,6 +81,26 @@ readPacket:
     readPacketSegment   dw 0x0000   ; Segment
     readPacketLBA       dd 0        ; LBA to read from
                         dd 0        ; Extra storage for LBAs > 4 bytes
+
+;*******************************************************************************
+; Included Code
+;*******************************************************************************
+%include "fat12.inc"
+
+;*******************************************************************************
+; Relocation
+;*******************************************************************************
+relocate_start:
+mov cx, code_end - $$
+xor ax, ax
+mov es, ax
+mov ds, ax
+mov si, 0x7C00
+mov di, 0x600
+rep movsb
+
+; Far Jump to Relocated Code
+jmp 0:main
 
 ; Assumes address to string is in ds:si
 print:
@@ -95,7 +113,10 @@ print:
 .print_done:
     ret
 
-loader:
+;*******************************************************************************
+; Main
+;*******************************************************************************
+main:
 
 .printPre:
     xor ax, ax                      ; DS:SI is the address of the message, clear ES
