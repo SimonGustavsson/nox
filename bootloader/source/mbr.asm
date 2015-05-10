@@ -1,6 +1,7 @@
+%include "mbr.inc"
 %include "fat12.inc"
 
-; NOTE: BIOS will load us to either 0x07C0:0, 
+; NOTE: BIOS will load us to either 0x07C0:0,
 ; or, 0:0x7C00. We relocate to 0:0x600 immediately
 
 org 0x600               ; We will relocate us here
@@ -10,7 +11,7 @@ bits 16                 ; We're in real mode
 ; Address we will read the VBR to
 VBR_ADDRESS                         EQU 0x7C00
 
-start: 
+start:
 
     ; Relocate
     mov cx, 0x200
@@ -20,9 +21,9 @@ start:
     mov si, 0x7C00
     mov di, 0x0600
     rep movsb
-    
+
     ; Far Jump to Relocated Code
-    jmp 0:loader 
+    jmp 0:loader
 
 %include "int10.inc"
 string16 messageLoading, {"Locating active partition...", 0x0D, 0x0A}
@@ -38,19 +39,19 @@ readPacket:
     readPacketLBA       dd 0           ; LBA to read from
                         dd 0           ; Extra storage for LBAs > 4 bytes
 
-loader: 
+loader:
 
     ; setup segments
     xor ax, ax
-    mov es, ax  
-    mov ds, ax  
+    mov es, ax
+    mov ds, ax
 
     ; need a stack, grow downwards from
     ; the boot location gives us plenty
     ; of space
     mov ax, 0x7B00
     mov ss, ax
-  
+
 .printPre:
     mov eax, messageLoading
     call printString16
@@ -66,24 +67,24 @@ loader:
     ; First prepare the package
 
     mov ecx, 4 ; 4 Partition entries
-    mov ebx, start + mbr.part0
-    
+    mov ebx, start + struc_mbr.part0
+
     .readPartitionEntries:
 
-        mov al, byte [ebx + part_entry.status]
+        mov al, byte [ebx + struc_part_entry.status]
         cmp al, 0x80
         je .found
 
         dec ecx
         jz .notFound
 
-        add ebx, part_entry_size
+        add ebx, struc_part_entry_size
         jmp .readPartitionEntries
 
     .found:
-        mov word ax, [ebx + part_entry.lbaLo]
+        mov word ax, [ebx + struc_part_entry.lba_low]
         mov word [readPacketLBA], ax
-        mov word ax, [ebx + part_entry.lbaHi]
+        mov word ax, [ebx + struc_part_entry.lba_high]
         mov word [readPacketLBA + 2], ax
 
         ; Note: DL is the drive number, BIOS will have set it to the boot drive,

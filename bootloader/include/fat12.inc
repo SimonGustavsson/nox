@@ -4,39 +4,6 @@ FAT_SIGNATURE_1         equ     0x28
 FAT_SIGNATURE_2         equ     0x29
 MEDIA_TYPE_FIXED_DISC   equ     0xf8
 
-struc int_blk_read
-    .packetSize         resb    1
-    .reserved           resb    1
-    .numBlocks          resw    1
-    .bufferAddr         resw    1
-    .memPage            resw    1
-    .lba                resd    1
-    .lbaExt             resd    1
-endstruc
-
-struc part_entry
-    .status             resb    1
-    .firstHead          resb    1
-    .firstSector        resb    1
-    .firstCylinder      resb    1
-    .type               resb    1
-    .lastHead           resb    1
-    .lastSector         resb    1
-    .lastCylinder       resb    1
-    .lbaLo              resb    2
-    .lbaHi              resb    2
-    .sectorCount        resb    4
-endstruc
-
-struc mbr
-    .code               resb    446
-    .part0              resb    part_entry_size
-    .part1              resb    part_entry_size
-    .part2              resb    part_entry_size
-    .part3              resb    part_entry_size
-    .signature          resw    1
-endstruc
-
 struc bpb
     .jump               resb    3
     .oem                resb    8
