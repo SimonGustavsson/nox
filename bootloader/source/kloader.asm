@@ -11,15 +11,16 @@ bits 16                 ; We're in real mode
 
 [map all build/kloader.map]
 
-jmp 0:0x7C00 + start - 0x600
+jump_start:
+jmp 0:0x7C00 + code_start - 0x600
 
 LOADED_VBR              EQU 0x1000
 VBR_SIZE                EQU 0x200
 LOADED_ROOTDIR          EQU LOADED_VBR + VBR_SIZE
-KERNEL_STACK_START      EQU 0x7FFFC ; First aligned by at the End of available RAM
-                                    ; the stack grows downwards, remember!
 KERNEL_LOAD_ADDR        EQU 0x7C00
 MEM_MAP_ADDR            EQU (KERNEL_LOAD_ADDR - (128 * 24))
+
+KERNEL_STACK_START_FLAT EQU 0x7FFFF
 
 variables:
     .fatStart            dd     0
@@ -53,8 +54,8 @@ gdtDescriptor:
 .end:
 
 ; Relocate
-start:
-mov cx, kloaderEnd
+code_start:
+mov cx, code_end - jump_start
 xor ax, ax
 mov es, ax
 mov ds, ax
@@ -79,7 +80,7 @@ readPacket:
                         db 0        ; Reserved
     readPacketNumBlocks dw 1        ; Blocks to read
     readPacketBuffer    dw 0x1000   ; Buffer to read to
-                        dw 0        ; Memory Page
+    readPacketSegment   dw 0x0000   ; Segment
     readPacketLBA       dd 0        ; LBA to read from
                         dd 0        ; Extra storage for LBAs > 4 bytes
 
@@ -95,9 +96,6 @@ print:
     ret
 
 loader:
-
- 	; Setup stack pointer
- 	mov esp, KERNEL_STACK_START
 
 .printPre:
     xor ax, ax                      ; DS:SI is the address of the message, clear ES
@@ -271,12 +269,34 @@ kernelFound:
     ;   This currently just loads 10240 bytes, assuming the size of the kernel
     ;   does not exceed this. We keep hitting the limit and incrementing it.
     ;   We'll get around to actually just reading the file size one of these days I'm sure..
-    ;
-    mov word [readPacketNumBlocks], 40 ; TODO: Sectors per cluster here
+    kernel_physical_sector_count    EQU 40
+    kernel_virtual_sector_count     EQU 80
+    kernel_virtual_dword_count      EQU (kernel_virtual_sector_count * 512 / 4)
+
+    push eax
+    push ecx
+    push edi
+    push es
+
+    mov  ax, 0x7C0
+    mov  es,  ax
+    mov  edi, 0x0
+
+    xor  eax, eax
+    mov  ecx, kernel_virtual_dword_count
+    rep stosd
+
+    pop  es
+    pop  edi
+    pop  ecx
+    pop  eax
+
+    mov word [readPacketNumBlocks], kernel_physical_sector_count
     mov [readPacketLBA], eax
 
     ; Read kernel to a familiar place
-    mov dword [readPacketBuffer], 0x7c00
+    mov word [readPacketSegment], 0x7C0
+    mov word [readPacketBuffer], 0
 
     ; Get the BIOS to read the sectors
     mov si, readPacket
@@ -411,7 +431,7 @@ enableA20:
 ; CODE GENERATION TO USE 32-bit INSTRUCTIONS
 enterProtectedMode:
 
-    ; We're in protectec mode now, make sure nasm spits
+    ; We're in protected mode now, make sure nasm spits
     ; out 32-bit wide instructions, or very, very, VERY bad things happen!
     bits 32
 
@@ -421,6 +441,9 @@ enterProtectedMode:
     mov fs, edx
     mov gs, edx
     mov ss, edx
+
+    ; Setup stack pointer
+    mov esp, KERNEL_STACK_START_FLAT
 
     ; NOTE: We leave interrupts disabled - the Kernel can
     ; re-enable them when it thinks it is ready for them
@@ -438,7 +461,7 @@ enterProtectedMode:
     jmp 0x08:0x7c00
 
 ; Note: This label is used to calculate the size of the binary! :-)
-kloaderEnd:
+code_end:
 
 ; NASM Syntax
 ; vim: ft=nasm expandtab
