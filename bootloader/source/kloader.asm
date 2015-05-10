@@ -79,14 +79,6 @@ gdtDescriptor:
 		dd              gdt
 .end:
 
-; Block read package to send to int13
-read_packet: istruc struc_read_packet
-    at struc_read_packet.packet_size    , db 0x10
-    at struc_read_packet.num_blocks     , db 0x01
-    at struc_read_packet.dest_offset    , dw 0x1000
-    at struc_read_packet.dest_segment   , dw 0x0000
-iend
-
 ;*******************************************************************************
 ; Relocation
 ;*******************************************************************************
