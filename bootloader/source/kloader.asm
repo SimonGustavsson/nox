@@ -28,6 +28,13 @@ KERNEL_STACK_START_FLAT EQU 0x7FFFF
 jmp 0:0x7C00 + relocate_start - 0x600
 
 ;*******************************************************************************
+; Included Code
+;*******************************************************************************
+%include "fat12.inc"
+%include "int10.inc"
+%include "int13.inc"
+
+;*******************************************************************************
 ; Constants
 ;*******************************************************************************
 version                     dw 0x0001
@@ -73,20 +80,12 @@ gdtDescriptor:
 .end:
 
 ; Block read package to send to int13
-readPacket:
-                        db 0x10     ; Packet size (bytes)
-                        db 0        ; Reserved
-    readPacketNumBlocks dw 1        ; Blocks to read
-    readPacketBuffer    dw 0x1000   ; Buffer to read to
-    readPacketSegment   dw 0x0000   ; Segment
-    readPacketLBA       dd 0        ; LBA to read from
-                        dd 0        ; Extra storage for LBAs > 4 bytes
-
-;*******************************************************************************
-; Included Code
-;*******************************************************************************
-%include "fat12.inc"
-%include "int10.inc"
+read_packet: istruc struc_read_packet
+    at struc_read_packet.packet_size    , db 0x10
+    at struc_read_packet.num_blocks     , db 0x01
+    at struc_read_packet.dest_offset    , dw 0x1000
+    at struc_read_packet.dest_segment   , dw 0x0000
+iend
 
 ;*******************************************************************************
 ; Relocation
@@ -129,9 +128,9 @@ main:
 	;
 	; Step 0: Load MBR into memory
 	;
-	mov word [readPacketBuffer], LOADED_VBR
-	mov dword [readPacketLBA], 0
-	mov si, readPacket
+	mov word [read_packet+struc_read_packet.dest_offset], LOADED_VBR
+	mov dword [read_packet+struc_read_packet.lba], 0
+	mov si, read_packet
     mov ah, 0x42
     mov dl, 0x80 ; Should probably come from Multiboot header info struct?
     int 0x13
@@ -143,8 +142,8 @@ main:
 	;
 	; Step 1: Load VBR from active partition
 	;
-	mov dword [readPacketLBA], ebx
-	mov si, readPacket
+	mov dword [read_packet+struc_read_packet.lba], ebx
+	mov si, read_packet
     mov ah, 0x42
     mov dl, 0x80 ; Should probably come from Multiboot header info struct?
     int 0x13
@@ -193,12 +192,12 @@ main:
     ;
     ; read the root sector into memory
     ;
-    mov word [readPacketNumBlocks], 4 ; Assume 4 sector root directory
-    mov [readPacketLBA], eax
-    mov word [readPacketBuffer], LOADED_ROOTDIR ; Store it right after where we loaded the VBR
+    mov word [read_packet+struc_read_packet.num_blocks], 4 ; Assume 4 sector root directory
+    mov [read_packet+struc_read_packet.lba], eax
+    mov word [read_packet+struc_read_packet.dest_offset], LOADED_ROOTDIR ; Store it right after where we loaded the VBR
 
     ; Get the BIOS to read the sectors
-    mov si, readPacket
+    mov si, read_packet
     mov ah, 0x42
     mov dl, 0x80
     int 0x13
@@ -232,7 +231,9 @@ kernelNotFound:
     jmp halt
 
 kernelFound:
-    mov bx, ax ; make sure we don't trash it
+
+    ; Keep the location of the entry in bx
+    mov bx, ax
 
     mov si, msg_kernel_found
     call printStringZ
@@ -301,15 +302,15 @@ kernelFound:
     pop  ecx
     pop  eax
 
-    mov word [readPacketNumBlocks], kernel_physical_sector_count
-    mov [readPacketLBA], eax
+    mov word [read_packet+struc_read_packet.num_blocks], kernel_physical_sector_count
+    mov [read_packet+struc_read_packet.lba], eax
 
     ; Read kernel to a familiar place
-    mov word [readPacketSegment], 0x7C0
-    mov word [readPacketBuffer], 0
+    mov word [read_packet+struc_read_packet.dest_segment], 0x7C0
+    mov word [read_packet+struc_read_packet.dest_offset], 0
 
     ; Get the BIOS to read the sectors
-    mov si, readPacket
+    mov si, read_packet
     mov ah, 0x42
     mov dl, 0x80
     int 0x13

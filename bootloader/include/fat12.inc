@@ -112,7 +112,7 @@ struc dir_entry
     .reservedFat32      resw    1
     .lastWriteTime      resw    1 ; See above for description
     .lastWriteDate      resw    1 ; See above for description
-    .startCluster       resw    1 ; 
+    .startCluster       resw    1 ;
     .fileSize           resd    1
 endstruc
 
