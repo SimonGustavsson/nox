@@ -8,9 +8,9 @@
 ;*******************************************************************************
 ; Directives
 ;*******************************************************************************
-    org 0x600
-    bits 16                 ; We're in real mode
-    [map all build/kloader.map]
+org 0x600
+bits 16                 ; We're in real mode
+[map all build/kloader.map]
 
 ;*******************************************************************************
 ; Defines
@@ -86,6 +86,7 @@ readPacket:
 ; Included Code
 ;*******************************************************************************
 %include "fat12.inc"
+%include "int10.inc"
 
 ;*******************************************************************************
 ; Relocation
@@ -102,19 +103,13 @@ rep movsb
 ; Far Jump to Relocated Code
 jmp 0:main
 
-; Assumes address to string is in ds:si
-print:
-    lodsb
-    or al, al
-    jz .print_done
-    mov ah, 0eh
-    int 10h
-    jmp print
-.print_done:
-    ret
-
 ;*******************************************************************************
 ; Main
+;
+; Preconditions:
+;   DS = 0
+;   ES = 0
+;   AX = 0
 ;*******************************************************************************
 main:
 
@@ -122,7 +117,7 @@ main:
     xor ax, ax                      ; DS:SI is the address of the message, clear ES
     mov es, ax
     mov si, msg_pre
-    call print
+    call printStringZ
 
 .tryReset:
     mov ah, 0                       ; Reset floppy/hdd function
@@ -236,7 +231,7 @@ kernelNotFound:
     xor ax, ax
     mov ds, ax
     mov si, msg_kernel_notfound
-    call print
+    call printStringZ
 
     jmp halt
 
@@ -246,7 +241,7 @@ kernelFound:
     xor ax, ax
     mov ds, ax
     mov si, msg_kernel_found
-    call print
+    call printStringZ
 
 .loadKernel:
 
@@ -445,7 +440,7 @@ enableA20:
 	    xor ax, ax                      ; DS:SI is the address of the message, clear ES
     	mov es, ax
     	mov si, msg_a20_interrupt_failed
-    	call print
+    	call printStringZ
 		jmp halt
 
 ; THIS MUST GO LAST IN THE FILE BECAUSE IT CHANGES

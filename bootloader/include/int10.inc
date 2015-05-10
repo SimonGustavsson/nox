@@ -53,5 +53,24 @@ printStringN:
 	.done:
 	    ret
 
+; arguments
+;	[ds:si]: addr of the string
+printStringZ:
+
+    mov ah, 0eh
+
+    .printChar:
+        lodsb
+
+        or al, al
+        jz .done
+
+        int 10h
+
+        jmp printStringZ
+
+    .done:
+        ret
+
 ; NASM Syntax
 ; vim: ft=nasm expandtab
