@@ -33,6 +33,7 @@ jmp 0:0x7C00 + relocate_start - 0x600
 %include "fat12.inc"
 %include "int10.inc"
 %include "int13.inc"
+%include "mbr.inc"
 
 ;*******************************************************************************
 ; Constants
@@ -129,8 +130,19 @@ main:
     call read_sectors
 
     ; Load VBR
-    mov eax, LOADED_VBR + 0x1BE + (0 * 0x10) ; 0 is active part number, get from Multiboot
-    mov eax, [eax + 0x8]
+
+    ; Compute the offset into the VBR of the active partition's
+    ; LBA
+    xor eax, eax
+    mov al, 0                   ; Active partition number
+    mov bl, struc_mbr_part_size
+    mul bl                      ; Multiplies al
+    add ax, struc_mbr_code_size
+    add ax, struc_mbr_part.lba_low
+
+    ; Get the LBA
+    mov eax, [LOADED_VBR + eax]
+
     call read_sectors
 
     ;

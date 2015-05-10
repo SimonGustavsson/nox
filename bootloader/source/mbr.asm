@@ -71,20 +71,20 @@ loader:
 
     .readPartitionEntries:
 
-        mov al, byte [ebx + struc_part_entry.status]
+        mov al, byte [ebx + struc_mbr_part.status]
         cmp al, 0x80
         je .found
 
         dec ecx
         jz .notFound
 
-        add ebx, struc_part_entry_size
+        add ebx, struc_mbr_part_size
         jmp .readPartitionEntries
 
     .found:
-        mov word ax, [ebx + struc_part_entry.lba_low]
+        mov word ax, [ebx + struc_mbr_part.lba_low]
         mov word [readPacketLBA], ax
-        mov word ax, [ebx + struc_part_entry.lba_high]
+        mov word ax, [ebx + struc_mbr_part.lba_high]
         mov word [readPacketLBA + 2], ax
 
         ; Note: DL is the drive number, BIOS will have set it to the boot drive,

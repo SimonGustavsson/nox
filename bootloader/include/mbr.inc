@@ -1,4 +1,8 @@
-struc struc_part_entry
+struc struc_mbr_code
+    .code               resb    446
+endstruc
+
+struc struc_mbr_part
     .status             resb    1
     .first_head         resb    1
     .first_sector       resb    1
@@ -13,11 +17,11 @@ struc struc_part_entry
 endstruc
 
 struc struc_mbr
-    .code               resb    446
-    .part0              resb    struc_part_entry_size
-    .part1              resb    struc_part_entry_size
-    .part2              resb    struc_part_entry_size
-    .part3              resb    struc_part_entry_size
+    .code               resb    struc_mbr_code_size
+    .part0              resb    struc_mbr_part_size
+    .part1              resb    struc_mbr_part_size
+    .part2              resb    struc_mbr_part_size
+    .part3              resb    struc_mbr_part_size
     .signature          resw    1
 endstruc
 
