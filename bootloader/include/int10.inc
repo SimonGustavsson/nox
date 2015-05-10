@@ -27,8 +27,8 @@ printString16:
     	int 10h
     	dec cx
     	jz .printDone
-    	jmp .printChar    	
-	
+    	jmp .printChar
+
 	.printDone:
 	    ret
 
@@ -36,7 +36,7 @@ printString16:
 ;	eax: addr of the string
 ;	ecx: count of bytes to print
 printStringN:
-	
+
 	cmp ecx, 0
 	je .done
 
@@ -52,3 +52,6 @@ printStringN:
 
 	.done:
 	    ret
+
+; NASM Syntax
+; vim: ft=nasm expandtab
