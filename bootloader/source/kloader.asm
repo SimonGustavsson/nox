@@ -187,15 +187,11 @@ main:
     ;
     ; read the root sector into memory
     ;
-    mov word [read_packet+struc_read_packet.num_blocks], 4 ; Assume 4 sector root directory
-    mov [read_packet+struc_read_packet.lba], eax
-    mov word [read_packet+struc_read_packet.dest_offset], LOADED_ROOTDIR ; Store it right after where we loaded the VBR
-
-    ; Get the BIOS to read the sectors
-    mov si, read_packet
-    mov ah, 0x42
-    mov dl, 0x80
-    int 0x13
+    ; LBA is already in EAX
+    mov dl,     0x80        ; Drive
+    mov cx,     0x04        ; Assuming 4 seconds in root dir
+    mov di,     LOADED_ROOTDIR
+    call read_sectors
 
     ; NOTE: LOADED_VBR is now fucked, use no more
 
