@@ -293,18 +293,14 @@ kernelFound:
     pop  ecx
     pop  eax
 
-    mov word [read_packet+struc_read_packet.num_blocks], kernel_physical_sector_count
-    mov [read_packet+struc_read_packet.lba], eax
-
     ; Read kernel to a familiar place
-    mov word [read_packet+struc_read_packet.dest_segment], 0x7C0
-    mov word [read_packet+struc_read_packet.dest_offset], 0
-
-    ; Get the BIOS to read the sectors
-    mov si, read_packet
-    mov ah, 0x42
-    mov dl, 0x80
-    int 0x13
+    ;   EAX already contains the LBA
+    mov dl,     0x80        ; Drive
+    mov cx,     kernel_physical_sector_count
+    mov di,     0x07C0
+    mov es,     di          ; Destination Segment
+    mov di,     0x0000      ; Destination
+    call read_sectors
 
     ; Before we switch into protected mode,
     ; we want to make sure that we've got the
