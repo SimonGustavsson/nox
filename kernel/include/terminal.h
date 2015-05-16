@@ -8,5 +8,7 @@ void terminal_write_string(const char* data);
 void terminal_write_char(const char c);
 void terminal_write_uint32(uint32_t val);
 void terminal_write_hex(uint32_t val);
+void terminal_indentation_increase();
+void terminal_indentation_decrease();
 
 #endif

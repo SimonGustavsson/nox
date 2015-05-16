@@ -3,6 +3,7 @@
 #include "pci.h"
 #include "uhci.h"
 #include "pio.h"
+#include <pci.h>
 // 15:11 - Reserved
 //    10 - Interrupt disable
 //     9 - Fast back-to-back enable
@@ -15,11 +16,27 @@
 //     2 - Bus Master
 //     1 - Memory space
 //     0 - I/O space
+static void print_init_info(struct pci_address* addr, uint32_t base_addr)
+{
+    terminal_write_string("PCI Address - bus: ");
+    terminal_write_uint32(addr->bus);
+    terminal_write_string(" Device: ");
+    terminal_write_uint32(addr->device);
+    terminal_write_string(" Function: ");
+    terminal_write_uint32(addr->func);
+    terminal_write_string(" Base: ");
+    terminal_write_hex(base_addr);
+    terminal_write_string("\n");
+}
 
 void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, uint8_t irq)
 {
+    terminal_write_string("Initializing UHCI Host controller\n");
+    terminal_indentation_increase();
+
+    print_init_info(addr, base_addr);
+
     bool memory_mapped = false;
-    terminal_write_string("Calculating address...\n");
     if((base_addr | 0x1) == 0) {
         memory_mapped = true; 
         // Where in memory space this is is stored in bits 2:1
@@ -50,9 +67,9 @@ void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, ui
         uint32_t size = IND(io_addr);
         uint16_t range = (uint16_t) ( (~(size & ~0x1)) + 1);
         
-        terminal_write_string("Address is: ");
+        terminal_write_string("I/O port: ");
         terminal_write_hex(io_addr);
-        terminal_write_string(" - Range is: ");
+        terminal_write_string(", range: ");
         terminal_write_hex(range);
         terminal_write_string("\n");
         // Now write original value to PCI config space
@@ -71,7 +88,8 @@ void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, ui
     // Enable bus mastering and I/O access 
     pci_write_word(addr, 0x04, memory_mapped ? 0x06 : 0x05);
 
-    int32_t detect_res = uhci_detect_root(base
+    //int32_t detect_res = uhci_detect_root(base
+    terminal_indentation_decrease();
 }
 
 // Detects the root device on the host-controller

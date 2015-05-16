@@ -1,18 +1,18 @@
-#include "stddef.h"
-#include "stdint.h"
+#include <types.h>
 #include <screen.h>
 #include <terminal.h>
 #include "string.h"
 #define BUFFER_MAX_ROWS (50)
 #define BUFFER_MAX_COLUMNS (80)
 #define BUFFER_MAX_OFFSET (25)
-
+#define TERMINAL_INDENTATION_LENGTH 4
 // -------------------------------------------------------------------------
 // Globals
 // -------------------------------------------------------------------------
 static size_t g_current_row;
 static size_t g_current_column;
 static uint8_t g_current_color;
+static uint32_t g_current_indentation;
 
 // TODO: This kinda goes against our conventions of large
 //       objects in the data region, but we don't support
@@ -34,6 +34,7 @@ void terminal_init()
 {
 	g_current_row = 0;
 	g_current_column = 0;
+    g_current_indentation = 0;
     terminal_reset_color();
 }
 
@@ -118,7 +119,7 @@ void terminal_write_char(const char c)
         // Our last write wrote to the last columns, hop to next row
         // (the row will be verified next and clamped if need be)
         g_current_row++;
-        g_current_column = 0;
+        g_current_column = g_current_indentation;
     }
 
     if(g_current_row >= screen_height_get() + g_buffer_row_offset) {
@@ -143,7 +144,7 @@ void terminal_write_char(const char c)
 
     if(c == '\n') {
         g_current_row++;
-        g_current_column = 0;
+        g_current_column = g_current_indentation;
         return;
     }
 
@@ -157,12 +158,39 @@ void terminal_write_char(const char c)
 
 	if (++g_current_column == BUFFER_MAX_COLUMNS)
 	{
-		g_current_column = 0;
+		g_current_column = g_current_indentation;
 		if (++g_current_row - g_buffer_row_offset > screen_height_get())
 		{
 			g_current_row = 0;
 		}
 	}
+}
+void terminal_indentation_increase()
+{
+    if(g_current_indentation < BUFFER_MAX_COLUMNS - 1) {
+
+        bool update_column = g_current_column == g_current_indentation;
+        
+        g_current_indentation += TERMINAL_INDENTATION_LENGTH;
+
+        if(update_column) {
+            g_current_column = g_current_indentation;
+        }
+    }
+}
+
+void terminal_indentation_decrease()
+{
+    if(g_current_indentation >= TERMINAL_INDENTATION_LENGTH) {
+
+        bool update_column = g_current_column == g_current_indentation;
+
+        g_current_indentation -= TERMINAL_INDENTATION_LENGTH;
+
+        if(update_column) {
+            g_current_column = g_current_indentation;
+        }
+    }
 }
 
 static uint16_t vgaentry_create(char c, uint8_t color)

@@ -103,33 +103,9 @@ SECTION_BOOT void _start()
 
     KWARN("Nox has colored output, lets use it!");
 
+    usb_init();
+
     terminal_write_string("Kernel initialized, off to you, interrupts!\n");
-
-    struct pci_address addr;
-    addr.bus = 0;
-    addr.device = 0;
-    addr.func = 0;
-    pci_device dev;
-    while(pci_get_next_usbhc(&addr, &dev)) {
-
-        // NOTE: This function should NOT store the pointers passed in,
-        //       as they're used for enumerating all devices
-       usb_process_device(&addr, &dev);
-
-       // This is lazy, stupid, and wrong.
-       // But it doesn't break right now and allows me to
-       // carry on with what I'm doing.
-       // This should advance to the next POSSIBLE pci address
-       // So that pci_get_next_usbhc starts scanning on the right one
-       if(addr.func == 7) {
-        addr.func = 0;
-        addr.device++;
-       }
-       else {
-        addr.func++;
-       }
-    } 
-
     while(1);
 }
 
