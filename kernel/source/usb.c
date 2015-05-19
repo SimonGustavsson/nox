@@ -8,7 +8,6 @@
 // Foward declarations
 static void print_debug_detect(struct pci_address* addr, pci_device* dev, const uint32_t base_addr, const char* type_str);
 void usb_process_device(struct pci_address* addr, pci_device* dev);
-bool get_next_usbhc_on_pci(struct pci_address* addr, pci_device* resDevice);
 
 void usb_init()
 {
@@ -86,45 +85,5 @@ static void print_debug_detect(struct pci_address* addr, pci_device* dev, const 
     terminal_write_string(" Base: ");
     terminal_write_hex(base_addr);
     terminal_write_string("\n");
-}
-
-// addr is the adress to start scanning at, and will be the address when the function returns
-bool get_next_usbhc_on_pci(struct pci_address* addr, pci_device* resDevice)
-{
-	uint32_t* res_device_ptr = (uint32_t*)(resDevice);
-
-	for(; addr->bus < MAX_PCI_BUS_NR; addr->bus++)
-	{
-		for(; addr->device < MAX_PCI_BUS_DEV_NR; addr->device++)
-		{
-			for(; addr->func < MAX_FUNC_PER_PCI_BUS_DEV; addr->func++)
-			{
-				// Make sure a device exists here
-				if(pci_read_word(addr, 0) == 0xFFFF)
-					continue; // No device, continue the search
-
-				// read in the 256 bytes (64 dwords)
-				// TODO: This fills the result thing with loads of data, that might not
-				// be a valid device, if we end up never finding a device, we end up returning garbage
-				for (uint32_t i = 0; i < 64; i++)
-					res_device_ptr[i] = pci_read_dword(addr, (i << 2));
-
-				if(resDevice->dev_class != USB_CLASS_CODE || resDevice->dev_sub_class != USB_SUBCLASS_CODE)
-					continue; // Not a usb device
-
-				// We found a usb device!
-				return true;
-			}
-
-			// Ensure we scan all functions on the next device
-			addr->func = 0;
-		}
-
-		// Ensure we scan all devices on the next bus
-		addr->device = 0;
-	}
-
-	// Looped through all devices and found nothing, boo?
-	return false;
 }
 
