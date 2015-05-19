@@ -2,14 +2,21 @@
 
 // These are the offsets to the predefined registers in IO space
 // Starting att UHCI_BASEADDR
-#define UHCI_CMD_OFFSET (0x0)        // 2 bytes
-#define UHCI_STS_OFFSET (0x2)        // 2 bytes
-#define UHCI_INTR_OFFSET (0x4)       // 2 bytes
-#define UHCI_FRNUM_OFFSET (0x6)      // 2 bytes
-#define UHCI_FRBASEADDR_OFFSET (0x8) // 4 bytes
-#define UHCI_SOFMOD_OFFSET (0xC)     // 1 byte
-#define UHCI_PORTSC1_OFFSET (0x10)   // 2 bytes
-#define UHCI_PORTSC2_OFFSET (0x12)   // 2 bytes
+// WC = Write Clear (Write '1' to a bit to clear it)
+// R = Read
+// W = Write
+// RO = Read-Only
+#define UHCI_CMD_OFFSET (0x0)        // 2 bytes (R/W)
+#define UHCI_STS_OFFSET (0x2)        // 2 bytes (R/WC)
+#define UHCI_INTR_OFFSET (0x4)       // 2 bytes (R/W)
+#define UHCI_FRNUM_OFFSET (0x6)      // 2 bytes (R/W word only)
+#define UHCI_FRBASEADDR_OFFSET (0x8) // 4 bytes (R/W)
+#define UHCI_SOFMOD_OFFSET (0xC)     // 1 byte  (R/W)
+#define UHCI_RES_OFFSET (0xD)        // 3 bytes (RO)
+#define UHCI_PORTSC1_OFFSET (0x10)   // 2 bytes (R/WC word only)
+#define UHCI_PORTSC2_OFFSET (0x12)   // 2 bytes (R/WC word only)
+// Note: There *may* be more ports mapped after 0x12.
+// This depends in the host controller
 
 
 // UHCI Command register

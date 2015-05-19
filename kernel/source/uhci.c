@@ -17,9 +17,9 @@ static bool init_memory_mapped64(uint64_t base_addr, uint32_t size, uint8_t irq)
 //       compiles (though it currently does NOT work!)
 void wait(uint16_t ms)
 {
-   volatile uint64_t moo = ms * 10;
-   for(volatile uint64_t i = 0; i < moo; i++) {
-   }
+    volatile uint64_t moo = ms * 10;
+    for(volatile uint64_t i = 0; i < moo; i++) {
+    }
 }
 
 // Command register layout 
@@ -93,17 +93,17 @@ static bool init_memory_mapped(pci_device* dev, uint32_t base_addr, uint32_t siz
             return init_memory_mapped32(base_addr, size, irq, true);
             break;
         case 0x2: // Anywhere in 64-bit space 
-        { 
-            unsigned long actual_addr = ((((uint64_t)dev->base_addr5) << 32) | base_addr);
+            {
+                unsigned long actual_addr = ((((uint64_t)dev->base_addr5) << 32) | base_addr);
 
-            return init_memory_mapped64(actual_addr, size, irq);
-            break;
-        }
+                return init_memory_mapped64(actual_addr, size, irq);
+                break;
+            }
         default:
-        {
-            KERROR("Invalid address for memory mapped UHCI device");
-            return false;
-        }
+            {
+                KERROR("Invalid address for memory mapped UHCI device");
+                return false;
+            }
     }
 }
 
@@ -173,8 +173,12 @@ int32_t uhci_detect_root(uint16_t base_addr, bool ioAddr)
 
         wait(11111);
 
+        // Reset the global reset bit
+        // Note: We *must* wait 10ms before doing this
+        // after setting the bit to 1
         OUTW(base_addr + UHCI_CMD_OFFSET, 0x0);
     }
+
 
     if(INW(base_addr + UHCI_CMD_OFFSET) != 0x0) {
         KERROR("CMD register does not have the default value '0'");
