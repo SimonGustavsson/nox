@@ -22,6 +22,7 @@ void wait(uint16_t ms)
    }
 }
 
+// Command register layout 
 // 15:11 - Reserved
 //    10 - Interrupt disable
 //     9 - Fast back-to-back enable
@@ -47,21 +48,26 @@ static void print_init_info(struct pci_address* addr, uint32_t base_addr)
     terminal_write_string("]\n");
 }
 
-static void prepare_pci_device(struct pci_address* addr, uint8_t irq, bool memory_mapped)
+static uint32_t prepare_pci_device(struct pci_address* addr, uint8_t irq, bool memory_mapped)
 {
     // Beore we initialize the card, make sure the cards I/O is disabled
     uint16_t cmd = pci_read_word(addr, PCI_COMMAND_REG_OFFSET);
     cmd = (cmd & ~0x1);
     pci_write_word(addr, PCI_COMMAND_REG_OFFSET, cmd);
 
-    // Now try to get the size of the address space
-
-    pci_write_dword(addr, 0x34, 0x00000000);
+    pci_write_dword(addr, PCI_CAPS_OFF_REG_OFFSET, 0x00000000);
     pci_write_dword(addr, 0x38, 0x00000000);
-    pci_write_byte(addr, 0x3C, irq);
+    pci_write_byte(addr, PCI_IRQ_REG_OFFSET, irq);
 
+    // Now try to get the size of the address space
+    uint32_t size = pci_device_get_memory_size(addr, PCI_BASE_ADDR4_REG_OFFSET);
     // Enable bus mastering and I/O access 
     pci_write_word(addr, 0x04, memory_mapped ? 0x06 : 0x05);
+
+    // Disable legacy support
+    pci_write_word(addr, 0xC0, 0x8F00);
+
+    return size;
 }
 
 static bool init_memory_mapped32(uint32_t base_addr, uint32_t size, uint8_t irq, bool below_1mb)
@@ -117,6 +123,8 @@ static bool init_port_io(uint32_t base_addr, uint32_t size, uint8_t irq)
         return false;
     }
 
+    terminal_write_string("UHCI root device successfully located.\n");
+
     return true;
 }
 
@@ -126,19 +134,18 @@ void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, ui
     terminal_indentation_increase();
 
     print_init_info(addr, base_addr);
-
-    uint32_t size = pci_device_get_memory_size(addr, PCI_BASE_ADDR4_REG_OFFSET);
-    terminal_write_string("SIze is: ");
-    terminal_write_hex(size);
-    terminal_write_string("\n");
-
-    // Get the size of the memory region this device occupies
+    //
     bool result = false;
     if((base_addr | 0x1) == 0) {
+        uint32_t size = prepare_pci_device(addr, 9, true);
+
         result = init_memory_mapped(dev, base_addr, size, irq);
     }
     else {
         // It's an IO port mapped device
+        // ensure port I/O is turned on
+        uint32_t size = prepare_pci_device(addr, 9, false);
+
         result = init_port_io(base_addr, size, irq);
     }
 
@@ -150,44 +157,49 @@ void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, ui
 }
 
 // Detects the root device on the host-controller
-int32_t uhci_detect_root(uint16_t baseAddr, bool ioAddr)
+int32_t uhci_detect_root(uint16_t base_addr, bool ioAddr)
 {
+    // TODO: This currently assumes base_addr is a port I/O address!
+    terminal_write_string("Searching for root device @ ");
+    terminal_write_hex(base_addr);
+    terminal_write_string("\n");
+
 	if(!ioAddr)
 		return -1; // Not currently supported
 
 	for(int i = 0; i < 5; i++)
 	{
-	    OUTW(baseAddr + UHCI_CMD_OFFSET, 0x4);
+	    OUTW(base_addr + UHCI_CMD_OFFSET, 0x4);
 
-		wait(11);
+		wait(11111);
 
-		OUTW(baseAddr + UHCI_CMD_OFFSET, 0x0);
+		OUTW(base_addr + UHCI_CMD_OFFSET, 0x0);
 	}
 
-	if(INW(baseAddr + UHCI_CMD_OFFSET) != 0x0) {
+	if(INW(base_addr + UHCI_CMD_OFFSET) != 0x0) {
         KERROR("CMD register does not have the default value '0'");
 		return -2;
     }
 
-	if(INW(baseAddr + UHCI_STS_OFFSET) != 0x20) {
+	if(INW(base_addr + UHCI_STS_OFFSET) != 0x20) {
         KERROR("Status Reg does not have its default value of 0x20");
 		return -3;
     }
 
 	// Clear out status reg (it's WC)
-	OUTW(baseAddr + UHCI_STS_OFFSET, 0xFF);
+	OUTW(base_addr + UHCI_STS_OFFSET, 0xFF);
 
-	if(INW(baseAddr + UHCI_SOFMOD_OFFSET) != 0x40) {
-        KERROR("Start of Frame register does not have its default value of 0x40");
-		return -4;
-    }
+    //if(INW(base_addr + UHCI_SOFMOD_OFFSET) != 0x40) {
+    //    terminal_write_string("Unexpected SOFMOD value, expected 0x40\n");
+	//	return -4;
+    //}
 
 	// If we set bit 1, the controller should reset it to 0
-	OUTW(baseAddr + UHCI_CMD_OFFSET, 0x2);
+	OUTW(base_addr + UHCI_CMD_OFFSET, 0x2);
 
-	wait(42); // arbitrary wait
+	wait(11111); // arbitrary wait
 
-	if(INW(baseAddr + UHCI_CMD_OFFSET) & 0x2) {
+	if(INW(base_addr + UHCI_CMD_OFFSET) & 0x2) {
         KERROR("Controller did not reset bit :(");
  
 		return -5;
