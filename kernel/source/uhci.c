@@ -164,46 +164,46 @@ int32_t uhci_detect_root(uint16_t base_addr, bool ioAddr)
     terminal_write_hex(base_addr);
     terminal_write_string("\n");
 
-	if(!ioAddr)
-		return -1; // Not currently supported
+    if(!ioAddr)
+        return -1; // Not currently supported
 
-	for(int i = 0; i < 5; i++)
-	{
-	    OUTW(base_addr + UHCI_CMD_OFFSET, 0x4);
+    for(int i = 0; i < 5; i++)
+    {
+        OUTW(base_addr + UHCI_CMD_OFFSET, 0x4);
 
-		wait(11111);
+        wait(11111);
 
-		OUTW(base_addr + UHCI_CMD_OFFSET, 0x0);
-	}
+        OUTW(base_addr + UHCI_CMD_OFFSET, 0x0);
+    }
 
-	if(INW(base_addr + UHCI_CMD_OFFSET) != 0x0) {
+    if(INW(base_addr + UHCI_CMD_OFFSET) != 0x0) {
         KERROR("CMD register does not have the default value '0'");
-		return -2;
+        return -2;
     }
 
-	if(INW(base_addr + UHCI_STS_OFFSET) != 0x20) {
+    if(INW(base_addr + UHCI_STS_OFFSET) != 0x20) {
         KERROR("Status Reg does not have its default value of 0x20");
-		return -3;
+        return -3;
     }
 
-	// Clear out status reg (it's WC)
-	OUTW(base_addr + UHCI_STS_OFFSET, 0xFF);
+    // Clear out status reg (it's WC)
+    OUTW(base_addr + UHCI_STS_OFFSET, 0xFF);
 
     //if(INW(base_addr + UHCI_SOFMOD_OFFSET) != 0x40) {
     //    terminal_write_string("Unexpected SOFMOD value, expected 0x40\n");
-	//	return -4;
+    //	return -4;
     //}
 
-	// If we set bit 1, the controller should reset it to 0
-	OUTW(base_addr + UHCI_CMD_OFFSET, 0x2);
+    // If we set bit 1, the controller should reset it to 0
+    OUTW(base_addr + UHCI_CMD_OFFSET, 0x2);
 
-	wait(11111); // arbitrary wait
+    wait(11111); // arbitrary wait
 
-	if(INW(base_addr + UHCI_CMD_OFFSET) & 0x2) {
+    if(INW(base_addr + UHCI_CMD_OFFSET) & 0x2) {
         KERROR("Controller did not reset bit :(");
- 
-		return -5;
+
+        return -5;
     }
 
-	return 0; // Looks good
+    return 0; // Looks good
 }
