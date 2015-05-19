@@ -130,3 +130,24 @@ bool pci_device_get_next(struct pci_address* addr, int16_t class_id, int16_t sub
 
 }
 
+uint32_t pci_device_get_memory_size(struct pci_address* addr, uint32_t bar_offset)
+{
+    // Save the original BAR so we can restore it once we're done
+    uint32_t orig_bar = pci_read_dword(addr, bar_offset);
+    
+    // Writing all 1s to the BAR register makes the device
+    // write the size of the memory region it occupies into the BAR
+    pci_write_dword(addr, bar_offset, 0xFFFFFFFF);
+
+    // Read the size from the BAR
+    uint32_t size = pci_read_dword(addr, bar_offset);
+
+    // Reset the BAR to the original value
+    pci_write_dword(addr, bar_offset, orig_bar);
+
+    // The size is actually inversed, so NOT the entire thing,
+    // ignoring bit 0 as it's only used to indicate whether the device
+    // uses port I/O or is memory mapped
+    return ~(size & ~1);
+}
+
