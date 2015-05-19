@@ -52,6 +52,7 @@
 #define PCI_MIN_TIME_REG_OFFSET 0x3E
 #define PCI_MAX_TIME_REG_OFFSET 0x3F
 
+#define PCI_VENDOR_ID_NO_DEVICE 0xFFFF
 typedef struct {
      uint16_t vendor_id;           // 0x00 - Vendor ID = FFFFh if not 'a valid entry'
      uint16_t device_id;           // 0x02 - Device ID
@@ -106,6 +107,6 @@ void pci_write_dword(struct pci_address* addr, uint8_t reg_offset, uint32_t valu
 void pci_write_word(struct pci_address* addr, uint8_t reg_offset, uint16_t value);
 void pci_write_byte(struct pci_address* addr, uint8_t reg_offset, uint8_t value);
 
-bool pci_get_next_usbhc(struct pci_address* addr, pci_device* result);
+bool pci_device_get_next(struct pci_address* addr, int16_t class_id, int16_t sub_class, pci_device* result);
 
 #endif

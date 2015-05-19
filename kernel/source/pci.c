@@ -92,10 +92,9 @@ static void pci_write(uint8_t bus, uint8_t dev, uint8_t func, uint8_t reg_offset
 	OUTD(PCI_DATA_IO_PORT + (reg_offset & 0x3), val);
 }
 
-// addr is the adress to start scanning at, and will be the address when the function returns
-bool pci_get_next_usbhc(struct pci_address* addr, pci_device* resDevice)
+bool pci_device_get_next(struct pci_address* addr, int16_t class_id, int16_t sub_class, pci_device* result)
 {
-	uint32_t* res_device_ptr = (uint32_t*)(resDevice);
+	uint32_t* res_device_ptr = (uint32_t*)(result);
 
 	for(; addr->bus < MAX_PCI_BUS_NR; addr->bus++)
 	{
@@ -103,20 +102,19 @@ bool pci_get_next_usbhc(struct pci_address* addr, pci_device* resDevice)
 		{
 			for(; addr->func < MAX_FUNC_PER_PCI_BUS_DEV; addr->func++)
 			{
-				// Make sure a device exists here
-				if(pci_read(addr->bus, addr->device, addr->func, 0, sizeof(uint16_t)) == 0xFFFF)
-					continue; // No device, continue the search
+                if(pci_read_word(addr, PCI_VENDOR_ID_REG_OFFSET) == PCI_VENDOR_ID_NO_DEVICE)
+                    continue;
 
-				// read in the 256 bytes (64 dwords)
-				// TODO: This fills the result thing with loads of data, that might not
-				// be a valid device, if we end up never finding a device, we end up returning garbage
-				for (uint32_t i = 0; i < 64; i++)
+                if(class_id != -1 && pci_read_byte(addr, PCI_DEV_CLASS_REG_OFFSET) != class_id)
+                    continue;
+
+                if(sub_class != -1 && pci_read_byte(addr, PCI_DEV_SUB_CLASS_REG_OFFSET) != sub_class)
+                    continue;
+
+				// Device found, read in the entire configuration space
+				for (uint8_t i = 0; i < 64; i++)
 					res_device_ptr[i] = pci_read_dword(addr, (i << 2));
 
-				if(resDevice->dev_class != USB_CLASS_CODE || resDevice->dev_sub_class != USB_SUBCLASS_CODE)
-					continue; // Not a usb device
-
-				// We found a usb device!
 				return true;
 			}
 
@@ -128,6 +126,7 @@ bool pci_get_next_usbhc(struct pci_address* addr, pci_device* resDevice)
 		addr->device = 0;
 	}
 
-	// Looped through all devices and found nothing, boo?
-	return false;
+	return false; // No more devices
+
 }
+

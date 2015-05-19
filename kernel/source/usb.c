@@ -21,12 +21,12 @@ void usb_init()
     addr.device = 0;
     addr.func = 0;
     pci_device dev;
-    while(get_next_usbhc_on_pci(&addr, &dev)) {
+    while(pci_device_get_next(&addr, USB_CLASS_CODE, USB_SUBCLASS_CODE, &dev)) {
 
         // NOTE: This function should NOT store the pointers passed in,
         //       as they're used for enumerating all devices
        usb_process_device(&addr, &dev);
-    terminal_indentation_decrease();
+       terminal_indentation_decrease();
 
        // This is lazy, stupid, and wrong.
        // But it doesn't break right now and allows me to
