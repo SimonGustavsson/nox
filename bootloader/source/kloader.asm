@@ -110,19 +110,13 @@ main:
     mov ss, ax
     mov sp, 0x09FF
 
-.printPre:
     mov si, msg_pre
     call printStringZ
 
-.tryReset:
     call reset_disk
 
-.findKernel:
-
-    ; TODO: Load MBR from first sector of disc
-
     ;
-    ; Step 0: Load MBR into memory
+    ; Load the MBR so we can get the partition info for the active partition
     ;
     mov eax,    0           ; LBA
     mov dl,     0x80        ; Drive
@@ -130,7 +124,9 @@ main:
     mov di,     LOADED_VBR  ; Destination
     call read_sectors
 
-    ; Load VBR
+    ;
+    ; Load the VBR so we can get FAT info
+    ;
 
     ; Compute the offset of the active partition entry in the partition table
     xor eax, eax
@@ -139,7 +135,6 @@ main:
     mul bl                      ; Multiplies al
 
     mov eax, [LOADED_VBR_PARTITION_START + eax + struc_mbr_part.lba_low]
-
     call read_sectors
 
     ;
