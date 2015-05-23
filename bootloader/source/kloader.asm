@@ -111,7 +111,7 @@ main:
     mov sp, 0x09FF
 
     mov si, msg_pre
-    call printStringZ
+    call print_string_z
 
     call reset_disk
 
@@ -211,7 +211,7 @@ main:
 
 kernelNotFound:
     mov si, msg_kernel_notfound
-    call printStringZ
+    call print_string_z
 
     jmp halt
 
@@ -221,7 +221,7 @@ kernelFound:
     mov bx, ax
 
     mov si, msg_kernel_found
-    call printStringZ
+    call print_string_z
 
 .loadKernel:
 
@@ -414,7 +414,7 @@ enableA20:
 
 	.fail:
     	mov si, msg_a20_interrupt_failed
-    	call printStringZ
+    	call print_string_z
 		jmp halt
 
 ; THIS MUST GO LAST IN THE FILE BECAUSE IT CHANGES

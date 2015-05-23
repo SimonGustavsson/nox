@@ -10,7 +10,7 @@
 
 ; arguments:
 ;	eax: addr of the string16
-printString16:
+print_string_16:
 	mov esi, eax
 
 	xor ecx, ecx
@@ -18,24 +18,24 @@ printString16:
 	mov cx, ax
 
 	cmp cx, 0
-	jz .printDone
+	jz .done
 
     mov ah, 0eh
 
-	.printChar:
+	.print_char:
     	lodsb
     	int 10h
     	dec cx
-    	jz .printDone
-    	jmp .printChar
+    	jz .done
+    	jmp .print_char
 
-	.printDone:
+	.done:
 	    ret
 
 ; arguments
 ;	eax: addr of the string
 ;	ecx: count of bytes to print
-printStringN:
+print_string_n:
 
 	cmp ecx, 0
 	je .done
@@ -44,22 +44,22 @@ printStringN:
 
     mov ah, 0eh
 
-    .printChar:
+    .print_char:
     	lodsb
     	int 10h
     	dec ecx
-		jnz .printChar
+		jnz .print_char
 
 	.done:
 	    ret
 
 ; arguments
 ;	[ds:si]: addr of the string
-printStringZ:
+print_string_z:
 
     mov ah, 0eh
 
-    .printChar:
+    .print_char:
         lodsb
 
         or al, al
@@ -67,7 +67,7 @@ printStringZ:
 
         int 10h
 
-        jmp printStringZ
+        jmp .print_char
 
     .done:
         ret
