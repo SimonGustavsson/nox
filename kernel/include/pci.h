@@ -32,25 +32,59 @@
 #define PCI_PROG_INTERFACE_REG_OFFSET      0x09
 #define PCI_DEV_SUB_CLASS_REG_OFFSET       0x0A
 #define PCI_DEV_CLASS_REG_OFFSET           0x0B
-#define PCI_CACHE_LINE_SIZE_REG_OFFSET 0x0C
-#define PCI_LATENCY_TIMER_REG_OFFSET   0x0D
-#define PCI_HEADER_TYPE_REG_OFFSET     0x0E
-#define PCI_SELF_TEST_REG_OFFSET       0x0F
-#define PCI_BASE_ADDR0_REG_OFFSET      0x10
-#define PCI_BASE_ADDR1_REG_OFFSET      0x14
-#define PCI_BASE_ADDR2_REG_OFFSET      0x18
-#define PCI_BASE_ADDR3_REG_OFFSET      0x1C
-#define PCI_BASE_ADDR4_REG_OFFSET      0x20
-#define PCI_BASE_ADDR5_REG_OFFSET      0x24
-#define PCI_CARD_BUS_REG_OFFSET        0x28
-#define PCI_SUB_SYS_VENDOR_ID_REG_OFFSET 0x2C
-#define PCI_SUB_SYSTEM_ID_REG_OFFSET  0x2E
-#define PCI_ROM_BASE_ADDR_REG_OFFSET 0x30
-#define PCI_CAPS_OFF_REG_OFFSET 0x34
-#define PCI_IRQ_REG_OFFSET 0x3C
-#define PCI_INT_PIN_REG_OFFSET 0x3D
-#define PCI_MIN_TIME_REG_OFFSET 0x3E
-#define PCI_MAX_TIME_REG_OFFSET 0x3F
+#define PCI_CACHE_LINE_SIZE_REG_OFFSET     0x0C
+#define PCI_LATENCY_TIMER_REG_OFFSET       0x0D
+#define PCI_HEADER_TYPE_REG_OFFSET         0x0E
+#define PCI_SELF_TEST_REG_OFFSET           0x0F
+#define PCI_BASE_ADDR0_REG_OFFSET          0x10
+#define PCI_BASE_ADDR1_REG_OFFSET          0x14
+#define PCI_BASE_ADDR2_REG_OFFSET          0x18
+#define PCI_BASE_ADDR3_REG_OFFSET          0x1C
+#define PCI_BASE_ADDR4_REG_OFFSET          0x20
+#define PCI_BASE_ADDR5_REG_OFFSET          0x24
+#define PCI_CARD_BUS_REG_OFFSET            0x28
+#define PCI_SUB_SYS_VENDOR_ID_REG_OFFSET   0x2C
+#define PCI_SUB_SYSTEM_ID_REG_OFFSET       0x2E
+#define PCI_ROM_BASE_ADDR_REG_OFFSET       0x30
+#define PCI_CAPS_OFF_REG_OFFSET            0x34
+#define PCI_IRQ_REG_OFFSET                 0x3C
+#define PCI_INT_PIN_REG_OFFSET             0x3D
+#define PCI_MIN_TIME_REG_OFFSET            0x3E
+#define PCI_MAX_TIME_REG_OFFSET            0x3F
+
+// Legacy support register layout:
+// 15 - (R/WC) End of A20GATE pass through status. 1 = Sequence has ended
+// 14 - Reserved
+// 13 - USB PIRQ Enable - (R/W) USB interrupt routed ti PIRQD (default 1). 0 = Not routed
+// 12 - USB IRQ Status  - (RO) This bit is set when USB irq is active. 
+// 11 - Trap by 64h Write status - (R/WC) Indicates that a write to port 0x64 has occured
+// 10 - Trap by 64h Read status  - (R/WC) Indicates that a read to port 0x64 has occured
+// 9 - Trap by 60h Write status - (R/WC) Indicates that a write to port 0x60 has occured
+// 8 - Trap by 60h Read status  - (R/WC) Indicates that a read to port 0x60 has occured
+// 7 - SMI at end of pass through enable - (R/W) Enable SMI generation when A20GATE pass-through sequence ends
+// 6 - Pass through status - (RO) 1 = Pass through currently in progress 
+// 5 - A20GATE Pass through enable - (R/W) 1 = Enable Pass through
+// 4 - Trap on IRQ enable - (R/W) Enable trap generation on USB IRQ
+// 3 - Trap on 64h write enable - (R/W) Enable trap on 0x64 write
+// 2 - Trap on 64h read enable - (R/W) Enable trap on 0x64 read
+// 1 - Trap on 60h write enable - (R/W) Enable trap on 0x60 write
+// 0 - Trap on 60h read enable - (R/W) Enable trap on 0x60 read
+#define PCI_LEGACY_PTS         (1 << 15)
+#define PCI_LEGACY_USBPIRQDEN  (1 << 13)
+#define PCI_LEGACY_USBIRQS     (1 << 12)
+#define PCI_LEGACY_TBY64W      (1 << 11)
+#define PCI_LEGACY_TBY64R      (1 << 10)
+#define PCI_LEGACY_TBY60W      (1 << 9)
+#define PCI_LEGACY_TBY60R      (1 << 8)
+#define PCI_LEGACY_SMIEPTE     (1 << 7)
+#define PCI_LEGACY_PSS         (1 << 6)
+#define PCI_LEGACY_A20PTEN     (1 << 5)
+#define PCI_LEGACY_USBSMIEN    (1 << 4)
+#define PCI_LEGACY_64WEN       (1 << 3)
+#define PCI_LEGACY_64REN       (1 << 2)
+#define PCI_LEGACY_60WEN       (1 << 1)
+#define PCI_LEGACYL60REN       (1 << 0)
+#define PCI_LEG_SUP_REG_OFFSET      0xC0
 
 #define PCI_VENDOR_ID_NO_DEVICE 0xFFFF
 typedef struct {
