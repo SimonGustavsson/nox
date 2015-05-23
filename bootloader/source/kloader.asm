@@ -15,12 +15,13 @@ bits 16                 ; We're in real mode
 ;*******************************************************************************
 ; Defines
 ;*******************************************************************************
-LOADED_VBR              EQU 0x1000
-VBR_SIZE                EQU 0x200
-KERNEL_LOAD_ADDR        EQU 0x7C00
-MEM_MAP_ADDR            EQU (KERNEL_LOAD_ADDR - (128 * 24))
-LOADED_ROOTDIR          EQU LOADED_VBR + VBR_SIZE
-KERNEL_STACK_START_FLAT EQU 0x7FFFF
+LOADED_VBR                  EQU 0x1000
+LOADED_VBR_PARTITION_START  EQU LOADED_VBR + struc_mbr_code_size
+VBR_SIZE                    EQU 0x200
+KERNEL_LOAD_ADDR            EQU 0x7C00
+MEM_MAP_ADDR                EQU (KERNEL_LOAD_ADDR - (128 * 24))
+LOADED_ROOTDIR              EQU LOADED_VBR + VBR_SIZE
+KERNEL_STACK_START_FLAT     EQU 0x7FFFF
 
 ;*******************************************************************************
 ; Entry Point
@@ -131,17 +132,13 @@ main:
 
     ; Load VBR
 
-    ; Compute the offset into the VBR of the active partition's
-    ; LBA
+    ; Compute the offset of the active partition entry in the partition table
     xor eax, eax
     mov al, 0                   ; Active partition number
-    mov bl, struc_mbr_part_size
+    mov bl, struc_mbr_part_size ; Size of a partition entry
     mul bl                      ; Multiplies al
-    add ax, struc_mbr_code_size
-    add ax, struc_mbr_part.lba_low
 
-    ; Get the LBA
-    mov eax, [LOADED_VBR + eax]
+    mov eax, [LOADED_VBR_PARTITION_START + eax + struc_mbr_part.lba_low]
 
     call read_sectors
 
