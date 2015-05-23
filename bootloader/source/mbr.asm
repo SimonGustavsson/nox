@@ -54,7 +54,7 @@ loader:
 
 .printPre:
     mov eax, messageLoading
-    call printString16
+    call print_string_16
 
 .tryReset:
     mov ah, 0                       ; Reset floppy function
@@ -99,7 +99,7 @@ loader:
 
     .notFound:
         mov eax, messageNoActive
-        call printString16
+        call print_string_16
         call halt
 
 halt:
