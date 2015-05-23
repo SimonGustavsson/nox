@@ -296,16 +296,21 @@ kernelFound:
     mov di,     0x0000      ; Destination
     call read_sectors
 
+    ;
+    ; Kernel is now loaded to 0x7C00
+    ;
+
+    ; Reset the segment registers
+    xor ax, ax
+    mov es, ax
+    mov ds, ax
+
     ; Before we switch into protected mode,
     ; we want to make sure that we've got the
     ; right video mode
     mov ah, 0x00        ; set video mode
     mov al, 0x03        ; vga 80x25, 16 colours
     int 0x10
-
-    ;
-    ; Kernel is now loaded to 0x7C00
-    ;
 
 	; No interrupts past this point for moving
 	; into protect mode
