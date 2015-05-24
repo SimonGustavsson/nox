@@ -18,6 +18,10 @@ $(BUILD)/vbr.bin: $(SOURCE)/vbr.asm
 
 	@$(AS) $^ -o $@ -f bin -i $(ASM_INCLUDE)
 
+$(BUILD)/vbr_OLD.bin: $(SOURCE)/vbr_OLD.asm
+	@echo "AS $<"
+	@$(AS) $^ -o $@ -f bin -i $(ASM_INCLUDE)
+
 $(BUILD)/BOOT.SYS: $(SOURCE)/kloader.asm
 	@echo "AS $<"
 
