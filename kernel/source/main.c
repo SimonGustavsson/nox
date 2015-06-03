@@ -10,6 +10,7 @@
 #include <pio.h>
 #include <keyboard.h>
 #include <cli.h>
+#include <ata.h>
 
 const char* gHcVersionNames[4] = {"UHCI", "OHCI", "EHCI", "xHCI"};
 
@@ -100,6 +101,9 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
         terminal_write_uint32_x(mem_map[i].type);
         terminal_write_string("\n");
     }
+
+    // Let's do some hdd stuff m8
+    ata_init();
 
     // Re-enable interrupts, we're ready now!
     interrupt_enable_all();

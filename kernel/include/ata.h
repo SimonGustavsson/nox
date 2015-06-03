@@ -1,21 +1,26 @@
 #ifndef NOX_ATA_H
 #define NOX_ATA_H
 
-#define ATA_BASE_PORT_PRIMARY 0x1F0
-#define ATA_BASE_PORT_OFFSET 0x170
-
 #define ATA_CONTROL_REG_PORT 0x3F8
 #define ATA_CONTROL_ALTERNATIVE_REG_PORT 0x376
 
-enum ata_port_offsets {
-    ata_port_data_offset = 0,
-    ata_port_feat_err_offset = 1,
-    ata_port_sector_count_offset = 2,
-    ata_port_lba_low_offset = 3,
-    ata_port_lba_mid_offset = 4,
-    ata_port_lba_high_offset = 5,
-    ata_port_drive_head_offset = 6,
-    ata_port_cmd_status_offset = 7
+// NOTE: The values for these are chosen to be
+//       the base port numbers used to access the
+//       various registers for each controller
+enum ata_controller {
+    ata_controller_primary      = 0x1F0,
+    ata_controller_secondary    = 0x170
+};
+
+enum ata_register {
+    ata_register_data            = 0,
+    ata_register_feat_err        = 1,
+    ata_register_sector_count    = 2,
+    ata_register_lba_low         = 3,
+    ata_register_lba_mid         = 4,
+    ata_register_lba_high        = 5,
+    ata_register_drive_head = 6,
+    ata_register_cmd_status = 7
 };
 
 enum control_reg_byte {
@@ -32,6 +37,17 @@ enum ata_status_byte {
     ata_status_drq         = (1 << 3),
     ata_status_error       = (0 << 0)
 };
+
+// NOTE: The values for master and slave
+//       are specifically chosen to match the
+//       values used in the drive/head register
+enum ata_drive {
+    ata_drive_unknown  = -1,
+    ata_drive_master   = 0,
+    ata_drive_slave    = 1
+};
+
+void ata_init();
 
 #endif
 
