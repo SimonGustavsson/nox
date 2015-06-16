@@ -21,7 +21,18 @@ AOBJECTS := $(subst $(ASOURCE_DIR), $(OBJ_DIR), $(AOBJECTS))
 #
 # Compiler options
 #
-CFLAGS=-std=c11 -ffreestanding -nostdlib -c -D TARGET_BOCHS
+PLATFORM_DEBUG:=PLATFORM_DEBUG_BOCHS
+PLATFORM_ARCH:=PLATFORM_ARCH_X86
+PLATFORM_BITS_VAL:=32
+CFLAGS=-std=c11 \
+       -ffreestanding \
+       -nostdlib \
+       -Wall \
+       -Werror \
+       -c \
+       -D $(PLATFORM_DEBUG) \
+       -D $(PLATFORM_ARCH) \
+       -D PLATFORM_BITS=$(PLATFORM_BITS_VAL)
 CINCLUDE := $(patsubst %,-I%, $(shell find $(INCLUDE_DIR) -type d))
 
 # Add prerequisites for full build
@@ -54,8 +65,8 @@ $(OBJ_DIR)/kernel.elf: kernel_directories $(COBJECTS) $(AOBJECTS)
 
 $(OBJ_DIR)/%.o : $(CSOURCE_DIR)/%.c
 
-	@mkdir -p $(dir $@)
-
+	mkdir -p $(dir $@)
+	mkdir -p $(DEP_DIR)/$(dir $*)
 	@echo "CC $<"
 
 	@$(TOOL)-gcc $< -o $@ $(CINCLUDE) $(CFLAGS) -MD -MF $(DEP_DIR)/$*.d

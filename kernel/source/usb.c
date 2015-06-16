@@ -79,7 +79,7 @@ static void process_uhci(struct pci_address* addr, pci_device* dev)
     pci_write_byte(addr, PCI_IRQ_REG_OFFSET, UHCI_IRQ);
 
     // Now try to get the size of the address space
-    uint32_t size = pci_device_get_memory_size(addr, PCI_BASE_ADDR4_REG_OFFSET);
+    //uint32_t size = pci_device_get_memory_size(addr, PCI_BASE_ADDR4_REG_OFFSET);
     // Enable bus mastering and I/O access 
     pci_write_word(addr, 0x04, memory_mapped ? 0x06 : 0x05);
 

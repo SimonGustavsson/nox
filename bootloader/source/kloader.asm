@@ -1,28 +1,60 @@
-; ***************************************************
+;*******************************************************************************
 ;
 ;  nTh stage bootloader, located in the root directory
 ;  of the partition, in a file called BOOT.SYS
 ;
-;****************************************************
+;*******************************************************************************
 
-%include "fat12.inc"
-
+;*******************************************************************************
+; Directives
+;*******************************************************************************
 org 0x600
 bits 16                 ; We're in real mode
-
 [map all build/kloader.map]
 
-jmp 0:0x7C00 + start - 0x600
+;*******************************************************************************
+; Defines
+;*******************************************************************************
+LOADED_VBR                  EQU 0x1000
+LOADED_VBR_PARTITION_START  EQU LOADED_VBR + struc_mbr_code_size
+VBR_SIZE                    EQU 0x200
+KERNEL_LOAD_ADDR            EQU 0x7C00
+MEM_MAP_ADDR                EQU (KERNEL_LOAD_ADDR - (128 * 24))
+LOADED_ROOTDIR              EQU LOADED_VBR + VBR_SIZE
+KERNEL_STACK_START_FLAT     EQU 0x7FFFF
 
-LOADED_VBR              EQU 0x1000
-VBR_SIZE                EQU 0x200
-LOADED_ROOTDIR          EQU LOADED_VBR + VBR_SIZE
-KERNEL_STACK_START      EQU 0x7FFFF ; End of available RAM, the stack grows downwards, remember!
+;*******************************************************************************
+; Entry Point
+;*******************************************************************************
+jmp 0:0x7C00 + relocate_start - 0x600
 
+;*******************************************************************************
+; Included Code
+;*******************************************************************************
+%include "fat12.inc"
+%include "int10.inc"
+%include "int13.inc"
+%include "mbr.inc"
+
+;*******************************************************************************
+; Constants
+;*******************************************************************************
+version                     dw 0x0001
+kernel_name                 db "KERNEL  BIN" ; DO NOT EDIT, 11 chars
+
+msg_pre                     db "BOOT.SYS Loading...", 0x0D, 0x0A, 0
+msg_kernel_found            db "KERNEL.BIN FOUND", 0x0D, 0x0A, 0
+msg_kernel_notfound         db "KERNEL.BIN NOT FOUND", 0x0D, 0x0A, 0
+msg_a20_interrupt_failed    db "A20 via Int 0x15 failed. Halting.", 0x0D, 0x0A, 0
+
+;*******************************************************************************
+; Variables
+;*******************************************************************************
 variables:
     .fatStart            dd     0
     .rootDirectoryStart  dd     0
     .dataRegionStart     dd     0
+    .memMapEntries       dd     0
 .endvariables:
 
 gdt:
@@ -49,9 +81,11 @@ gdtDescriptor:
 		dd              gdt
 .end:
 
-; Relocate
-start:
-mov cx, kloaderEnd
+;*******************************************************************************
+; Relocation
+;*******************************************************************************
+relocate_start:
+mov cx, code_end - $$
 xor ax, ax
 mov es, ax
 mov ds, ax
@@ -60,79 +94,48 @@ mov di, 0x600
 rep movsb
 
 ; Far Jump to Relocated Code
-jmp 0:loader
+jmp 0:main
 
-version  dw 0x0001
-kernel_name db "KERNEL  BIN" ; DO NOT EDIT, 11 chars
+;*******************************************************************************
+; Main
+;
+; Preconditions:
+;   DS = 0
+;   ES = 0
+;   AX = 0
+;*******************************************************************************
+main:
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+    mov sp, 0x09FF
 
-msg_pre db "BOOT.SYS Loading...", 0x0D, 0x0A, 0
-msg_kernel_found db "KERNEL.BIN FOUND", 0x0D, 0x0A, 0
-msg_kernel_notfound db "KERNEL.BIN NOT FOUND", 0x0D, 0x0A, 0
-msg_a20_interrupt_failed db "A20 via Int 0x15 failed. Halting.", 0x0D, 0x0A, 0
-
-; Block read package tp send  to int13
-readPacket:
-                        db 0x10     ; Packet size (bytes)
-                        db 0        ; Reserved
-    readPacketNumBlocks dw 1        ; Blocks to read
-    readPacketBuffer    dw 0x1000   ; Buffer to read to
-                        dw 0        ; Memory Page
-    readPacketLBA       dd 0        ; LBA to read from
-                        dd 0        ; Extra storage for LBAs > 4 bytes
-
-; Assumes address to string is in ds:si
-print:
-    lodsb
-    or al, al
-    jz .print_done
-    mov ah, 0eh
-    int 10h
-    jmp print
-.print_done:
-    ret
-
-loader:
-
- 	; Setup stack pointer
- 	mov esp, KERNEL_STACK_START
-
-.printPre:
-    xor ax, ax                      ; DS:SI is the address of the message, clear ES
-    mov es, ax
     mov si, msg_pre
-    call print
+    call print_string_z
 
-.tryReset:
-    mov ah, 0                       ; Reset floppy/hdd function
-    int 0x13                        ; Call
-    jc .tryReset                    ; Try again if carry flag is set
+    call reset_disk
 
-.findKernel:
+    ;
+    ; Load the MBR so we can get the partition info for the active partition
+    ;
+    mov eax,    0           ; LBA
+    mov dl,     0x80        ; Drive
+    mov cx,     0x01        ; Sector Count
+    mov di,     LOADED_VBR  ; Destination
+    call read_sectors
 
-	; TODO: Load MBR from first sector of disc
+    ;
+    ; Load the VBR so we can get FAT info
+    ;
 
-	;
-	; Step 0: Load MBR into memory
-	;
-	mov word [readPacketBuffer], LOADED_VBR
-	mov dword [readPacketLBA], 0
-	mov si, readPacket
-    mov ah, 0x42
-    mov dl, 0x80 ; Should probably come from Multiboot header info struct?
-    int 0x13
+    ; Compute the offset of the active partition entry in the partition table
+    xor eax, eax
+    mov al, 0                   ; Active partition number
+    mov bl, struc_mbr_part_size ; Size of a partition entry
+    mul bl                      ; Multiplies al
 
-    ; Find LBA of first sector
-	mov ebx, LOADED_VBR + 0x1BE + (0 * 0x10) ; 0 is active part number, get from Multiboot
-	mov ebx, [ebx + 0x8] ; Store LBA of first sector in EBX
-
-	;
-	; Step 1: Load VBR from active partition
-	;
-	mov dword [readPacketLBA], ebx
-	mov si, readPacket
-    mov ah, 0x42
-    mov dl, 0x80 ; Should probably come from Multiboot header info struct?
-    int 0x13
+    mov eax, [LOADED_VBR_PARTITION_START + eax + struc_mbr_part.lba_low]
+    call read_sectors
 
     ;
     ; calculate the offset to the first FAT
@@ -178,15 +181,11 @@ loader:
     ;
     ; read the root sector into memory
     ;
-    mov word [readPacketNumBlocks], 4 ; Assume 4 sector root directory
-    mov [readPacketLBA], eax
-    mov word [readPacketBuffer], LOADED_ROOTDIR ; Store it right after where we loaded the VBR
-
-    ; Get the BIOS to read the sectors
-    mov si, readPacket
-    mov ah, 0x42
-    mov dl, 0x80
-    int 0x13
+    ; LBA is already in EAX
+    mov dl,     0x80        ; Drive
+    mov cx,     0x04        ; Assuming 4 seconds in root dir
+    mov di,     LOADED_ROOTDIR
+    call read_sectors
 
     ; NOTE: LOADED_VBR is now fucked, use no more
 
@@ -211,20 +210,18 @@ loader:
         jmp .compareDirEntry
 
 kernelNotFound:
-    xor ax, ax
-    mov ds, ax
     mov si, msg_kernel_notfound
-    call print
+    call print_string_z
 
     jmp halt
 
 kernelFound:
-    mov bx, ax ; make sure we don't trash it
 
-    xor ax, ax
-    mov ds, ax
+    ; Keep the location of the entry in bx
+    mov bx, ax
+
     mov si, msg_kernel_found
-    call print
+    call print_string_z
 
 .loadKernel:
 
@@ -268,18 +265,45 @@ kernelFound:
     ;   This currently just loads 10240 bytes, assuming the size of the kernel
     ;   does not exceed this. We keep hitting the limit and incrementing it.
     ;   We'll get around to actually just reading the file size one of these days I'm sure..
-    ;
-    mov word [readPacketNumBlocks], 40 ; TODO: Sectors per cluster here
-    mov [readPacketLBA], eax
+    kernel_physical_sector_count    EQU 80
+    kernel_virtual_sector_count     EQU 80
+    kernel_virtual_dword_count      EQU (kernel_virtual_sector_count * 512 / 4)
+
+    push eax
+    push ecx
+    push edi
+    push es
+
+    mov  ax, 0x7C0
+    mov  es,  ax
+    mov  edi, 0x0
+
+    xor  eax, eax
+    mov  ecx, kernel_virtual_dword_count
+    rep stosd
+
+    pop  es
+    pop  edi
+    pop  ecx
+    pop  eax
 
     ; Read kernel to a familiar place
-    mov dword [readPacketBuffer], 0x7c00
+    ;   EAX already contains the LBA
+    mov dl,     0x80        ; Drive
+    mov cx,     kernel_physical_sector_count
+    mov di,     0x07C0
+    mov es,     di          ; Destination Segment
+    mov di,     0x0000      ; Destination
+    call read_sectors
 
-    ; Get the BIOS to read the sectors
-    mov si, readPacket
-    mov ah, 0x42
-    mov dl, 0x80
-    int 0x13
+    ;
+    ; Kernel is now loaded to 0x7C00
+    ;
+
+    ; Reset the segment registers
+    xor ax, ax
+    mov es, ax
+    mov ds, ax
 
     ; Before we switch into protected mode,
     ; we want to make sure that we've got the
@@ -288,13 +312,12 @@ kernelFound:
     mov al, 0x03        ; vga 80x25, 16 colours
     int 0x10
 
-    ;
-    ; Kernel is now loaded to 0x7C00
-    ;
-
 	; No interrupts past this point for moving
 	; into protect mode
 	cli
+
+    ; Create a memory map to pass to the kernel
+    call detect_memory
 
 	; Enable A20
 	call enableA20
@@ -309,28 +332,84 @@ kernelFound:
 
     jmp 0x08:enterProtectedMode
 
-    enterProtectedMode:
-
-        ; We're in protectec mode now, make sure nasm spits
-        ; out 32-bit wide instructions, or very, very, VERY bad things happen!
-        bits 32
-
-        mov edx, 0x10
-        mov ds, edx
-        mov es, edx
-        mov fs, edx
-        mov gs, edx
-        mov ss, edx
-
-        ; NOTE: We leave interrupts disabled - the Kernel can
-        ; re-enable them when it thinks it is ready for them
-
-        ; Jump to the kernel
-        jmp 0x08:0x7c00
-
 halt:
     cli
     hlt
+
+detect_memory:
+
+    ; TODO: ES:DI to address of buffer we want to use
+    mov edi, MEM_MAP_ADDR
+    xor ebx, ebx
+    mov edx, 0x534D4150
+    mov ecx, 0x18
+    mov eax, 0xE820 ; Query System Memory Map
+    int 0x15
+
+    ; These only need checking for the zeroeth pass
+    jc .done
+    cmp eax, 0x534D4150
+    jne .done
+
+    .read_entry:
+        ; NOTE: don't touch EBX - We need it for the next INT
+
+        ; CL contains entry size
+        cmp cl, 20
+        jne .twenty_four_byte_entry
+        .twenty_byte_entry:
+            mov dword [ds:edi + 16], 1
+        .twenty_four_byte_entry:
+
+        mov eax, [variables.memMapEntries]
+        inc eax
+        mov [variables.memMapEntries], eax
+
+        ; Some BIOSes, set ebx to 0, /on/
+        ; the last entry, in which case we
+        ; should not enumerate further
+        test ebx, ebx
+        jz .done
+
+        ; Advance to the buffer address entry
+        add edi, 24
+
+        ; Query next entry in System Memory map
+        mov eax, 0xE820
+        mov ecx, 0x18
+        int 0x15
+
+        ; If the carry flag is set, it means
+        ; that ebx on the /last/ pass was non-zero
+        ; but, we didn't get an entry on this pass
+        ; so we need to, forget whatever we got
+        ; on this pass, and stop enumerating
+        jc .done
+
+        inc edx ; This is the entry count
+
+        ; All good, read next entry
+        jmp .read_entry
+
+    .done:
+        ret
+
+    ; Entries are stored in ES:DI
+    ; Entry format:
+    ;   uin64_t  - Base address
+    ;   uint64_t - "Length of region" (ignore 0 values)
+    ;   uint32_t - Region type
+    ;       Type 1: Usable (normal) RAM
+    ;       Type 2: Reserved
+    ;       Type 3: ACPI reclaimable memory
+    ;       Type 4: ACPI NVS memory
+    ;       Type 5: Bad memory
+    ;   uint32_t - Ext attr (if 24 bytes are returned)
+    ;       0 : ignore entry if 0
+    ;       1 : Non-volatile
+    ;    31:2 : Unused
+
+    ret
 
 enableA20:
 	mov ax, 0x2401
@@ -339,14 +418,45 @@ enableA20:
 	ret
 
 	.fail:
-	    xor ax, ax                      ; DS:SI is the address of the message, clear ES
-    	mov es, ax
     	mov si, msg_a20_interrupt_failed
-    	call print
+    	call print_string_z
 		jmp halt
 
+; THIS MUST GO LAST IN THE FILE BECAUSE IT CHANGES
+; CODE GENERATION TO USE 32-bit INSTRUCTIONS
+enterProtectedMode:
+
+    ; We're in protected mode now, make sure nasm spits
+    ; out 32-bit wide instructions, or very, very, VERY bad things happen!
+    bits 32
+
+    mov edx, 0x10
+    mov ds, edx
+    mov es, edx
+    mov fs, edx
+    mov gs, edx
+    mov ss, edx
+
+    ; Setup stack pointer
+    mov esp, KERNEL_STACK_START_FLAT
+
+    ; NOTE: We leave interrupts disabled - the Kernel can
+    ; re-enable them when it thinks it is ready for them
+
+    ; Tell the kernel how many entries there are
+    push dword [variables.memMapEntries]
+    push dword MEM_MAP_ADDR
+
+    ; Push a dummy return address on to the stack
+    ; so that C can find its parameters, also, if it
+    ; attempts to ret, a GPF will occur
+    push dword 0
+
+    ; Jump to the kernel
+    jmp 0x08:0x7c00
+
 ; Note: This label is used to calculate the size of the binary! :-)
-kloaderEnd:
+code_end:
 
 ; NASM Syntax
 ; vim: ft=nasm expandtab

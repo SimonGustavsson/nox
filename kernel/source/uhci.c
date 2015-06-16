@@ -44,7 +44,7 @@ static void print_init_info(struct pci_address* addr, uint32_t base_addr)
     terminal_write_string(" Function: ");
     terminal_write_uint32(addr->func);
     terminal_write_string(" Base: ");
-    terminal_write_hex(base_addr);
+    terminal_write_uint32_x(base_addr);
     terminal_write_string("]\n");
 }
 
@@ -113,9 +113,9 @@ static bool init_port_io(uint32_t base_addr, uint32_t size, uint8_t irq)
     uint32_t io_addr = (base_addr & ~(1));
 
     terminal_write_string("I/O port: ");
-    terminal_write_hex(io_addr);
+    terminal_write_uint32_x(io_addr);
     terminal_write_string(", size: ");
-    terminal_write_hex(size);
+    terminal_write_uint32_x(size);
     terminal_write_string("\n");
 
     if(0 != uhci_detect_root(io_addr, true)) {
@@ -161,7 +161,7 @@ int32_t uhci_detect_root(uint16_t base_addr, bool ioAddr)
 {
     // TODO: This currently assumes base_addr is a port I/O address!
     terminal_write_string("Searching for root device @ ");
-    terminal_write_hex(base_addr);
+    terminal_write_uint32_x(base_addr);
     terminal_write_string("\n");
 
     if(!ioAddr)

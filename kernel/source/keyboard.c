@@ -8,6 +8,7 @@
 #include <keyboard.h>
 #include <scan_code.h>
 #include <terminal.h>
+#include <debug.h>
 
 enum key_event_type {
     key_event_type_down,
@@ -15,7 +16,7 @@ enum key_event_type {
 };
 
 struct kb_subscriber*   g_current_subscriber;
-
+bool g_initial_ack_received;
 struct sc_set*          g_current_set;
 struct sc_map*          g_current_map;
 
@@ -107,6 +108,8 @@ char kb_key_to_ascii(enum keys key)
         case keys_9:  return '9';
         case keys_0:  return '0';
 
+        case keys_enter: return '\n';
+        case keys_tab: return '\t';
         case keys_acute:  return '`';
         case keys_hyphen:  return '-';
         case keys_equals:  return '=';
@@ -156,6 +159,8 @@ static void reset_map()
 
 void kb_init()
 {
+    g_initial_ack_received = false;
+
     // Get scan-code info
     g_current_set = sc_get_set_1();
     reset_map();
@@ -172,6 +177,19 @@ static void kb_handle_interrupt(uint8_t irq, struct irq_regs* regs)
 {
     uint8_t scan_code = INB(0x60);
 
+    if(scan_code == 0xFA && !g_initial_ack_received) {
+
+        // Currently, we seem to be getting an interrupt
+        // right after enabling the keyboard and interrupts.
+        // The scan code is 0xFA, and the current set is 1.
+        // This is not a valid scan code, and we currently do not
+        // know why this is being sent. We have only ever seen it
+        // get "sent" once, in this instance. So we simply ignore it.
+        g_initial_ack_received = true;
+        pic_send_eoi(pic_irq_keyboard);
+        return;
+    }
+
     //terminal_write_string("KB IRQ Scan code: ");
     //terminal_write_hex(scan_code);
     //terminal_write_string("\n");
@@ -183,7 +201,7 @@ static void kb_handle_interrupt(uint8_t irq, struct irq_regs* regs)
 
         // Unknown scan-code
         terminal_write_string("Unknown scan code value: ");
-        terminal_write_hex(scan_code);
+        terminal_write_uint32_x(scan_code);
         terminal_write_string("\n");
         // Reset to the first map in the set
         reset_map();
@@ -194,12 +212,16 @@ static void kb_handle_interrupt(uint8_t irq, struct irq_regs* regs)
         switch (sc_entry->type) {
             case sc_map_entry_type_press:
                 reset_map();
-                g_current_subscriber->down(sc_entry->data);
+                if(g_current_subscriber->down != NULL) {
+                    g_current_subscriber->down(sc_entry->data);
+                }
                 break;
 
             case sc_map_entry_type_release:
                 reset_map();
-                g_current_subscriber->up(sc_entry->data);
+                if(g_current_subscriber->up != NULL) {
+                    g_current_subscriber->up(sc_entry->data);
+                }
                 break;
 
             case sc_map_entry_type_map:

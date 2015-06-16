@@ -1,11 +1,17 @@
 #include <types.h>
 #include <screen.h>
 #include <terminal.h>
-#include "string.h"
+#include <string.h>
+#include <bit_utils.h>
+
+// -------------------------------------------------------------------------
+// Globals
+// -------------------------------------------------------------------------
 #define BUFFER_MAX_ROWS (50)
 #define BUFFER_MAX_COLUMNS (80)
 #define BUFFER_MAX_OFFSET (25)
 #define TERMINAL_INDENTATION_LENGTH 4
+
 // -------------------------------------------------------------------------
 // Globals
 // -------------------------------------------------------------------------
@@ -25,10 +31,10 @@ static size_t g_buffer_row_offset = 0;
 // -------------------------------------------------------------------------
 // Forward declaractions
 // -------------------------------------------------------------------------
-static void sync_buffer_with_screen();
 void terminal_set_color(enum vga_color fg, enum vga_color bg);
 static uint16_t vgaentry_create(char c, uint8_t color);
 void terminal_write_char(const char c);
+static void buffer_sync_with_screen();
 
 void terminal_init()
 {
@@ -36,6 +42,23 @@ void terminal_init()
 	g_current_column = 0;
     g_current_indentation = 0;
     terminal_reset_color();
+}
+
+void terminal_clear()
+{
+    uint16_t empty = vgaentry_create(' ', g_current_color);
+
+    for(size_t x = 0; x < BUFFER_MAX_COLUMNS; x++) {
+        for(size_t y = 0; y < BUFFER_MAX_ROWS; y++) {
+            g_buffer[y][x] = empty;
+        }
+    }
+
+    g_current_row = 0;
+    g_current_column = 0;
+    g_buffer_row_offset = 0;
+
+    buffer_sync_with_screen();
 }
 
 void terminal_reset_color()
@@ -68,14 +91,39 @@ void terminal_write_hex_byte(uint8_t val)
 	terminal_write_char(nybble_to_ascii((val >> 0) & 0xF));
 }
 
-void terminal_write_hex(uint32_t val)
+void terminal_write_ptr(void* val)
+{
+#if PLATFORM_BITS==32
+    terminal_write_uint32_x((uint32_t)val);
+#elif PLATFORM_BITS==64
+    terminal_write_uint64_x((uint64_t)val);
+#else
+#   error PLATFORM_BITS has an unsupported value.
+#endif
+}
+
+void terminal_write_uint32_x(uint32_t val)
 {
 	terminal_write_char('0');
 	terminal_write_char('x');
-	terminal_write_hex_byte((val >> 24) & 0xFF);
-	terminal_write_hex_byte((val >> 16) & 0xFF);
-	terminal_write_hex_byte((val >> 8) & 0xFF);
-	terminal_write_hex_byte((val >> 0) & 0xFF);
+	terminal_write_hex_byte(BYTE(val, 3));
+	terminal_write_hex_byte(BYTE(val, 2));
+	terminal_write_hex_byte(BYTE(val, 1));
+	terminal_write_hex_byte(BYTE(val, 0));
+}
+
+void terminal_write_uint64_x(uint64_t val)
+{
+	terminal_write_char('0');
+	terminal_write_char('x');
+	terminal_write_hex_byte(BYTE(val, 7));
+	terminal_write_hex_byte(BYTE(val, 6));
+	terminal_write_hex_byte(BYTE(val, 5));
+	terminal_write_hex_byte(BYTE(val, 4));
+	terminal_write_hex_byte(BYTE(val, 3));
+	terminal_write_hex_byte(BYTE(val, 2));
+	terminal_write_hex_byte(BYTE(val, 1));
+	terminal_write_hex_byte(BYTE(val, 0));
 }
 
 static void buffer_sync_with_screen()
@@ -165,6 +213,7 @@ void terminal_write_char(const char c)
 		}
 	}
 }
+
 void terminal_indentation_increase()
 {
     if(g_current_indentation < BUFFER_MAX_COLUMNS - 1) {

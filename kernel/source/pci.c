@@ -1,9 +1,6 @@
-#include <stdbool.h> // C Does not have bool :(
-#include <stddef.h>
-#include <stdint.h>
-
-#include "pio.h"
-#include "pci.h"
+#include <types.h>
+#include <pio.h>
+#include <pci.h>
 
 // -------------------------------------------------------------------------
 // Forward declarations 
@@ -80,7 +77,7 @@ static void pci_write(uint8_t bus, uint8_t dev, uint8_t func, uint8_t reg_offset
 
 	// get current value
 	val = IND(PCI_DATA_IO_PORT + (reg_offset & 0x3));
-	
+
 	// mask out new section
 	if (len != 4)
 		val &= (0xFFFFFFFF << (len * 8));

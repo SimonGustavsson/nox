@@ -1,4 +1,5 @@
-#include "string.h"
+#include <types.h>
+#include <string.h>
 
 size_t strlen(const char* str)
 {
@@ -6,6 +7,24 @@ size_t strlen(const char* str)
 	while ( str[ret] != 0 )
 		ret++;
 	return ret;
+}
+
+bool kstrcmp(char* a, char* b)
+{
+    size_t a_len = strlen(a);
+    size_t b_len = strlen(b);
+
+    if(a_len != b_len) {
+        return false;
+    }
+
+    for(size_t i = 0; i < a_len; i++) {
+        if(a[i] != b[i]) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 void itoa(int number, char* buf)
@@ -30,7 +49,7 @@ void itoa(int number, char* buf)
 
 	// Make sure the string is terminated nicely
 	*--buf = '\0';
-	
+
 	// Start converting the digits into characters
 	do
 	{

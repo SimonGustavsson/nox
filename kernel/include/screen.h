@@ -1,6 +1,7 @@
 #ifndef NOX_SCREEN_H
 #define NOX_SCREEN_H
 
+#include <types.h>
 // Concepts
 //  - Screen - data rendering, NOT input
 //  - Keyboard - low level keyboard handling, delivers to the active terminal
@@ -54,6 +55,7 @@ enum vga_color
 typedef uint8_t screen_color;
 
 void screen_init();
+void screen_cursor_hide();
 screen_color screen_create_color(enum vga_color foreground, enum vga_color background);
 void screen_put_char(char c, screen_color color, size_t x, size_t y);
 void screen_put_entry(uint16_t entry, size_t x, size_t y);
