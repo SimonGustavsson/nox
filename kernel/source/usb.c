@@ -89,7 +89,7 @@ static void process_uhci(struct pci_address* addr, pci_device* dev)
             PCI_LEGACY_TBY64W | PCI_LEGACY_TBY64R | PCI_LEGACY_TBY60W | PCI_LEGACY_TBY60R); // Clear status
 
     // The device is now ready for the UHCI driver to take over
-    uhci_init(dev->base_addr4, dev, addr, 0x65); // TODO: Real IRQ number
+    uhci_init(dev->base_addr4, dev, addr, UHCI_IRQ);
 }
 
 void usb_process_device(struct pci_address* addr, pci_device* dev)

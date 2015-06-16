@@ -8,9 +8,9 @@
 #include <kernel.h>
 
 // Forward declarations
-static bool init_memory_mapped(pci_device* dev, uint32_t base_addr, uint32_t size, uint8_t irq);
-static bool init_memory_mapped32(uint32_t base_addr, uint32_t size, uint8_t irq, bool below_1mb);
-static bool init_memory_mapped64(uint64_t base_addr, uint32_t size, uint8_t irq);
+static bool init_memory_mapped(pci_device* dev, uint32_t base_addr, uint8_t irq);
+static bool init_memory_mapped32(uint32_t base_addr, uint8_t irq, bool below_1mb);
+static bool init_memory_mapped64(uint64_t base_addr, uint8_t irq);
 
 // TODO: Need a real wait - this currently doesn't work at all
 //       But I've left it in here to ensure the rest of the code
@@ -48,55 +48,33 @@ static void print_init_info(struct pci_address* addr, uint32_t base_addr)
     terminal_write_string("]\n");
 }
 
-static uint32_t prepare_pci_device(struct pci_address* addr, uint8_t irq, bool memory_mapped)
-{
-    // Beore we initialize the card, make sure the cards I/O is disabled
-    uint16_t cmd = pci_read_word(addr, PCI_COMMAND_REG_OFFSET);
-    cmd = (cmd & ~0x1);
-    pci_write_word(addr, PCI_COMMAND_REG_OFFSET, cmd);
-
-    pci_write_dword(addr, PCI_CAPS_OFF_REG_OFFSET, 0x00000000);
-    pci_write_dword(addr, 0x38, 0x00000000);
-    pci_write_byte(addr, PCI_IRQ_REG_OFFSET, irq);
-
-    // Now try to get the size of the address space
-    uint32_t size = pci_device_get_memory_size(addr, PCI_BASE_ADDR4_REG_OFFSET);
-    // Enable bus mastering and I/O access 
-    pci_write_word(addr, 0x04, memory_mapped ? 0x06 : 0x05);
-
-    // Disable legacy support
-    pci_write_word(addr, 0xC0, 0x8F00);
-
-    return size;
-}
-
-static bool init_memory_mapped32(uint32_t base_addr, uint32_t size, uint8_t irq, bool below_1mb)
+static bool init_memory_mapped32(uint32_t base_addr, uint8_t irq, bool below_1mb)
 {
     return false;
 }
 
-static bool init_memory_mapped64(uint64_t base_addr, uint32_t size, uint8_t irq)
+static bool init_memory_mapped64(uint64_t base_addr, uint8_t irq)
 {
     return false;
 }
 
-static bool init_memory_mapped(pci_device* dev, uint32_t base_addr, uint32_t size, uint8_t irq)
+static bool init_memory_mapped(pci_device* dev, uint32_t base_addr, uint8_t irq)
 {
     // Where in memory space this is is stored in bits 2:1
     uint8_t details = ((base_addr >> 1) & 0x3);
     switch(details) {
         case 0x0: // Anywhere in 32-bit space 
 
-            return init_memory_mapped32(base_addr, size, irq, false);
+            return init_memory_mapped32(base_addr, irq, false);
             break;
         case 0x1: // Below 1MB 
-            return init_memory_mapped32(base_addr, size, irq, true);
+            return init_memory_mapped32(base_addr, irq, true);
             break;
         case 0x2: // Anywhere in 64-bit space 
             {
                 unsigned long actual_addr = ((((uint64_t)dev->base_addr5) << 32) | base_addr);
 
-                return init_memory_mapped64(actual_addr, size, irq);
+                return init_memory_mapped64(actual_addr, irq);
                 break;
             }
         default:
@@ -107,15 +85,13 @@ static bool init_memory_mapped(pci_device* dev, uint32_t base_addr, uint32_t siz
     }
 }
 
-static bool init_port_io(uint32_t base_addr, uint32_t size, uint8_t irq)
+static bool init_port_io(uint32_t base_addr, uint8_t irq)
 {
     // Scrap bit 1:0 as it's not a part of the address
     uint32_t io_addr = (base_addr & ~(1));
 
     terminal_write_string("I/O port: ");
     terminal_write_uint32_x(io_addr);
-    terminal_write_string(", size: ");
-    terminal_write_uint32_x(size);
     terminal_write_string("\n");
 
     if(0 != uhci_detect_root(io_addr, true)) {
@@ -137,16 +113,13 @@ void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, ui
     //
     bool result = false;
     if((base_addr | 0x1) == 0) {
-        uint32_t size = prepare_pci_device(addr, 9, true);
+        //uint32_t size = prepare_pci_device(addr, 9, true);
 
-        result = init_memory_mapped(dev, base_addr, size, irq);
+        result = init_memory_mapped(dev, base_addr, irq);
     }
     else {
         // It's an IO port mapped device
-        // ensure port I/O is turned on
-        uint32_t size = prepare_pci_device(addr, 9, false);
-
-        result = init_port_io(base_addr, size, irq);
+        result = init_port_io(base_addr, irq);
     }
 
     terminal_indentation_decrease();
