@@ -5,13 +5,22 @@
 #include <uhci.h>
 #include <kernel.h>
 
+// -------------------------------------------------------------------------
+// Static Defines
+// -------------------------------------------------------------------------
 #define UHCI_REV_1_0 0x10
 #define UHCI_IRQ 9 // TODO: What IRQ should we use? What about multiple HCs? Share IRQ? eww?
 
-// Foward declarations
+// -------------------------------------------------------------------------
+// Forward Declarations
+// -------------------------------------------------------------------------
 static void usb_process_device(struct pci_address* addr, pci_device* dev);
 static bool advance_to_next_address(struct pci_address* address);
+static void process_uhci(struct pci_address* addr, pci_device* dev);
 
+// -------------------------------------------------------------------------
+// Public Contract
+// -------------------------------------------------------------------------
 void usb_init()
 {
     terminal_write_string("Initializing USB host controllers\n");
@@ -34,21 +43,25 @@ void usb_init()
     terminal_indentation_decrease();
 }
 
-static bool advance_to_next_address(struct pci_address* address)
+// -------------------------------------------------------------------------
+// Static Device Processing
+// -------------------------------------------------------------------------
+void usb_process_device(struct pci_address* addr, pci_device* dev)
 {
-   if(++address->func >= MAX_FUNC_PER_PCI_BUS_DEV) {
-        address->func = 0;
-        
-        if(++address->device >= MAX_PCI_BUS_DEV_NR) {
-            address->device = 0;
-
-            if(++address->bus >= MAX_PCI_BUS_NR) {
-                return false; // Reached the end
-            }
-        }
-   } 
-
-   return true;
+    switch(dev->prog_interface) {
+        case usb_hc_uhci:
+            process_uhci(addr, dev);
+            break;
+        case usb_hc_ohci:
+            KWARN("Found unsupported OHCI controller, ignoring...");
+            break;
+        case usb_hc_ehci:
+            KWARN("Found unsupported EHCI controller, ignoring...");
+            break;
+        case usb_hc_xhci:
+            KWARN("Found unsupported xHCI controller, ignoring...");
+            break;
+    }
 }
 
 static void process_uhci(struct pci_address* addr, pci_device* dev)
@@ -92,21 +105,23 @@ static void process_uhci(struct pci_address* addr, pci_device* dev)
     uhci_init(dev->base_addr4, dev, addr, UHCI_IRQ);
 }
 
-void usb_process_device(struct pci_address* addr, pci_device* dev)
+// -------------------------------------------------------------------------
+// Static utilities
+// -------------------------------------------------------------------------
+static bool advance_to_next_address(struct pci_address* address)
 {
-    switch(dev->prog_interface) {
-        case usb_hc_uhci:
-            process_uhci(addr, dev);
-            break;
-        case usb_hc_ohci:
-            KWARN("Found unsupported OHCI controller, ignoring...");
-            break;
-        case usb_hc_ehci:
-            KWARN("Found unsupported EHCI controller, ignoring...");
-            break;
-        case usb_hc_xhci:
-            KWARN("Found unsupported xHCI controller, ignoring...");
-            break;
-    }
+   if(++address->func >= MAX_FUNC_PER_PCI_BUS_DEV) {
+        address->func = 0;
+        
+        if(++address->device >= MAX_PCI_BUS_DEV_NR) {
+            address->device = 0;
+
+            if(++address->bus >= MAX_PCI_BUS_NR) {
+                return false; // Reached the end
+            }
+        }
+   } 
+
+   return true;
 }
 
