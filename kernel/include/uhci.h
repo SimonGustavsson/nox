@@ -7,10 +7,10 @@
 // W = Write
 // RO = Read-Only
 #define UHCI_CMD_OFFSET (0x0)        // 2 bytes (R/W)
-#define UHCI_STS_OFFSET (0x2)        // 2 bytes (R/WC)
-#define UHCI_INTR_OFFSET (0x4)       // 2 bytes (R/W)
-#define UHCI_FRNUM_OFFSET (0x6)      // 2 bytes (R/W word only)
-#define UHCI_FRBASEADDR_OFFSET (0x8) // 4 bytes (R/W)
+#define UHCI_STATUS_OFFSET (0x2)        // 2 bytes (R/WC)
+#define UHCI_INTERRUPT_OFFSET (0x4)       // 2 bytes (R/W)
+#define UHCI_FRAME_NUM_OFFSET (0x6)      // 2 bytes (R/W word only)
+#define UHCI_FRAME_BASEADDR_OFFSET (0x8) // 4 bytes (R/W)
 #define UHCI_SOFMOD_OFFSET (0xC)     // 1 byte  (R/W)
 #define UHCI_RES_OFFSET (0xD)        // 3 bytes (RO)
 #define UHCI_PORTSC1_OFFSET (0x10)   // 2 bytes (R/WC word only)
