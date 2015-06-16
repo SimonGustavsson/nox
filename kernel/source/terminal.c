@@ -129,7 +129,7 @@ void terminal_write_uint64_x(uint64_t val)
 static void buffer_sync_with_screen()
 {
     for(size_t x = 0; x < screen_width_get(); x++) {
-        for(size_t y = 0; y < screen_height_get() - 1; y++) {
+        for(size_t y = 0; y < screen_height_get(); y++) {
            screen_put_entry(g_buffer[g_buffer_row_offset + y][x], x, y);
         }
     }
@@ -143,15 +143,18 @@ static void buffer_scroll_up()
         }
     }
 
+    // And clear the last row
+    for(size_t i = 0; i < BUFFER_MAX_COLUMNS; i++) {
+        g_buffer[BUFFER_MAX_ROWS - 1][i] = ' ';
+    }
+
     buffer_sync_with_screen();
 }
 
 static void buffer_increase_offset()
 {
-    g_buffer_row_offset++;
-
-    if(g_buffer_row_offset > BUFFER_MAX_OFFSET) {
-        while(1); // TODO: How to recover?
+    if(g_buffer_row_offset < BUFFER_MAX_OFFSET) {
+        g_buffer_row_offset++;
     }
 
     // Buffer has moved up a row, we now need to resync the terminal
@@ -163,7 +166,7 @@ void terminal_write_char(const char c)
 {
     // OK - so first off, can we write to the current location,
     // or do we need to perform some operations on the buffer?
-    if(g_current_column == BUFFER_MAX_COLUMNS) {
+    if(g_current_column >= BUFFER_MAX_COLUMNS) {
         // Our last write wrote to the last columns, hop to next row
         // (the row will be verified next and clamped if need be)
         g_current_row++;
