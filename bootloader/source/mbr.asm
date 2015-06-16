@@ -94,6 +94,8 @@ loader:
         mov ah, 0x42
         int 0x13
 
+        mov eax, [readPacketLBA]
+
         ; Jump to the VBR
         jmp 0:VBR_ADDRESS
 
