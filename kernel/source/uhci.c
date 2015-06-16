@@ -7,21 +7,9 @@
 #include <pci.h>
 #include <kernel.h>
 
-// Forward declarations
-static bool init_memory_mapped(pci_device* dev, uint32_t base_addr, uint8_t irq);
-static bool init_memory_mapped32(uint32_t base_addr, uint8_t irq, bool below_1mb);
-static bool init_memory_mapped64(uint64_t base_addr, uint8_t irq);
-
-// TODO: Need a real wait - this currently doesn't work at all
-//       But I've left it in here to ensure the rest of the code
-//       compiles (though it currently does NOT work!)
-void wait(uint16_t ms)
-{
-    volatile uint64_t moo = ms * 10;
-    for(volatile uint64_t i = 0; i < moo; i++) {
-    }
-}
-
+// -------------------------------------------------------------------------
+// Documentation
+// -------------------------------------------------------------------------
 // Command register layout 
 // 15:11 - Reserved
 //    10 - Interrupt disable
@@ -35,27 +23,65 @@ void wait(uint16_t ms)
 //     2 - Bus Master
 //     1 - Memory space
 //     0 - I/O space
-static void print_init_info(struct pci_address* addr, uint32_t base_addr)
+
+// -------------------------------------------------------------------------
+// Forward Declarations
+// -------------------------------------------------------------------------
+static bool init_port_io(uint32_t base_addr, uint8_t irq);
+static bool init_memory_mapped(pci_device* dev, uint32_t base_addr, uint8_t irq);
+static bool init_memory_mapped32(uint32_t base_addr, uint8_t irq, bool below_1mb);
+static bool init_memory_mapped64(uint64_t base_addr, uint8_t irq);
+static void wait(uint16_t ms);
+static void print_init_info(struct pci_address* addr, uint32_t base_addr);
+
+// -------------------------------------------------------------------------
+// Public Contract
+// -------------------------------------------------------------------------
+void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, uint8_t irq)
 {
-    terminal_write_string("PCI Address [Bus: ");
-    terminal_write_uint32(addr->bus);
-    terminal_write_string(" Device: ");
-    terminal_write_uint32(addr->device);
-    terminal_write_string(" Function: ");
-    terminal_write_uint32(addr->func);
-    terminal_write_string(" Base: ");
-    terminal_write_uint32_x(base_addr);
-    terminal_write_string("]\n");
+    terminal_write_string("Initializing UHCI Host controller\n");
+    terminal_indentation_increase();
+
+    print_init_info(addr, base_addr);
+    //
+    bool result = false;
+    if((base_addr | 0x1) == 0) {
+        //uint32_t size = prepare_pci_device(addr, 9, true);
+
+        result = init_memory_mapped(dev, base_addr, irq);
+    }
+    else {
+        // It's an IO port mapped device
+        result = init_port_io(base_addr, irq);
+    }
+
+    terminal_indentation_decrease();
+
+    if(!result) {
+        KERROR("Host controller initialization failed.");
+    }
 }
 
-static bool init_memory_mapped32(uint32_t base_addr, uint8_t irq, bool below_1mb)
+// -------------------------------------------------------------------------
+// Initialization 
+// -------------------------------------------------------------------------
+static bool init_port_io(uint32_t base_addr, uint8_t irq)
 {
-    return false;
-}
+    // Scrap bit 1:0 as it's not a part of the address
+    uint32_t io_addr = (base_addr & ~(1));
 
-static bool init_memory_mapped64(uint64_t base_addr, uint8_t irq)
-{
-    return false;
+    terminal_write_string("I/O port: ");
+    terminal_write_uint32_x(io_addr);
+    terminal_write_string("\n");
+
+    if(0 != uhci_detect_root(io_addr, true)) {
+        KERROR("Failed to detect root device");
+        return false;
+    }
+
+    terminal_write_string("UHCI root device successfully located.\n");
+
+    return true;
 }
 
 static bool init_memory_mapped(pci_device* dev, uint32_t base_addr, uint8_t irq)
@@ -85,48 +111,14 @@ static bool init_memory_mapped(pci_device* dev, uint32_t base_addr, uint8_t irq)
     }
 }
 
-static bool init_port_io(uint32_t base_addr, uint8_t irq)
+static bool init_memory_mapped32(uint32_t base_addr, uint8_t irq, bool below_1mb)
 {
-    // Scrap bit 1:0 as it's not a part of the address
-    uint32_t io_addr = (base_addr & ~(1));
-
-    terminal_write_string("I/O port: ");
-    terminal_write_uint32_x(io_addr);
-    terminal_write_string("\n");
-
-    if(0 != uhci_detect_root(io_addr, true)) {
-        KERROR("Failed to detect root device");
-        return false;
-    }
-
-    terminal_write_string("UHCI root device successfully located.\n");
-
-    return true;
+    return false;
 }
 
-void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, uint8_t irq)
+static bool init_memory_mapped64(uint64_t base_addr, uint8_t irq)
 {
-    terminal_write_string("Initializing UHCI Host controller\n");
-    terminal_indentation_increase();
-
-    print_init_info(addr, base_addr);
-    //
-    bool result = false;
-    if((base_addr | 0x1) == 0) {
-        //uint32_t size = prepare_pci_device(addr, 9, true);
-
-        result = init_memory_mapped(dev, base_addr, irq);
-    }
-    else {
-        // It's an IO port mapped device
-        result = init_port_io(base_addr, irq);
-    }
-
-    terminal_indentation_decrease();
-
-    if(!result) {
-        KERROR("Host controller initialization failed.");
-    }
+    return false;
 }
 
 // Detects the root device on the host-controller
@@ -151,7 +143,6 @@ int32_t uhci_detect_root(uint16_t base_addr, bool ioAddr)
         // after setting the bit to 1
         OUTW(base_addr + UHCI_CMD_OFFSET, 0x0);
     }
-
 
     if(INW(base_addr + UHCI_CMD_OFFSET) != 0x0) {
         KERROR("CMD register does not have the default value '0'");
@@ -184,3 +175,31 @@ int32_t uhci_detect_root(uint16_t base_addr, bool ioAddr)
 
     return 0; // Looks good
 }
+
+// -------------------------------------------------------------------------
+// Static Utilities
+// -------------------------------------------------------------------------
+
+static void wait(uint16_t ms)
+{
+    // TODO: Need a real wait - this currently doesn't work at all
+    //       But I've left it in here to ensure the rest of the code
+    //       compiles (though it currently does NOT work!)
+    volatile uint64_t moo = ms * 10;
+    for(volatile uint64_t i = 0; i < moo; i++) {
+    }
+}
+
+static void print_init_info(struct pci_address* addr, uint32_t base_addr)
+{
+    terminal_write_string("PCI Address [Bus: ");
+    terminal_write_uint32(addr->bus);
+    terminal_write_string(" Device: ");
+    terminal_write_uint32(addr->device);
+    terminal_write_string(" Function: ");
+    terminal_write_uint32(addr->func);
+    terminal_write_string(" Base: ");
+    terminal_write_uint32_x(base_addr);
+    terminal_write_string("]\n");
+}
+
