@@ -10,6 +10,7 @@
 #define BUFFER_MAX_ROWS (50)
 #define BUFFER_MAX_COLUMNS (80)
 #define BUFFER_MAX_OFFSET (25)
+#define SPACES_PER_TAB (4)
 
 // -------------------------------------------------------------------------
 // Globals
@@ -75,7 +76,7 @@ void terminal_write_string(const char* data)
 
 void terminal_write_uint32(uint32_t val)
 {
-	char buf[9];
+	char buf[11];
 	itoa(val, buf);
 	terminal_write_string(buf);
 }
@@ -164,6 +165,13 @@ static void buffer_increase_offset()
 
 void terminal_write_char(const char c)
 {
+    if(c == '\t') {
+        for(int i = 0; i < SPACES_PER_TAB; i++) {
+            terminal_write_char(' ');
+        }
+        return;
+    }
+
     // OK - so first off, can we write to the current location,
     // or do we need to perform some operations on the buffer?
     if(g_current_column == BUFFER_MAX_COLUMNS) {
