@@ -17,7 +17,8 @@ typedef int64_t             native_int_t;
 typedef native_uint_t       size_t;
 
 #define NULL                (0)
-#define UINT32_MAXVALUE  4294967295
-#define UINT16_MAXVALUE  65535
+#define UINT64_MAXVALUE 18446744073709551615
+#define UINT32_MAXVALUE 4294967295
+#define UINT16_MAXVALUE 65535
 
 #endif
