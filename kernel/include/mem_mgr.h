@@ -23,4 +23,11 @@ struct PACKED mem_map_entry {
 
 void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count);
 
+size_t mem_page_count(bool get_allocated);
+bool   mem_page_reserve(void* address, size_t num_pages);
+void*  mem_page_get();
+void*  mem_page_get_many(uint16_t how_many);
+void   mem_page_free(void* address);
+void   mem_print_usage();
+
 #endif
