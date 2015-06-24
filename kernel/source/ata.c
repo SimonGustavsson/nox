@@ -79,6 +79,16 @@ void select_drive(enum ata_controller controller, enum ata_drive drive)
         }
         KINFO("SUCCESS!");
 
+        typedef unsigned char byte_t;
+
+        byte_t* bytes = (byte_t*)data;
+
+        uint32_t* number_of_sectors_lba28 = (uint32_t*)&bytes[120];
+
+        terminal_write_string("LBA28 Sector Count: ");
+        terminal_write_uint32(*number_of_sectors_lba28);
+        terminal_write_string("\n");
+
         int foo = data[0] + 5;
         terminal_write_uint32(foo);
     }
