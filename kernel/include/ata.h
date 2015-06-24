@@ -35,7 +35,7 @@ enum ata_status_byte {
     ata_status_df          = (1 << 5),
     ata_status_srv         = (1 << 4),
     ata_status_drq         = (1 << 3),
-    ata_status_error       = (0 << 0)
+    ata_status_error       = (1 << 0)
 };
 
 // NOTE: The values for master and slave
@@ -47,7 +47,12 @@ enum ata_drive {
     ata_drive_slave    = 1
 };
 
+enum ata_cmd {
+    ata_cmd_read_sectors = 0x20
+};
+
 void ata_init();
+void ata_read_sectors(uint32_t lba, uint8_t block_count, uintptr_t buffer);
 
 #endif
 

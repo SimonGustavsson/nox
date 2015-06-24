@@ -64,6 +64,16 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
     // Let's do some hdd stuff m8
     ata_init();
 
+    uint32_t pages_required_for_buffer = (512 * 256) / PAGE_SIZE;
+    uint32_t* buffer = (uint32_t*)(mem_page_get_many(pages_required_for_buffer));
+    ata_read_sectors(0, 1, (intptr_t)buffer);
+
+    terminal_write_string("LBA 0 content: ");
+    terminal_write_uint32_x(buffer[0]);
+    terminal_write_string("\n");
+
+    KINFO("Read it!");
+
     // Re-enable interrupts, we're ready now!
     interrupt_enable_all();
 

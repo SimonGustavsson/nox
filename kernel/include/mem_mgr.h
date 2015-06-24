@@ -1,6 +1,8 @@
 #ifndef NOX_MEM_MGR_H
 #define NOX_MEM_MGR_H
 
+#define PAGE_SIZE (4096)
+
 enum region_type {
     region_type_normal = 0x01,
     region_type_reserved = 0x02,
