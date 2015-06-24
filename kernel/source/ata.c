@@ -71,7 +71,8 @@ static enum ready_result wait_until_ready(enum ata_controller controller)
     }
 }
 
-void ata_read_sectors(uint32_t lba, uint8_t block_count, uintptr_t buffer)
+// sector_count of 0 means 256 sectors, 1-255 mean what they say
+void ata_read_sectors(uint32_t lba, uint8_t sector_count, uintptr_t buffer)
 {
     uint16_t* data = (uint16_t*)(buffer);
 
@@ -84,7 +85,7 @@ void ata_read_sectors(uint32_t lba, uint8_t block_count, uintptr_t buffer)
     //  Send a NULL byte to port 0x1F1, if you like (it is ignored and wastes lots of CPU time): outb(0x1F1, 0x00)
     ata_write(ata_controller_primary, ata_register_feat_err,  0x00);
 
-    ata_write(ata_controller_primary, ata_register_sector_count, block_count - 1);
+    ata_write(ata_controller_primary, ata_register_sector_count, sector_count);
 
     ata_write(ata_controller_primary, ata_register_lba_low, (uint8_t)(lba));
     ata_write(ata_controller_primary, ata_register_lba_mid, (uint8_t)(lba >> 8));
@@ -92,7 +93,7 @@ void ata_read_sectors(uint32_t lba, uint8_t block_count, uintptr_t buffer)
 
     ata_write(ata_controller_primary, ata_register_cmd_status, ata_cmd_read_sectors);
 
-    for (int block = 0; block < block_count; block++) {
+    for (int sector = 0; sector < sector_count; sector++) {
 
         // Wait for the sector to be read by the controller
         if (ready_result_ready != wait_until_ready(ata_controller_primary)) {
