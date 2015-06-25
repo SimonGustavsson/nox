@@ -27,12 +27,12 @@ bool kstrcmp(char* a, char* b)
     return true;
 }
 
-void itoa(int number, char* buf)
-{
+char* itoa(int32_t number, char* buf) {
+
 	// We populate the string backwards, increment to make room for \0
 	buf++;
 
-	int negative = number < 0;
+	bool negative = number < 0;
 	if(negative)
 	{
 		buf++;
@@ -59,6 +59,8 @@ void itoa(int number, char* buf)
 
 	if(negative)
 		*--buf = '-';
+
+    return buf;
 }
 
 uint8_t nybble_to_ascii(uint8_t val)

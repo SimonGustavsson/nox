@@ -10,9 +10,9 @@ SECTIONS
 	   loaded at by the bootloader. */
 	. = 0x7C00;
 
-	/* First put the multiboot header, as it is required to be put very early
-	   early in the image or the bootloader won't recognize the file format.
-	   Next we'll put the .text section. */
+    LD_KERNEL_START = .;
+
+    /* Kernel code */
 	.text :
 	{
         *(.text.boot)
@@ -31,6 +31,8 @@ SECTIONS
 		*(.data)
 	}
 
+    LD_KERNEL_DATA_END = .;
+
 	/* Read-write data (uninitialized) and stack */
 	.bss ALIGN(4):
 	{
@@ -38,6 +40,9 @@ SECTIONS
 		*(.bss)
 		*(.bootstrap_stack)
 	}
+
+    LD_KERNEL_END = .;
+
 
 	/* The compiler may produce other sections, by default it will put them in
 	   a segment with the same name. Simply add stuff here as needed. */
