@@ -32,9 +32,7 @@ static size_t g_buffer_row_offset = 0;
 // -------------------------------------------------------------------------
 // Forward declaractions
 // -------------------------------------------------------------------------
-void terminal_set_color(enum vga_color fg, enum vga_color bg);
 static uint16_t vgaentry_create(char c, uint8_t color);
-void terminal_write_char(const char c);
 static void buffer_sync_with_screen();
 
 void terminal_init()
