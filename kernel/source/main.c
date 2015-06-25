@@ -9,6 +9,8 @@
 #include <pit.h>
 #include <pio.h>
 #include <keyboard.h>
+#include <uhci.h>
+#include <usb.h>
 #include <cli.h>
 #include <mem_mgr.h>
 #include <ata.h>
@@ -48,6 +50,7 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
 {
     screen_init();
     screen_cursor_hide();
+
     terminal_init();
 
     print_welcome();
@@ -80,6 +83,10 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
     call_test_sys_call(0x1234);
 
     pit_set(1000);
+
+    usb_init();
+
+    terminal_write_string("Kernel initialized, off to you, interrupts!\n");
 
     cli_init();
     cli_run();

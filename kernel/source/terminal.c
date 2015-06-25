@@ -5,11 +5,12 @@
 #include <bit_utils.h>
 
 // -------------------------------------------------------------------------
-// Globals
+// Static defines
 // -------------------------------------------------------------------------
 #define BUFFER_MAX_ROWS (50)
 #define BUFFER_MAX_COLUMNS (80)
 #define BUFFER_MAX_OFFSET (25)
+#define TERMINAL_INDENTATION_LENGTH 4
 #define SPACES_PER_TAB (4)
 
 // -------------------------------------------------------------------------
@@ -18,6 +19,7 @@
 static size_t g_current_row;
 static size_t g_current_column;
 static uint8_t g_current_color;
+static uint32_t g_current_indentation;
 
 // TODO: This kinda goes against our conventions of large
 //       objects in the data region, but we don't support
@@ -37,6 +39,7 @@ void terminal_init()
 {
 	g_current_row = 0;
 	g_current_column = 0;
+    g_current_indentation = 0;
     terminal_reset_color();
 }
 
@@ -133,7 +136,7 @@ void terminal_write_uint64_x(uint64_t val)
 static void buffer_sync_with_screen()
 {
     for(size_t x = 0; x < screen_width_get(); x++) {
-        for(size_t y = 0; y < screen_height_get() - 1; y++) {
+        for(size_t y = 0; y < screen_height_get(); y++) {
            screen_put_entry(g_buffer[g_buffer_row_offset + y][x], x, y);
         }
     }
@@ -147,15 +150,18 @@ static void buffer_scroll_up()
         }
     }
 
+    // And clear the last row
+    for(size_t i = 0; i < BUFFER_MAX_COLUMNS; i++) {
+        g_buffer[BUFFER_MAX_ROWS - 1][i] = ' ';
+    }
+
     buffer_sync_with_screen();
 }
 
 static void buffer_increase_offset()
 {
-    g_buffer_row_offset++;
-
-    if(g_buffer_row_offset > BUFFER_MAX_OFFSET) {
-        while(1); // TODO: How to recover?
+    if(g_buffer_row_offset < BUFFER_MAX_OFFSET) {
+        g_buffer_row_offset++;
     }
 
     // Buffer has moved up a row, we now need to resync the terminal
@@ -174,11 +180,11 @@ void terminal_write_char(const char c)
 
     // OK - so first off, can we write to the current location,
     // or do we need to perform some operations on the buffer?
-    if(g_current_column == BUFFER_MAX_COLUMNS) {
+    if(g_current_column >= BUFFER_MAX_COLUMNS) {
         // Our last write wrote to the last columns, hop to next row
         // (the row will be verified next and clamped if need be)
         g_current_row++;
-        g_current_column = 0;
+        g_current_column = g_current_indentation;
     }
 
     if(g_current_row >= screen_height_get() + g_buffer_row_offset) {
@@ -203,7 +209,7 @@ void terminal_write_char(const char c)
 
     if(c == '\n') {
         g_current_row++;
-        g_current_column = 0;
+        g_current_column = g_current_indentation;
         return;
     }
 
@@ -217,12 +223,40 @@ void terminal_write_char(const char c)
 
 	if (++g_current_column == BUFFER_MAX_COLUMNS)
 	{
-		g_current_column = 0;
+		g_current_column = g_current_indentation;
 		if (++g_current_row - g_buffer_row_offset > screen_height_get())
 		{
 			g_current_row = 0;
 		}
 	}
+}
+
+void terminal_indentation_increase()
+{
+    if(g_current_indentation < BUFFER_MAX_COLUMNS - 1) {
+
+        bool update_column = g_current_column == g_current_indentation;
+        
+        g_current_indentation += TERMINAL_INDENTATION_LENGTH;
+
+        if(update_column) {
+            g_current_column = g_current_indentation;
+        }
+    }
+}
+
+void terminal_indentation_decrease()
+{
+    if(g_current_indentation >= TERMINAL_INDENTATION_LENGTH) {
+
+        bool update_column = g_current_column == g_current_indentation;
+
+        g_current_indentation -= TERMINAL_INDENTATION_LENGTH;
+
+        if(update_column) {
+            g_current_column = g_current_indentation;
+        }
+    }
 }
 
 static uint16_t vgaentry_create(char c, uint8_t color)
