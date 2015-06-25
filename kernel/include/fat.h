@@ -27,7 +27,7 @@ struct ebpb_fat32 {
 };
 
 struct bpb { 
-    int8_t      jmp_boot[3];
+    uint8_t      jmp_boot[3];
     uint8_t      oem_name[8];
 	uint16_t     bytes_per_sector;
 	uint8_t      sectors_per_cluster;
