@@ -11,6 +11,7 @@
 #define BUFFER_MAX_COLUMNS (80)
 #define BUFFER_MAX_OFFSET (25)
 #define TERMINAL_INDENTATION_LENGTH 4
+#define SPACES_PER_TAB (4)
 
 // -------------------------------------------------------------------------
 // Globals
@@ -80,7 +81,7 @@ void terminal_write_string(const char* data)
 
 void terminal_write_uint32(uint32_t val)
 {
-	char buf[9];
+	char buf[11];
 	itoa(val, buf);
 	terminal_write_string(buf);
 }
@@ -100,6 +101,14 @@ void terminal_write_ptr(void* val)
 #else
 #   error PLATFORM_BITS has an unsupported value.
 #endif
+}
+
+void terminal_write_uint16_x(uint16_t val)
+{
+    terminal_write_char('0');
+    terminal_write_char('x');
+    terminal_write_hex_byte(BYTE(val, 1));
+    terminal_write_hex_byte(BYTE(val, 2));
 }
 
 void terminal_write_uint32_x(uint32_t val)
@@ -164,6 +173,13 @@ static void buffer_increase_offset()
 
 void terminal_write_char(const char c)
 {
+    if(c == '\t') {
+        for(int i = 0; i < SPACES_PER_TAB; i++) {
+            terminal_write_char(' ');
+        }
+        return;
+    }
+
     // OK - so first off, can we write to the current location,
     // or do we need to perform some operations on the buffer?
     if(g_current_column >= BUFFER_MAX_COLUMNS) {

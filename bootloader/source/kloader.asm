@@ -338,17 +338,18 @@ halt:
 
 detect_memory:
 
+
     ; TODO: ES:DI to address of buffer we want to use
     mov edi, MEM_MAP_ADDR
     xor ebx, ebx
-    mov edx, 0x534D4150
+    mov edx, 'PAMS' ; 'SMAP' reversed
     mov ecx, 0x18
     mov eax, 0xE820 ; Query System Memory Map
     int 0x15
 
     ; These only need checking for the zeroeth pass
     jc .done
-    cmp eax, 0x534D4150
+    cmp eax, 'PAMS'; 'SMAP' reversed
     jne .done
 
     .read_entry:
@@ -385,8 +386,6 @@ detect_memory:
         ; so we need to, forget whatever we got
         ; on this pass, and stop enumerating
         jc .done
-
-        inc edx ; This is the entry count
 
         ; All good, read next entry
         jmp .read_entry
