@@ -52,7 +52,7 @@ enum ata_cmd {
 };
 
 void ata_init();
-void ata_read_sectors(uint32_t lba, uint8_t block_count, uintptr_t buffer);
+bool ata_read_sectors(uint32_t lba, uint8_t block_count, uintptr_t buffer);
 
 #endif
 

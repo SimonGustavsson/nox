@@ -25,8 +25,9 @@ struct ebpb_fat32 {
     uint8_t      volume_label[11];
     uint8_t      file_sys_type[8];
 };
+
 struct bpb { 
-    uint8_t      jmp_boot[3];
+    int8_t      jmp_boot[3];
     uint8_t      oem_name[8];
 	uint16_t     bytes_per_sector;
 	uint8_t      sectors_per_cluster;
@@ -65,7 +66,19 @@ struct fat_dir_entry {
 	uint32_t    size;
 };
 
+struct fat_part_info {
+    struct mbr_partition_entry mbr_entry;
+    uint32_t                  root_dir_sector;
+    uint32_t                  num_root_dir_sectors;
+    uint32_t                  data_begin;
+    uint32_t                  num_sectors_per_cluster;
+    uint32_t                  fat_begin;
+    uint32_t                  fat_size;
+    uint32_t                  total_sectors;
+};
+
 enum fat_version fat_get_version(struct bpb* bpb);
+bool fat_init(struct mbr_partition_entry* partition_entry, struct fat_part_info* info_result);
 
 #endif
 

@@ -1,7 +1,10 @@
 #include <types.h>
 #include <terminal.h>
 #include <kernel.h>
+#include <fs.h>
 #include <fat.h>
+#include <mem_mgr.h>
+#include <ata.h>
 
 // -------------------------------------------------------------------------
 // Static Declares
@@ -13,6 +16,8 @@
 #define FAT12_BAD 0x0FF7;
 #define FAT16_BAD 0xFFF7
 #define FAT32_BAD 0x0FFFFFF7
+
+#define ROOT_ENTRY_SIZE 32
 
 // -------------------------------------------------------------------------
 // External functions
@@ -30,6 +35,42 @@ bool is_bad(struct bpb* bpb, uint32_t fat_entry);
 // -------------------------------------------------------------------------
 // Public Contract
 // -------------------------------------------------------------------------
+//enum fat_part_info {
+//    struct mbr_partiton_entry mbr_entry;
+//    uint32_t                  root_dir_sector;
+//};
+bool fat_init(struct mbr_partition_entry* partition_entry, struct fat_part_info* info_result)
+{
+    terminal_write_string("FAT: Initializing partition.\n");
+    terminal_indentation_increase();
+
+    uint8_t* buffer = (uint8_t*)(intptr_t)(mem_page_get());
+
+    if(!ata_read_sectors(partition_entry->lba_begin, 1, (intptr_t)buffer)) {
+        KWARN("Failed to read first sector of FAT partition");
+        return false;
+    }
+
+    struct bpb* bpb = (struct bpb*)(intptr_t)(buffer);
+
+    terminal_write_string("OEM: '");
+    terminal_write_string_n((const char*)bpb->oem_name, 8);
+    terminal_write_string("'.\n");
+
+    // Calculate some base values we will need to interact with the file system
+    info_result->total_sectors = bpb->total_sectors16 != 0 ? bpb->total_sectors16 : bpb->total_sectors32;
+    info_result->fat_begin = bpb->reserved_sector_count + bpb->hidden_sectors;
+    info_result->fat_size = bpb->fat_size16 > 0 ? bpb->fat_size16 : bpb->ebpb.ebpb32.fat_size32;
+    info_result->num_root_dir_sectors = ((bpb->root_entry_count * ROOT_ENTRY_SIZE) + (bpb->bytes_per_sector - 1)) / bpb->bytes_per_sector;
+    info_result->data_begin = bpb->reserved_sector_count + (bpb->num_fats * info_result->fat_size) + info_result->num_root_dir_sectors;
+
+    // Free the buffer, we don't need it no more
+    mem_page_free(buffer);
+
+    terminal_indentation_decrease();
+    return true;
+}
+
 uint32_t get_fat_entry_for_cluster(struct bpb* bpb, uint32_t cluster)
 {
     uint32_t fat_offset;

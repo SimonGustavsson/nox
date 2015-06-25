@@ -72,7 +72,7 @@ static enum ready_result wait_until_ready(enum ata_controller controller)
 }
 
 // sector_count of 0 means 256 sectors, 1-255 mean what they say
-void ata_read_sectors(uint32_t lba, uint8_t sector_count, uintptr_t buffer)
+bool ata_read_sectors(uint32_t lba, uint8_t sector_count, uintptr_t buffer)
 {
     uint16_t* data = (uint16_t*)(buffer);
 
@@ -98,7 +98,7 @@ void ata_read_sectors(uint32_t lba, uint8_t sector_count, uintptr_t buffer)
         // Wait for the sector to be read by the controller
         if (ready_result_ready != wait_until_ready(ata_controller_primary)) {
             KERROR("Polling ATA Status returned an error condition");
-            return;
+            return false;
         }
 
         // Read the 512 bytes comprising the sector data
@@ -108,6 +108,8 @@ void ata_read_sectors(uint32_t lba, uint8_t sector_count, uintptr_t buffer)
     }
 
     wait_400ns(ata_controller_primary);
+
+    return true;
 }
 
 void ata_init() {
@@ -163,7 +165,6 @@ void select_drive(enum ata_controller controller, enum ata_drive drive)
         for(int i = 0; i < 256; i++) {
             data[i] = ata_read_data(controller);
         }
-        KINFO("SUCCESS!");
 
         typedef unsigned char byte_t;
 
@@ -171,7 +172,7 @@ void select_drive(enum ata_controller controller, enum ata_drive drive)
 
         uint32_t* number_of_sectors_lba28 = (uint32_t*)&bytes[120];
 
-        terminal_write_string("LBA28 Sector Count: ");
+        terminal_write_string("ATA Done using LBA28. Sector Count is ");
         terminal_write_uint32(*number_of_sectors_lba28);
         terminal_write_string("\n");
     }

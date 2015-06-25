@@ -70,10 +70,17 @@ void terminal_set_color(enum vga_color fg, enum vga_color bg)
 	g_current_color = screen_create_color(fg, bg);
 }
 
+
 void terminal_write_string(const char* data)
 {
-	size_t datalen = strlen(data);
-	for (size_t i = 0; i < datalen; i++)
+	size_t data_len = strlen(data);
+
+    terminal_write_string_n(data, data_len);
+}
+
+void terminal_write_string_n(const char* data, size_t length)
+{
+	for (size_t i = 0; i < length; i++)
 		terminal_write_char(data[i]);
 }
 
