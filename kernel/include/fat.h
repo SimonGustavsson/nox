@@ -45,7 +45,7 @@ struct bpb {
 		struct ebpb_fat16 ebpb;
 		struct ebpb_fat32 ebpb32;
 	} ebpb;
-} bpb;
+} PACKED;
 
 enum fat_version {
     fat_version_12,
@@ -53,9 +53,19 @@ enum fat_version {
     fat_version_32
 };
 
+enum fat_attribute {
+    fat_attr_read_only = 0x01,
+    fat_attr_hidden    = 0x02,
+    fat_attr_system    = 0x04,
+    fat_attr_volume_id = 0x08,
+    fat_attr_dir       = 0x10,
+    fat_attr_archive   = 0x20
+};
+
 struct fat_dir_entry {
 	uint8_t     name[11];
 	uint8_t     attribute;
+    uint8_t     reserved;
 	uint8_t     create_time[3];
 	uint16_t    create_date;
 	uint16_t    last_access_date;
@@ -64,7 +74,7 @@ struct fat_dir_entry {
 	uint16_t    last_modified_date;
 	uint16_t    first_cluster;
 	uint32_t    size;
-};
+} PACKED;
 
 struct fat_part_info {
     struct mbr_partition_entry mbr_entry;
@@ -74,11 +84,15 @@ struct fat_part_info {
     uint32_t                  num_sectors_per_cluster;
     uint32_t                  fat_begin;
     uint32_t                  fat_size;
+    uint32_t                  fat_total_sectors;
     uint32_t                  total_sectors;
+    uint32_t                  bytes_per_sector;
+    enum fat_version          version;
 };
 
-enum fat_version fat_get_version(struct bpb* bpb);
+enum fat_version fat_get_version(struct fat_part_info* part_info);
 bool fat_init(struct mbr_partition_entry* partition_entry, struct fat_part_info* info_result);
+bool fat_get_root_dir_entry(struct fat_part_info* part_info, const char* filename83, struct fat_dir_entry* entry);
 
 #endif
 

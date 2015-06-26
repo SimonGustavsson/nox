@@ -19,6 +19,8 @@
 
 #define ROOT_ENTRY_SIZE 32
 
+//#define DEBUG_FAT
+
 // -------------------------------------------------------------------------
 // External functions
 // -------------------------------------------------------------------------
@@ -28,9 +30,15 @@
 // -------------------------------------------------------------------------
 // Forward Declares
 // -------------------------------------------------------------------------
-uint32_t get_fat_entry_for_cluster(struct bpb* bpb, uint32_t cluster);
-bool is_eof(struct bpb* bpb, uint32_t fat_entry);
-bool is_bad(struct bpb* bpb, uint32_t fat_entry);
+static uint32_t get_fat_entry_for_cluster(struct bpb* bpb, uint32_t cluster);
+static bool is_eof(struct fat_part_info* part_info, uint32_t fat_entry);
+static bool is_bad(struct fat_part_info* part_info, uint32_t fat_entry);
+static const char* fat_version_to_string(enum fat_version version);
+bool enumerate_root_dir(struct fat_part_info* part_info);
+static void dump_fat_part_info(struct fat_part_info* info);
+static inline bool is_directory(uint8_t attribute);
+static inline bool is_system(uint8_t attribute);
+static inline bool is_volume_id(uint8_t attribute);
 
 // -------------------------------------------------------------------------
 // Public Contract
@@ -53,16 +61,29 @@ bool fat_init(struct mbr_partition_entry* partition_entry, struct fat_part_info*
 
     struct bpb* bpb = (struct bpb*)(intptr_t)(buffer);
 
-    terminal_write_string("OEM: '");
-    terminal_write_string_n((const char*)bpb->oem_name, 8);
-    terminal_write_string("'.\n");
-
-    // Calculate some base values we will need to interact with the file system
     info_result->total_sectors = bpb->total_sectors16 != 0 ? bpb->total_sectors16 : bpb->total_sectors32;
     info_result->fat_begin = bpb->reserved_sector_count + bpb->hidden_sectors;
     info_result->fat_size = bpb->fat_size16 > 0 ? bpb->fat_size16 : bpb->ebpb.ebpb32.fat_size32;
     info_result->num_root_dir_sectors = ((bpb->root_entry_count * ROOT_ENTRY_SIZE) + (bpb->bytes_per_sector - 1)) / bpb->bytes_per_sector;
     info_result->data_begin = bpb->reserved_sector_count + (bpb->num_fats * info_result->fat_size) + info_result->num_root_dir_sectors;
+    info_result->num_sectors_per_cluster = bpb->sectors_per_cluster;
+    info_result->fat_total_sectors = (info_result->fat_size * bpb->num_fats); 
+    info_result->root_dir_sector = info_result->fat_begin + info_result->fat_total_sectors;
+    info_result->version = fat_get_version(info_result);
+    info_result->bytes_per_sector = bpb->bytes_per_sector;
+
+#ifdef DEBUG_FAT
+    dump_fat_part_info(info_result);
+#endif
+
+    // Thanks for the -Wall, Philip...
+    if(get_fat_entry_for_cluster(bpb, 0)) {
+        is_eof(info_result, 42);
+        is_bad(info_result, 42);
+        dump_fat_part_info(info_result);
+    }
+
+    enumerate_root_dir(info_result);
 
     // Free the buffer, we don't need it no more
     mem_page_free(buffer);
@@ -71,8 +92,53 @@ bool fat_init(struct mbr_partition_entry* partition_entry, struct fat_part_info*
     return true;
 }
 
-uint32_t get_fat_entry_for_cluster(struct bpb* bpb, uint32_t cluster)
+bool enumerate_root_dir(struct fat_part_info* part_info)
 {
+    KINFO("Enumerating root directory");
+
+    if(part_info->bytes_per_sector > PAGE_SIZE) {
+        KERROR("Sectors size too large for page allocation! NEed more pages!");
+        return false;
+    }
+
+    if(part_info->num_sectors_per_cluster < part_info->num_root_dir_sectors) {
+        KWARN("Root directory spans clusters, wont read all entries!");
+    }
+
+    intptr_t buffer = (intptr_t)mem_page_get_many(part_info->num_sectors_per_cluster);    
+    if(!ata_read_sectors(part_info->root_dir_sector, 1, buffer)) {
+        KWARN("Failed to read first sector of FAT partition");
+        return false;
+    }
+
+    struct fat_dir_entry* root_entries = (struct fat_dir_entry*)(buffer);
+
+    size_t entries_in_cluster = (part_info->num_sectors_per_cluster * part_info->bytes_per_sector) /
+        sizeof(struct fat_dir_entry);
+
+    for(int i = 0; i < entries_in_cluster; i++) {
+        struct fat_dir_entry* entry = &root_entries[i];
+        if(entry->name[0] == 0)
+            break; // No more entries
+        if(entry->name[0] == 0xE5)
+            continue; // Unused entry
+
+        if(is_volume_id(entry->attribute) || is_system(entry->attribute))
+            continue; // Skip Volume Id etc
+
+        terminal_write_string((char*)root_entries[i].name);
+        terminal_write_char('\n');
+    }
+
+    mem_page_free((void*)buffer);
+    return true;
+}
+
+static uint32_t get_fat_entry_for_cluster(struct bpb* bpb, uint32_t cluster)
+{
+    return 0;
+/*
+   // Untested code below - Serves more as a reference at this point...
     uint32_t fat_offset;
     enum fat_version fat_type = fat_get_version(bpb);
     switch(fat_type) {
@@ -135,31 +201,14 @@ uint32_t get_fat_entry_for_cluster(struct bpb* bpb, uint32_t cluster)
         default:
             return (*((uint32_t*) &fat_buffer[fat_entry_offset])) & 0x0FFFFFFF;
     }
+    */
 }
 
-enum fat_version fat_get_version(struct bpb* bpb)
+enum fat_version fat_get_version(struct fat_part_info* part_info)
 {
-    uint32_t root_dir_sector_count = ((bpb->root_entry_count * 32) + (bpb->bytes_per_sector - 1)) / bpb->bytes_per_sector;
-
-    uint32_t fat_size;
-    if(bpb->fat_size16 != 0)
-        fat_size = bpb->fat_size16;
-    else
-        fat_size = bpb->ebpb.ebpb32.fat_size32;
-    
-    uint32_t total_sectors;
-    if(bpb->total_sectors16 != 0)
-        total_sectors = bpb->total_sectors16;
-    else
-        total_sectors = bpb->total_sectors32;
-
-    uint32_t data_sector = total_sectors - (bpb->reserved_sector_count + (bpb->num_fats * fat_size) + root_dir_sector_count);
-
-    uint32_t cluster_count = data_sector / bpb->sectors_per_cluster;
-    
-    if(cluster_count < 4085) 
+    if(part_info->total_sectors < 4085) 
         return fat_version_12;
-    else if(cluster_count < 65525)
+    else if(part_info->total_sectors < 65525)
         return fat_version_16;
     else
         return fat_version_32;
@@ -168,9 +217,24 @@ enum fat_version fat_get_version(struct bpb* bpb)
 // -------------------------------------------------------------------------
 // Static Utilities
 // -------------------------------------------------------------------------
-bool is_eof(struct bpb* bpb, uint32_t fat_entry)
+static inline bool is_volume_id(uint8_t attribute)
 {
-    switch(fat_get_version(bpb)) {
+    return (attribute & fat_attr_volume_id) == fat_attr_volume_id;
+}
+
+static inline bool is_system(uint8_t attribute)
+{
+    return (attribute & fat_attr_system) == fat_attr_system;
+}
+
+static inline bool is_directory(uint8_t attribute)
+{
+    return (attribute & fat_attr_dir) == fat_attr_dir;
+}
+
+static bool is_eof(struct fat_part_info* part_info, uint32_t fat_entry)
+{
+    switch(part_info->version) {
         case fat_version_12:
             return fat_entry > FAT12_EOF;
         case fat_version_16:
@@ -180,9 +244,9 @@ bool is_eof(struct bpb* bpb, uint32_t fat_entry)
     }
 }
 
-bool is_bad(struct bpb* bpb, uint32_t fat_entry)
+static bool is_bad(struct fat_part_info* part_info, uint32_t fat_entry)
 {
-    switch(fat_get_version(bpb)) {
+    switch(part_info->version) {
         case fat_version_12:
             return fat_entry == FAT12_BAD;
         case fat_version_16:
@@ -190,5 +254,29 @@ bool is_bad(struct bpb* bpb, uint32_t fat_entry)
         default:
             return fat_entry == FAT32_BAD;
     }
+}
+
+static const char* fat_version_to_string(enum fat_version version)
+{
+    switch(version) {
+        case fat_version_12: return "FAT12";
+        case fat_version_16: return "FAT16";
+        case fat_version_32: return "FAT32";
+        default: return "Unknown";
+    };
+}
+
+static void dump_fat_part_info(struct fat_part_info* info)
+{
+    SHOWVAL("Root dir sector: ", info->root_dir_sector);
+    SHOWVAL("Root dir size: ", info->num_root_dir_sectors);
+    SHOWVAL("Data begin: ", info->data_begin);
+    SHOWVAL("Sectors per cluster: ", info->num_sectors_per_cluster);
+    SHOWVAL("FAT begin: ", info->fat_begin);
+    SHOWVAL("FAT size: ", info->fat_size);
+    SHOWVAL("FAT total sectors: ", info->fat_total_sectors);
+    SHOWVAL("Total sectors: ", info->total_sectors);
+    SHOWVAL("Bytes per sector: ", info->bytes_per_sector);
+    SHOWSTR("Version: ", fat_version_to_string(info->version));
 }
 
