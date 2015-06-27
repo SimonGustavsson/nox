@@ -54,7 +54,7 @@ CLEAN_DIRS += $(OBJ_DIR) $(DEP_DIR)
 $(BUILD)/KERNEL.BIN: $(OBJ_DIR)/kernel.elf
 	@echo "OBJCOPY $<"
 
-	@$(TOOL)-objcopy $^ -O binary $@
+	@$(TOOL)-objcopy $^ -O binary --set-section-flags .bss=alloc,load,contents $@
 
 # Note: Build into root build directory
 $(OBJ_DIR)/kernel.elf: kernel_directories $(COBJECTS) $(AOBJECTS)
