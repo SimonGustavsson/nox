@@ -31,7 +31,7 @@
 // -------------------------------------------------------------------------
 // Forward Declares
 // -------------------------------------------------------------------------
-static uint32_t get_fat_entry_for_cluster(struct bpb* bpb, uint32_t cluster);
+static uint32_t get_fat_entry_for_cluster(struct fat_part_info* part_info, uint32_t cluster);
 static bool is_eof(struct fat_part_info* part_info, uint32_t fat_entry);
 static bool is_bad(struct fat_part_info* part_info, uint32_t fat_entry);
 static const char* fat_version_to_string(enum fat_version version);
@@ -66,31 +66,21 @@ bool fat_init(struct mbr_partition_entry* partition_entry, struct fat_part_info*
     info_result->fat_begin = bpb->reserved_sector_count + bpb->hidden_sectors;
     info_result->fat_size = bpb->fat_size16 > 0 ? bpb->fat_size16 : bpb->ebpb.ebpb32.fat_size32;
     info_result->num_root_dir_sectors = ((bpb->root_entry_count * ROOT_ENTRY_SIZE) + (bpb->bytes_per_sector - 1)) / bpb->bytes_per_sector;
-    info_result->data_begin = bpb->reserved_sector_count + (bpb->num_fats * info_result->fat_size) + info_result->num_root_dir_sectors;
     info_result->num_sectors_per_cluster = bpb->sectors_per_cluster;
     info_result->fat_total_sectors = (info_result->fat_size * bpb->num_fats); 
     info_result->root_dir_sector = info_result->fat_begin + info_result->fat_total_sectors;
+    info_result->data_begin = info_result->fat_begin + info_result->fat_total_sectors + info_result->num_root_dir_sectors;
     info_result->version = fat_get_version(info_result);
     info_result->bytes_per_sector = bpb->bytes_per_sector;
 
-#ifdef DEBUG_FAT
-    dump_fat_part_info(info_result);
-#endif
-
-    // Thanks for the -Wall, Philip...
-    if(get_fat_entry_for_cluster(bpb, 0)) {
-        is_eof(info_result, 42);
-        is_bad(info_result, 42);
+    if(false)
         dump_fat_part_info(info_result);
-    }
 
-    struct fat_dir_entry kernel_entry;
-
-    if(!fat_get_dir_entry(info_result, "KERNEL  BIN", &kernel_entry)) {
-        KWARN("Couldn't find kernel on file system. Name changed?");
-    }
-    else {
-       dump_fat_dir_entry(&kernel_entry);
+    struct fat_dir_entry kittens_de;
+    if(!fat_get_dir_entry(info_result, "KITTENS TXT", &kittens_de)) {
+        if(false)
+            dump_fat_dir_entry(&kittens_de);
+        KWARN("Unable to find kittens, something is amiss!");
     }
 
     // Free the buffer, we don't need it no more
@@ -100,12 +90,40 @@ bool fat_init(struct mbr_partition_entry* partition_entry, struct fat_part_info*
     return true;
 }
 
+bool fat_read_file(struct fat_part_info* part_info, struct fat_dir_entry* file, intptr_t buffer, size_t buffer_length)
+{
+    uint32_t bytes_per_cluster = (part_info->num_sectors_per_cluster * part_info->bytes_per_sector);
+    uint32_t next_cluster = file->first_cluster;
+    size_t bytes_read = 0;
+    while(true) {
+        uint32_t first_sector = part_info->data_begin + ((next_cluster - 2) * part_info->num_sectors_per_cluster);  
+
+        if(!ata_read_sectors(first_sector, part_info->num_sectors_per_cluster, buffer)) {
+            KWARN("Failed to read sector for file. what Up?");
+            break;
+        }
+
+        buffer += bytes_per_cluster;
+        bytes_read += bytes_per_cluster;
+
+        uint32_t fat_entry = get_fat_entry_for_cluster(part_info, next_cluster);
+        next_cluster = fat_entry;
+
+        if(fat_entry == 0 || is_eof(part_info, fat_entry) || is_bad(part_info, fat_entry))
+            break; // Done reading
+    }
+
+    SHOWVAL("I Read this many bytes ", bytes_read);
+
+    return true;
+}
+
 // Note: This is currently limited to the root director
 //       In the future it could take in the fat_dir_entry of the directory to look in
 bool fat_get_dir_entry(struct fat_part_info* part_info, const char* filename83, struct fat_dir_entry* result)
 {
     if(part_info->bytes_per_sector > PAGE_SIZE) {
-        KERROR("Sectors size too large for page allocation! NEed more pages!");
+        KERROR("Sectors size too large for page allocation! Need more pages!");
         return false;
     }
 
@@ -148,17 +166,12 @@ bool fat_get_dir_entry(struct fat_part_info* part_info, const char* filename83, 
     return false;
 }
 
-static uint32_t get_fat_entry_for_cluster(struct bpb* bpb, uint32_t cluster)
+static uint32_t get_fat_entry_for_cluster(struct fat_part_info* part_info, uint32_t cluster)
 {
-    return 0;
-/*
-   // Untested code below - Serves more as a reference at this point...
     uint32_t fat_offset;
-    enum fat_version fat_type = fat_get_version(bpb);
-    switch(fat_type) {
+    switch(part_info->version) {
         case fat_version_12:
             fat_offset = cluster + (cluster / 2);
-            KERROR("FAT 12 is not supported becuase it's dumb.");
             return 0;
         case fat_version_16:
             fat_offset = cluster * 2;
@@ -168,30 +181,30 @@ static uint32_t get_fat_entry_for_cluster(struct bpb* bpb, uint32_t cluster)
             break;
     }
 
+    SHOWVAL("FAT Offset: ", fat_offset);
+
     // Perform this into a temp variable so that the division and remainder
     // happens right after eachother so the compiler can optimize it as a single MUL instruction
-    uint32_t tmp = fat_offset / bpb->bytes_per_sector;
-    uint32_t fat_entry_offset = fat_offset % bpb->bytes_per_sector;
+    uint32_t tmp = fat_offset / part_info->bytes_per_sector;
+    uint32_t fat_entry_offset = fat_offset % part_info->bytes_per_sector;
+    uint32_t fat_sector = part_info->fat_begin + tmp;
 
-    uint32_t fat_sector = bpb->reserved_sector_count + tmp;
-
-    uint8_t fat_buffer[bpb->bytes_per_sector];
-
-    if(!read_sector(fat_sector, &fat_buffer[0])) {
+    uint8_t fat_buffer[part_info->bytes_per_sector];
+    if(!ata_read_sectors(fat_sector, 1, (intptr_t)fat_buffer)) {
         KWARN("Failed to read FAT sector");
         return 0;
     }
 
-    switch(fat_type) {
+    switch(part_info->version) {
         case fat_version_12:
         {
             uint16_t entry_12 = *((uint16_t*)&fat_buffer[fat_entry_offset]);
-            if(fat_entry_offset == (bpb->bytes_per_sector - 1)) {
+            if(fat_entry_offset == (part_info->bytes_per_sector - 1)) {
                 // This fat entry spans fat sectors, this means we need
                 // to read in the next fat sector (unless it's the last)
                 // Note: It's probably a better idea to always just read
                 //       two fat sectors every time when dealing with FAT12
-                uint8_t fat_buffer2[bpb->bytes_per_sector];
+                uint8_t fat_buffer2[part_info->bytes_per_sector];
 
                 // TODO: This needs a check to ensure fat_sector is not
                 //       the very last fat sector, as we don't want to read past that
@@ -215,7 +228,6 @@ static uint32_t get_fat_entry_for_cluster(struct bpb* bpb, uint32_t cluster)
         default:
             return (*((uint32_t*) &fat_buffer[fat_entry_offset])) & 0x0FFFFFFF;
     }
-    */
 }
 
 enum fat_version fat_get_version(struct fat_part_info* part_info)
@@ -305,8 +317,7 @@ static const char* fat_version_to_string(enum fat_version version)
 
 static void fat_time_to_string(uint16_t time, char result[8])
 {
-    // High 5-bits is hour
-    uint8_t hour =(uint8_t) (time >> 11);
+    uint8_t hour = (uint8_t)(time >> 11);
     uint8_t min = (uint8_t)((time >> 5) & 0x1F);
     uint8_t sec = (uint8_t)(time & 0x1F);
 
@@ -323,9 +334,9 @@ static void fat_time_to_string(uint16_t time, char result[8])
 
 static void fat_date_to_string(uint16_t date, char result[11])
 {
-//15-9	Year (0 = 1980, 119 = 2099 supported under DOS/Windows, theoretically up to 127 = 2107)
-//8-5	Month (1–12)
-//4-0	Day (1–31)
+    //15-9	Year (0 = 1980, 119 = 2099 supported under DOS/Windows, theoretically up to 127 = 2107)
+    //8-5	Month (1–12)
+    //4-0	Day (1–31)
     uint16_t year = 1980 + ((uint8_t)(date >> 9));
     uint8_t month = (uint8_t)((date >> 5) & 0xF);
     uint8_t day  = (uint8_t)(date & 0x1F);

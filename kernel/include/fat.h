@@ -95,6 +95,7 @@ enum fat_version fat_get_version(struct fat_part_info* part_info);
 bool fat_init(struct mbr_partition_entry* partition_entry, struct fat_part_info* info_result);
 bool fat_get_root_dir_entry(struct fat_part_info* part_info, const char* filename83, struct fat_dir_entry* entry);
 bool fat_get_dir_entry(struct fat_part_info* part_info, const char* filename83, struct fat_dir_entry* result);
+bool fat_read_file(struct fat_part_info* part_info, struct fat_dir_entry* file, intptr_t buffer, size_t buffer_length);
 
 #endif
 

@@ -70,7 +70,6 @@ void terminal_set_color(enum vga_color fg, enum vga_color bg)
 	g_current_color = screen_create_color(fg, bg);
 }
 
-
 void terminal_write_string(const char* data)
 {
 	size_t data_len = strlen(data);
