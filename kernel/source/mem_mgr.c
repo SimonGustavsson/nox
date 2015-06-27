@@ -118,6 +118,9 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     }
 
     // Reserve the pages we know about right now
+    // Screen is 80*25 2-byte characters
+    if(!mem_page_reserve((void*)0xB8000, PAGE_SIZE))
+        KERROR("Failed to reserve screen memory!");
     if(!mem_page_reserve((void*)0x0, 0x7C00 / PAGE_SIZE))
         KERROR("Failed to reserve BIOS pages");
     if(!mem_page_reserve((void*)g_pages, mem_map_pages))
