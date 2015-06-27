@@ -5,6 +5,7 @@
 #include <fat.h>
 #include <mem_mgr.h>
 #include <ata.h>
+#include <string.h>
 
 // -------------------------------------------------------------------------
 // Static Declares
@@ -34,11 +35,11 @@ static uint32_t get_fat_entry_for_cluster(struct bpb* bpb, uint32_t cluster);
 static bool is_eof(struct fat_part_info* part_info, uint32_t fat_entry);
 static bool is_bad(struct fat_part_info* part_info, uint32_t fat_entry);
 static const char* fat_version_to_string(enum fat_version version);
-bool enumerate_root_dir(struct fat_part_info* part_info);
 static void dump_fat_part_info(struct fat_part_info* info);
 static inline bool is_directory(uint8_t attribute);
 static inline bool is_system(uint8_t attribute);
 static inline bool is_volume_id(uint8_t attribute);
+static void dump_fat_dir_entry(struct fat_dir_entry* entry);
 
 // -------------------------------------------------------------------------
 // Public Contract
@@ -83,7 +84,14 @@ bool fat_init(struct mbr_partition_entry* partition_entry, struct fat_part_info*
         dump_fat_part_info(info_result);
     }
 
-    enumerate_root_dir(info_result);
+    struct fat_dir_entry kernel_entry;
+
+    if(!fat_get_dir_entry(info_result, "KERNEL  BIN", &kernel_entry)) {
+        KWARN("Couldn't find kernel on file system. Name changed?");
+    }
+    else {
+       dump_fat_dir_entry(&kernel_entry);
+    }
 
     // Free the buffer, we don't need it no more
     mem_page_free(buffer);
@@ -92,10 +100,10 @@ bool fat_init(struct mbr_partition_entry* partition_entry, struct fat_part_info*
     return true;
 }
 
-bool enumerate_root_dir(struct fat_part_info* part_info)
+// Note: This is currently limited to the root director
+//       In the future it could take in the fat_dir_entry of the directory to look in
+bool fat_get_dir_entry(struct fat_part_info* part_info, const char* filename83, struct fat_dir_entry* result)
 {
-    KINFO("Enumerating root directory");
-
     if(part_info->bytes_per_sector > PAGE_SIZE) {
         KERROR("Sectors size too large for page allocation! NEed more pages!");
         return false;
@@ -118,20 +126,26 @@ bool enumerate_root_dir(struct fat_part_info* part_info)
 
     for(int i = 0; i < entries_in_cluster; i++) {
         struct fat_dir_entry* entry = &root_entries[i];
+
         if(entry->name[0] == 0)
             break; // No more entries
         if(entry->name[0] == 0xE5)
             continue; // Unused entry
-
         if(is_volume_id(entry->attribute) || is_system(entry->attribute))
             continue; // Skip Volume Id etc
 
-        terminal_write_string((char*)root_entries[i].name);
-        terminal_write_char('\n');
+        if(!kstrcmp_n(entry->name, filename83, 11))
+            continue; // Not this file!
+
+        // Copy into result as the entry we have will be freed
+        kstrcpy_n((char*)result, sizeof(struct fat_dir_entry), (char*)entry);
+
+        mem_page_free((void*)buffer);
+        return true;
     }
 
     mem_page_free((void*)buffer);
-    return true;
+    return false;
 }
 
 static uint32_t get_fat_entry_for_cluster(struct bpb* bpb, uint32_t cluster)
@@ -232,6 +246,29 @@ static inline bool is_directory(uint8_t attribute)
     return (attribute & fat_attr_dir) == fat_attr_dir;
 }
 
+static inline bool is_read_only(uint8_t attribute)
+{
+    return (attribute & fat_attr_read_only) == fat_attr_read_only;
+}
+
+static inline bool is_archive(uint8_t attribute)
+{
+    return (attribute & fat_attr_archive) == fat_attr_archive;
+}
+
+static inline bool is_hidden(uint8_t attribute)
+{
+    return (attribute & fat_attr_hidden) == fat_attr_hidden;
+}
+
+static inline bool is_lfn(uint8_t attribute)
+{
+   return is_read_only(attribute) &&
+          is_system(attribute) &&
+          is_hidden(attribute) &&
+          is_volume_id(attribute); 
+}
+
 static bool is_eof(struct fat_part_info* part_info, uint32_t fat_entry)
 {
     switch(part_info->version) {
@@ -266,6 +303,43 @@ static const char* fat_version_to_string(enum fat_version version)
     };
 }
 
+static void fat_time_to_string(uint16_t time, char result[8])
+{
+    // High 5-bits is hour
+    uint8_t hour =(uint8_t) (time >> 11);
+    uint8_t min = (uint8_t)((time >> 5) & 0x1F);
+    uint8_t sec = (uint8_t)(time & 0x1F);
+
+    result[0] = '0' + (hour / 10);
+    result[1] = '0' + (hour % 10);
+    result[2] = ':';
+    result[3] = '0' + (min / 10);
+    result[4] = '0' + (min % 10);
+    result[5] = ':';
+    result[6] = '0' + (sec / 10);
+    result[7] = '0' + (sec % 10);
+    result[8] = '\0';
+}
+
+static void fat_date_to_string(uint16_t date, char result[11])
+{
+//15-9	Year (0 = 1980, 119 = 2099 supported under DOS/Windows, theoretically up to 127 = 2107)
+//8-5	Month (1–12)
+//4-0	Day (1–31)
+    uint16_t year = 1980 + ((uint8_t)(date >> 9));
+    uint8_t month = (uint8_t)((date >> 5) & 0xF);
+    uint8_t day  = (uint8_t)(date & 0x1F);
+
+    itoa(year, result);
+    result[4] = '-';
+    result[5] = '0' + (month / 10);
+    result[6] = '0' + (month % 10);
+    result[7] = '-';
+    result[8] = '0' + (day / 10);
+    result[9] = '0' + (day % 10);
+    result[10] = '\0';
+}
+
 static void dump_fat_part_info(struct fat_part_info* info)
 {
     SHOWVAL("Root dir sector: ", info->root_dir_sector);
@@ -278,5 +352,65 @@ static void dump_fat_part_info(struct fat_part_info* info)
     SHOWVAL("Total sectors: ", info->total_sectors);
     SHOWVAL("Bytes per sector: ", info->bytes_per_sector);
     SHOWSTR("Version: ", fat_version_to_string(info->version));
+}
+
+static void dump_fat_dir_entry(struct fat_dir_entry* entry)
+{
+    terminal_write_string("Dumping file entry info\n");
+
+    terminal_write_string("Name: ");
+    terminal_write_string_n(entry->name, 11);
+    terminal_write_char('\n');
+
+    terminal_write_string("Read Only? ");
+    terminal_write_string(is_read_only(entry->attribute) ? "Yes " : "No ");
+    terminal_write_string("Hidden? ");
+    terminal_write_string(is_hidden(entry->attribute) ? "Yes " : "No ");
+    terminal_write_string("System? ");
+    terminal_write_string(is_system(entry->attribute) ? "Yes " : "No ");
+    terminal_write_string("Volume Id? ");
+    terminal_write_string(is_volume_id(entry->attribute) ? "Yes " : "No ");
+    terminal_write_string("Dir? ");
+    terminal_write_string(is_directory(entry->attribute) ? "Yes " : "No ");
+    terminal_write_string("Archive? ");
+    terminal_write_string(is_archive(entry->attribute) ? "Yes" : "No");
+    terminal_write_char('\n');
+
+    char time_str[8];
+    char date_str[11];
+    terminal_write_string("Created: ");
+
+    fat_date_to_string(entry->create_date, date_str);
+    terminal_write_string(date_str);
+    terminal_write_char(' ');
+
+    fat_time_to_string(entry->create_time, time_str);
+    terminal_write_string(time_str);
+    terminal_write_char('\n');
+
+    terminal_write_string("Last accessed: ");
+
+    fat_date_to_string(entry->last_access_date, date_str);
+    terminal_write_string(date_str);
+    terminal_write_char(' ');
+
+    fat_time_to_string(entry->last_access_time, time_str);
+    terminal_write_string(time_str);
+    terminal_write_char('\n');
+
+    terminal_write_string("Last modified: ");
+
+    fat_date_to_string(entry->last_modified_date, date_str);
+    terminal_write_string(date_str);
+    terminal_write_char(' ');
+
+    fat_time_to_string(entry->last_modified_time, time_str);
+    terminal_write_string(time_str);
+    terminal_write_char('\n');
+
+    SHOWVAL("First cluster: ", entry->first_cluster);
+    terminal_write_string("Size: ");
+    terminal_write_uint32(entry->size);
+    terminal_write_string(" bytes\n");
 }
 

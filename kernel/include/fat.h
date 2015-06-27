@@ -63,10 +63,11 @@ enum fat_attribute {
 };
 
 struct fat_dir_entry {
-	uint8_t     name[11];
+	char        name[11];
 	uint8_t     attribute;
     uint8_t     reserved;
-	uint8_t     create_time[3];
+    uint8_t     create_time_tenths;
+    uint16_t    create_time;
 	uint16_t    create_date;
 	uint16_t    last_access_date;
 	uint16_t    last_access_time;
@@ -93,6 +94,7 @@ struct fat_part_info {
 enum fat_version fat_get_version(struct fat_part_info* part_info);
 bool fat_init(struct mbr_partition_entry* partition_entry, struct fat_part_info* info_result);
 bool fat_get_root_dir_entry(struct fat_part_info* part_info, const char* filename83, struct fat_dir_entry* entry);
+bool fat_get_dir_entry(struct fat_part_info* part_info, const char* filename83, struct fat_dir_entry* result);
 
 #endif
 

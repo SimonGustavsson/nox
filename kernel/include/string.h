@@ -6,7 +6,9 @@
 uint8_t nybble_to_ascii(uint8_t val);
 char* itoa(int32_t number, char* buf);
 size_t strlen(const char* str);
-bool kstrcmp(char* a, char* b);
+bool kstrcmp(const char* a, const char* b);
+bool kstrcmp_n(const char* a, const char* b, size_t len);
+char* kstrcpy_n(char* dest, size_t len, char* src);
 
 #endif
 

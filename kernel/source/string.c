@@ -9,7 +9,16 @@ size_t strlen(const char* str)
 	return ret;
 }
 
-bool kstrcmp(char* a, char* b)
+char* kstrcpy_n(char* dest, size_t len, char* src)
+{
+    for(size_t i = 0; i < len; i++) {
+        *dest++ = *src++;
+    }
+
+    return dest;
+}
+
+bool kstrcmp(const char* a, const char* b)
 {
     size_t a_len = strlen(a);
     size_t b_len = strlen(b);
@@ -18,10 +27,14 @@ bool kstrcmp(char* a, char* b)
         return false;
     }
 
-    for(size_t i = 0; i < a_len; i++) {
-        if(a[i] != b[i]) {
+    return kstrcmp_n(a, b, a_len);
+}
+
+bool kstrcmp_n(const char* a, const char* b, size_t len)
+{
+    for(size_t i = 0; i < len; i++) {
+        if(a[i] != b[i])
             return false;
-        }
     }
 
     return true;
