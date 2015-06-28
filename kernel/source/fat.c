@@ -26,12 +26,6 @@
 //#define DEBUG_FAT
 
 // -------------------------------------------------------------------------
-// External functions
-// -------------------------------------------------------------------------
-// This is supposed to be an extern function or included from a header  <Smirk />
-// (arguments are compared to avoid "Unused variable"-warnings.
-#define read_sector(x, y) (x == x && y == y)
-// -------------------------------------------------------------------------
 // Forward Declares
 // -------------------------------------------------------------------------
 static enum fat_version fat_get_version(struct fat_part_info* part_info);
