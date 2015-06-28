@@ -42,10 +42,6 @@ static void dump_fat_dir_entry(struct fat_dir_entry* entry);
 // -------------------------------------------------------------------------
 // Public Contract
 // -------------------------------------------------------------------------
-//enum fat_part_info {
-//    struct mbr_partiton_entry mbr_entry;
-//    uint32_t                  root_dir_sector;
-//};
 bool fat_init(struct mbr_partition_entry* partition_entry, struct fat_part_info* info_result)
 {
     terminal_write_string("FAT: Initializing partition.\n");
@@ -94,7 +90,6 @@ bool fat_read_file(struct fat_part_info* part_info, struct fat_dir_entry* file, 
 {
     uint32_t bytes_per_cluster = (part_info->num_sectors_per_cluster * part_info->bytes_per_sector);
     uint32_t next_cluster = file->first_cluster;
-    size_t bytes_read = 0;
     while(true) {
         uint32_t first_sector = part_info->data_begin + ((next_cluster - 2) * part_info->num_sectors_per_cluster);  
 
@@ -104,7 +99,6 @@ bool fat_read_file(struct fat_part_info* part_info, struct fat_dir_entry* file, 
         }
 
         buffer += bytes_per_cluster;
-        bytes_read += bytes_per_cluster;
 
         uint32_t fat_entry = get_fat_entry_for_cluster(part_info, next_cluster);
         next_cluster = fat_entry;
@@ -112,8 +106,6 @@ bool fat_read_file(struct fat_part_info* part_info, struct fat_dir_entry* file, 
         if(fat_entry == 0 || is_eof(part_info, fat_entry) || is_bad(part_info, fat_entry))
             break; // Done reading
     }
-
-    SHOWVAL("I Read this many bytes ", bytes_read);
 
     return true;
 }
