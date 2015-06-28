@@ -5,7 +5,8 @@
 #include <ata.h>
 #include <fat.h>
 #include <terminal.h>
-struct fat_part_info g_fat;
+
+struct fat_part_info g_system_part;
 
 bool fs_init()
 {
@@ -22,7 +23,7 @@ bool fs_init()
         if(!fs_is_fat_type(mbr->partitions[i].type))
             continue;
 
-        if(!fat_init(&mbr->partitions[i], &g_fat)) {
+        if(!fat_init(&mbr->partitions[i], &g_system_part)) {
             KWARN("Failed to initialize FAT file system!");
             continue;
         }
@@ -38,7 +39,7 @@ bool fs_init()
 
 struct fat_part_info* fs_get_system_part()
 {
-    return &g_fat;
+    return &g_system_part;
 }
 
 const char* fs_get_printable_partition_type(enum partition_type type)
@@ -65,5 +66,36 @@ bool fs_is_fat_type(enum partition_type type)
         type == partition_type_fat32_chs   ||
         type == partition_type_fat32_lba   ||
         type == partition_type_fat16b_lba;
+}
+
+void fs_cat(const char* filename)
+{
+    struct fat_dir_entry entry;
+    if(!fat_get_dir_entry(&g_system_part, filename, &entry)) {
+        terminal_write_string("No such file '");
+        terminal_write_string(filename);
+        terminal_write_string("'\n");
+        return;
+    }
+
+    size_t pages_req = entry.size / PAGE_SIZE;
+    if(entry.size % PAGE_SIZE)
+        pages_req++;
+
+    intptr_t buffer = (intptr_t)mem_page_get_many(pages_req);
+
+    if(!fat_read_file(&g_system_part, &entry, buffer, pages_req * PAGE_SIZE)) {
+        KERROR("Failed to read file");
+        return;
+    }
+
+    if(entry.size > 100) {
+        terminal_write_string_n((char*)buffer, 100);
+        terminal_write_string("...\n");
+    }
+    else {
+        terminal_write_string_n((char*)buffer, entry.size);
+        terminal_write_char('\n');
+    }
 }
 

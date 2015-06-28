@@ -7,6 +7,7 @@
 #include <debug.h>
 #include <arch/x86/cpu.h>
 #include <string.h>
+#include <fs.h>
 
 #define MAX_COMMAND_SIZE 1024
 #define COMMAND_BUFFER_SIZE (MAX_COMMAND_SIZE + 1)
@@ -18,15 +19,18 @@ static size_t read_line(char* buffer, size_t buffer_size);
 static void dispatch_command(char** args, size_t arg_count);
 static size_t parse_command(char* buffer, size_t buffer_size, char** args, size_t args_size);
 static void cli_key_up(enum keys key);
+static void cli_key_down(enum keys key);
 
 // Globals
 static size_t g_input_read_index;
 static size_t g_input_write_index;
 static char g_input_buffer[INPUT_BUFFER_SIZE];
 
+static bool g_shift_pressed;
+
 static struct kb_subscriber g_subscriber = {
     .up = cli_key_up,
-    .down = NULL
+    .down = cli_key_down
 };
 
 // Exports
@@ -58,19 +62,32 @@ void cli_run()
     }
 }
 
+static void cli_key_down(enum keys key)
+{
+    if(key == keys_lshift || key == keys_rshift) {
+        g_shift_pressed = true;
+    }
+}
+
 static void cli_key_up(enum keys key)
 {
+    if(key == keys_lshift || key == keys_rshift) {
+        g_shift_pressed = false;
+        return;
+    }
+
     // Is this key printable?
     char c = kb_key_to_ascii(key);
     if(c >= 0) {
+        if(g_shift_pressed && c >= 'a' && c <= 'z') {
+                c -= 0x20;
+        }
+
         // Add key to command buffer
         g_input_buffer[g_input_write_index++] = c;
         if(g_input_write_index == INPUT_BUFFER_SIZE) {
             g_input_write_index = 0;
         }
-    }
-    else {
-        // Might've been shift or something, TODO: LOL
     }
 }
 
@@ -154,6 +171,13 @@ static void dispatch_command(char* args[], size_t arg_count)
     }
     else if(kstrcmp(args[0], "clear")) {
         terminal_clear();
+    }
+    else if(kstrcmp(args[0], "cat")) {
+        if(arg_count < 2) {
+            KERROR("Expected at least one argument!");
+            return;
+        }
+        fs_cat(args[1]);
     }
     else if(kstrcmp(args[0], "help")) {
         terminal_write_string("RTFM\n");
