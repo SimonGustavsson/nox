@@ -97,5 +97,7 @@ void fs_cat(const char* filename)
         terminal_write_string_n((char*)buffer, entry.size);
         terminal_write_char('\n');
     }
+
+    mem_page_free((void*)buffer);
 }
 
