@@ -20,6 +20,9 @@
 
 #define ROOT_ENTRY_SIZE 32
 
+#define DIR_END 0
+#define UNUSED_DIR_ENTRY 0xE5
+
 //#define DEBUG_FAT
 
 // -------------------------------------------------------------------------
@@ -31,6 +34,7 @@
 // -------------------------------------------------------------------------
 // Forward Declares
 // -------------------------------------------------------------------------
+static enum fat_version fat_get_version(struct fat_part_info* part_info);
 static uint32_t get_fat_entry_for_cluster(struct fat_part_info* part_info, uint32_t cluster);
 static bool is_eof(struct fat_part_info* part_info, uint32_t fat_entry);
 static bool is_bad(struct fat_part_info* part_info, uint32_t fat_entry);
@@ -77,14 +81,16 @@ bool fat_init(struct mbr_partition_entry* partition_entry, struct fat_part_info*
         dump_fat_part_info(info_result);
 
     struct fat_dir_entry kittens_de;
-    if(!fat_get_dir_entry(info_result, "KITTENS TXT", &kittens_de)) {
+    if(!fat_get_dir_entry(info_result, "KERNEL  BIN", &kittens_de)) {
         if(false)
             dump_fat_dir_entry(&kittens_de);
-        KWARN("Unable to find kittens, something is amiss!");
+        KWARN("Unable to find the kernel, something is amiss!");
     }
 
     // Free the buffer, we don't need it no more
     mem_page_free(buffer);
+
+    KINFO("FAT successfully initialized");
 
     terminal_indentation_decrease();
     return true;
@@ -122,44 +128,53 @@ bool fat_read_file(struct fat_part_info* part_info, struct fat_dir_entry* file, 
 //       In the future it could take in the fat_dir_entry of the directory to look in
 bool fat_get_dir_entry(struct fat_part_info* part_info, const char* filename83, struct fat_dir_entry* result)
 {
-    if(part_info->bytes_per_sector > PAGE_SIZE) {
-        KERROR("Sectors size too large for page allocation! Need more pages!");
-        return false;
-    }
+    size_t cluster_byte_size = (part_info->num_sectors_per_cluster * part_info->bytes_per_sector);
+    size_t buffer_page_size = cluster_byte_size / PAGE_SIZE;
+    if(cluster_byte_size % PAGE_SIZE)
+        buffer_page_size++;
 
-    if(part_info->num_sectors_per_cluster < part_info->num_root_dir_sectors) {
-        KWARN("Root directory spans clusters, wont read all entries!");
-    }
-
-    intptr_t buffer = (intptr_t)mem_page_get_many(part_info->num_sectors_per_cluster);    
-    if(!ata_read_sectors(part_info->root_dir_sector, 1, buffer)) {
-        KWARN("Failed to read first sector of FAT partition");
-        return false;
-    }
-
-    struct fat_dir_entry* root_entries = (struct fat_dir_entry*)(buffer);
+    intptr_t buffer = (intptr_t)mem_page_get_many(buffer_page_size);
 
     size_t entries_in_cluster = (part_info->num_sectors_per_cluster * part_info->bytes_per_sector) /
         sizeof(struct fat_dir_entry);
 
-    for(int i = 0; i < entries_in_cluster; i++) {
-        struct fat_dir_entry* entry = &root_entries[i];
+    uint32_t next_cluster = 2; // Root dir starts at sector 2
+    uint32_t next_sector = part_info->root_dir_sector;
+    while(true) {
+        if(!ata_read_sectors(next_sector, part_info->num_sectors_per_cluster, buffer)) {
+            KWARN("Failed to read cluster for directory");
+            return false;
+        }
 
-        if(entry->name[0] == 0)
-            break; // No more entries
-        if(entry->name[0] == 0xE5)
-            continue; // Unused entry
-        if(is_volume_id(entry->attribute) || is_system(entry->attribute))
-            continue; // Skip Volume Id etc
+        struct fat_dir_entry* root_entries = (struct fat_dir_entry*)(buffer);
 
-        if(!kstrcmp_n(entry->name, filename83, 11))
-            continue; // Not this file!
+        for(int i = 0; i < entries_in_cluster; i++) {
+            struct fat_dir_entry* entry = &root_entries[i];
 
-        // Copy into result as the entry we have will be freed
-        kstrcpy_n((char*)result, sizeof(struct fat_dir_entry), (char*)entry);
+            if(entry->name[0] == DIR_END)
+                break;
+            if(entry->name[0] == UNUSED_DIR_ENTRY  ||
+                    is_volume_id(entry->attribute) ||
+                    is_system(entry->attribute))
+                continue;
 
-        mem_page_free((void*)buffer);
-        return true;
+            if(!kstrcmp_n(entry->name, filename83, 11))
+                continue; // Not this file!
+
+            // Copy into result as the entry we have will be freed
+            kstrcpy_n((char*)result, sizeof(struct fat_dir_entry), (char*)entry);
+
+            mem_page_free((void*)buffer);
+            return true;
+        }
+
+        // No dice - Get next cluster
+        next_cluster = get_fat_entry_for_cluster(part_info, next_cluster);
+
+        if(is_eof(part_info, next_cluster) || is_bad(part_info, next_cluster))
+            break;
+
+        next_sector = part_info->data_begin + ((next_cluster - 2) * part_info->num_sectors_per_cluster);
     }
 
     mem_page_free((void*)buffer);
@@ -180,8 +195,6 @@ static uint32_t get_fat_entry_for_cluster(struct fat_part_info* part_info, uint3
             fat_offset = cluster * 4;
             break;
     }
-
-    SHOWVAL("FAT Offset: ", fat_offset);
 
     // Perform this into a temp variable so that the division and remainder
     // happens right after eachother so the compiler can optimize it as a single MUL instruction
@@ -230,7 +243,7 @@ static uint32_t get_fat_entry_for_cluster(struct fat_part_info* part_info, uint3
     }
 }
 
-enum fat_version fat_get_version(struct fat_part_info* part_info)
+static enum fat_version fat_get_version(struct fat_part_info* part_info)
 {
     if(part_info->total_sectors < 4085) 
         return fat_version_12;
