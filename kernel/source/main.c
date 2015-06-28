@@ -69,27 +69,10 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
     // Let's do some hdd stuff m8
     ata_init();
 
+    fs_init();
+
     // Re-enable interrupts, we're ready now!
     interrupt_enable_all();
-
-    // Initialize file system
-    uint32_t pages_required_for_buffer = (512 * 256) / PAGE_SIZE;
-    uint32_t* buffer = (uint32_t*)(mem_page_get_many(pages_required_for_buffer));
-    ata_read_sectors(0, 1, (intptr_t)buffer);
-
-    struct mbr* mbr = (struct mbr*)(buffer);
-    for(int i = 0; i < 4; i++) {
-        if(!fs_is_fat_type(mbr->partitions[i].type))
-            continue;
-
-        struct fat_part_info fat;
-        if(!fat_init(&mbr->partitions[i], &fat)) {
-            KWARN("Failed to initialize FAT file system!");
-            continue;
-        }
-
-        // Do something with the fat_info?
-    }
 
     pit_set(1000);
 

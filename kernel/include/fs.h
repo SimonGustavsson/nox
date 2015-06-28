@@ -28,6 +28,8 @@ struct mbr {
     uint16_t                    signature;
 };
 
+bool fs_init();
+struct fat_part_info* fs_get_system_part();
 const char* fs_get_printable_partition_type(enum partition_type type);
 bool fs_is_fat_type(enum partition_type type);
 
