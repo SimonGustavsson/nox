@@ -215,7 +215,7 @@ static uint32_t get_fat_entry_for_cluster(struct fat_part_info* part_info, uint3
 
                 // TODO: This needs a check to ensure fat_sector is not
                 //       the very last fat sector, as we don't want to read past that
-                if(!read_sector(fat_sector + 1, &fat_buffer2[0])) {
+                if(!ata_read_sectors(fat_sector + 1, 1, (intptr_t)&fat_buffer2[0])) {
                     KWARN("Failed to read second sector of fat entry for fat12");
                     return 0;
                 }
