@@ -15,7 +15,6 @@
 #include <mem_mgr.h>
 #include <ata.h>
 #include <fs.h>
-#include <fat.h>
 
 static void gpf(uint8_t irq, struct irq_regs* regs)
 {
