@@ -15,6 +15,11 @@
 #define KINFO(str) PRINTK(str, vga_color_light_grey, vga_color_black)
 #define KWARN(str) PRINTK(str, vga_color_light_red, vga_color_black)
 #define KERROR(str) PRINTK(str, vga_color_red, vga_color_black)
+#define KPANIC(str)                   \
+    do {                              \
+        KERROR(str);                  \
+        while(1);                     \
+    } while(0);
 #define SHOWVAL(str, val)             \
     do {                              \
         terminal_write_string(str);   \

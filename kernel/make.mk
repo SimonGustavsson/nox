@@ -12,6 +12,10 @@ DEP_DIR := $(MODULE)deps
 ASOURCE := $(shell find $(ASOURCE_DIR) -name '*.asm')
 CSOURCE := $(shell find $(CSOURCE_DIR) -name '*.c')
 
+# Remove kloader from standard Nox
+ASOURCE := $(filter-out $(ASOURCE_DIR)/kloader_*, $(ASOURCE))
+CSOURCE := $(filter-out $(CSOURCE_DIR)/kloader_*, $(CSOURCE))
+
 # Construct a list of all object files
 COBJECTS := $(CSOURCE:.c=.o)
 COBJECTS := $(subst $(CSOURCE_DIR), $(OBJ_DIR), $(COBJECTS))
@@ -36,7 +40,7 @@ CFLAGS=-std=c11 \
 CINCLUDE := $(patsubst %,-I%, $(shell find $(INCLUDE_DIR) -type d))
 
 # Add prerequisites for full build
-IMAGE_ASSETS += $(BUILD)/KERNEL.BIN
+IMAGE_ASSETS += $(BUILD)/KERNEL.BIN $(BUILD)/BOOT.SYS
 
 # Tell the main makefile to remove our object dir on clean
 CLEAN_DIRS += $(OBJ_DIR) $(DEP_DIR)
@@ -65,8 +69,8 @@ $(OBJ_DIR)/kernel.elf: kernel_directories $(COBJECTS) $(AOBJECTS)
 
 $(OBJ_DIR)/%.o : $(CSOURCE_DIR)/%.c
 
-	mkdir -p $(dir $@)
-	mkdir -p $(DEP_DIR)/$(dir $*)
+	@mkdir -p $(dir $@)
+	@mkdir -p $(DEP_DIR)/$(dir $*)
 	@echo "CC $<"
 
 	@$(TOOL)-gcc $< -o $@ $(CINCLUDE) $(CFLAGS) -MD -MF $(DEP_DIR)/$*.d
@@ -78,6 +82,27 @@ $(OBJ_DIR)/%.o : $(ASOURCE_DIR)/%.asm
 	@echo "AS $<"
 
 	nasm $< -o $@ -f elf32 -i $(INCLUDE_DIR)
+
+#################################################################################
+#
+# Kloader
+#
+################################################################################
+KLOADER_CSOURCES := $(CSOURCE_DIR)/ata.c $(CSOURCE_DIR)/fat.c $(CSOURCE_DIR)/fs.c $(CSOURCE_DIR)/kloader_main.c $(CSOURCE_DIR)/mem_mgr.c $(CSOURCE_DIR)/pio.c $(CSOURCE_DIR)/screen.c $(CSOURCE_DIR)/terminal.c $(CSOURCE_DIR)/string.c $(CSOURCE_DIR)/kloader_main.c
+KLOADER_ASOURCES := $(CSOURCE_DIR)/kloader_start.asm
+
+KLOADER_OBJECTS := $(KLOADER_CSOURCES:.c=.o)
+KLOADER_OBJECTS += $(KLOADER_ASOURCES:.asm=.o)
+KLOADER_OBJECTS := $(subst $(CSOURCE_DIR), $(OBJ_DIR), $(KLOADER_OBJECTS))
+KLOADER_OBJECTS := $(subst $(ASOURCE_DIR), $(OBJ_DIR), $(KLOADER_OBJECTS))
+
+$(BUILD)/BOOT.SYS: $(BUILD)/boot.elf
+	@$(TOOL)-objcopy $^ -O binary --set-section-flags .bss=alloc,load,contents $@
+
+$(BUILD)/boot.elf: kernel_directories $(KLOADER_OBJECTS)
+	@echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+	$(TOOL)-ld -T kernel.ld $(filter-out kernel_directories, $^) -o $@
+	@echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
 kernel_directories:
 	@mkdir -p $(DEP_DIR)
