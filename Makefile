@@ -60,6 +60,7 @@ $(BUILD)/nox-fs.img: $(IMAGE_ASSETS)
 	@dd if=$(BUILD)/vbr.bin of=$@ bs=1 count=448 skip=62 seek=62 conv=notrunc > /dev/null 2>&1
 	@mcopy -i $@ $(BUILD)/BOOT.SYS ::BOOT.SYS
 	@mcopy -i $@ $(BUILD)/KERNEL.BIN ::KERNEL.BIN
+	@mcopy -i $@ $(BUILD)/KERNELSS.ELF ::KERNELSS.ELF
 
 directories:
 	@mkdir -p $(BUILD)

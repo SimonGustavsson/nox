@@ -15,6 +15,7 @@
 #include <mem_mgr.h>
 #include <ata.h>
 #include <fs.h>
+#include <elf.h>
 
 static void gpf(uint8_t irq, struct irq_regs* regs)
 {
@@ -80,6 +81,8 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
     call_test_sys_call(0x1234);
 
     terminal_write_string("Kernel initialized, off to you, interrupts!\n");
+
+    elf_run("KERNELSSELF");
 
     cli_init();
     cli_run();
