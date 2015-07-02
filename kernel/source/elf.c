@@ -5,46 +5,174 @@
 #include <terminal.h>
 #include <mem_mgr.h>
 
-enum elf32_class {
-    elf32_class_invalid = 0,
-    elf32_class_32 = 1,
-    elf32_class_64 = 2
+//=============================================================
+// Generic elf types
+//=============================================================
+enum elf_machine {
+    elf_machine_none  = 0,   // No Machine
+    elf_machine_m32   = 1,   // AT&T WE 32100
+    elf_machine_sparc = 2,   // SPARC
+    elf_machine_386   = 3,   // Intel 80386
+    elf_machine_68k   = 4,   // Motorola 68000
+    elf_machine_88k   = 5,   // Motorola 88000
+    elf_machine_860   = 7,   // Intel 80860
+    elf_machine_mips  = 8    // MIPS RS3000
 };
 
-enum elf32_encoding {
-    elf32_encoding_invalid = 0,
-    elf32_encoding_lsb = 1,
-    elf32_encoding_msb = 2
+enum elf_version {
+    elf_version_invalid = 0,
+    elf_version_current = 1
 };
 
-enum elf32_version {
-    elf32_version_invalid = 0,
-    elf32_version_current = 1
+enum elf_class {
+    elf_class_invalid = 0,
+    elf_class_32 = 1,
+    elf_class_64 = 2
 };
 
+enum elf_encoding {
+    elf_encoding_invalid = 0,
+    elf_encoding_lsb = 1,
+    elf_encoding_msb = 2
+};
+
+enum elf_type {
+    elf_type_none,
+    elf_type_rel = 1,
+    elf_type_exec = 2,
+    elf_type_dyn = 3,
+    elf_type_core = 4,
+    /* 0xFE00 -> 0xFEFF Environment-specific */
+    /* 0xFF00 -> 0xFFFF Processor-specific */
+};
+
+enum elf_sh_type {
+    elf_sh_type_null = 0,
+    elf_sh_type_progbits = 1,
+    elf_sh_type_symtab = 2,
+    elf_sh_type_strtab = 3,
+    elf_sh_type_rela = 4,
+    elf_sh_type_hash = 5,
+    elf_sh_type_dynamic = 6,
+    elf_sh_type_note = 7,
+    elf_sh_type_nobits = 8,
+    elf_sh_type_rel = 9,
+    elf_sh_type_shlib = 10,
+    elf_sh_type_dynsym = 11,
+    elf_sh_type_loproc = 0x70000000,
+    elf_sh_type_hiproc = 0x7fffffff,
+    elf_sh_type_louser = 0x80000000,
+    elf_sh_type_hiuser = 0xffffffff
+};
+
+enum elf_sh_flag {
+    elf_sh_flag_write = 1,
+    elf_sh_flag_alloc = 2,
+    elf_sh_flag_exec = 4
+};
+
+enum elf_ph_type {
+    elf_ph_type_null = 0,
+    elf_ph_type_load = 1,
+    elf_ph_type_dynamic = 2,
+    elf_ph_type_interp = 3,
+    elf_ph_type_note = 4,
+    elf_ph_type_shlib = 5,
+    elf_ph_type_phdr = 6,
+    elf_ph_type_loproc = 0x70000000,
+    elf_ph_type_hiproc = 0x7fffffff
+};
+
+// Flags    Value    Exact            Allowable
+// none	    0	All access denied     All access denied
+// X        1	Execute only	      Read, execute
+// W      	2	Write only	          Read, write, execute
+// W+X  	3	Write, execute        Read, write, execute
+// R        4	Read only             Read, execute
+// R+X    	5	Read, execute         Read, execute
+// R+W    	6	Read, write           Read, write, execute
+// R+W+X	7	Read, write, execut   Read, write, execute
+enum elf_ph_flag {
+    elf_ph_flag_none = 0,
+    elf_ph_flag_x = 1,
+    elf_ph_flag_w = 2,
+    elf_ph_flag_r = 4
+};
+
+//=============================================================
+// 64-bit Elf types
+//=============================================================
+enum elf64_osabi {
+    elf64_osabi_sys = 0,
+    elf64_osabi_hpux = 1,
+    elf64_osabi_standalone = 255
+};
+
+struct elf64_header_ident {
+    char    signature[4];
+    uint8_t class;        // see elf_class
+    uint8_t encoding;     // see elf_encoding
+    uint8_t version;
+    uint8_t osabi;        // see elf64_osabi
+    uint8_t abiversion;
+    uint8_t padding[7];
+} PACKED;
+
+struct elf64_header {
+    struct elf64_header_ident ident;
+    uint16_t type;    // see elf_type
+    uint16_t machine;
+    uint32_t version;
+    uint64_t entry;
+    uint64_t phoff;
+    uint64_t shoff;
+    uint32_t flags;
+    uint16_t ehsize;
+    uint16_t phentsize;
+    uint16_t phnum;
+    uint16_t shentsize;
+    uint16_t shnum;
+    uint16_t shstrndx;
+} PACKED;
+
+struct elf64_phdr {
+    uint32_t type;
+    uint32_t flags;
+    uint64_t offset;
+    uint64_t vaddr;
+    uint64_t paddr;
+    uint64_t filesz;
+    uint64_t memsz;
+    uint64_t align;
+} PACKED;
+
+struct elf64_shdr {
+    uint32_t name;
+    uint32_t type;  // see elf_sh_type
+    uint64_t flags;
+    uint64_t addr;
+    uint64_t offset;
+    uint64_t size;
+    uint32_t link;  // see elf_sh_type
+    uint32_t info;  // see elf_sh_type
+    uint64_t addralign;
+    uint64_t entsize;
+} PACKED;
+
+//=============================================================
+// 32-bit Elf types
+//=============================================================
 struct elf32_header_ident {
-    char signature[4];
+    char    signature[4];
     uint8_t class;
     uint8_t encoding;
     uint8_t version;
     uint8_t padding[9];
 } PACKED;
 
-enum elf32_machine {
-    elf32_machine_none  = 0,   // No Machine
-    elf32_machine_m32   = 1,   // AT&T WE 32100
-    elf32_machine_sparc = 2,   // SPARC
-    elf32_machine_386   = 3,   // Intel 80386
-    elf32_machine_68k   = 4,   // Motorola 68000
-    elf32_machine_88k   = 5,   // Motorola 88000
-    // Note: No 6!
-    elf32_machine_860   = 7,   // Intel 80860
-    elf32_machine_mips  = 8    // MIPS RS3000
-};
-
 struct elf32_header {
     struct elf32_header_ident ident; 
-    uint16_t type;
+    uint16_t type;    // see elf_type
     uint16_t machine;
     uint32_t version;
     uint32_t entry;
@@ -59,34 +187,9 @@ struct elf32_header {
     uint16_t shstrndx;
 } PACKED;
 
-enum sh_type {
-    sh_type_null = 0,
-    sh_type_progbits = 1,
-    sh_type_symtab = 2,
-    sh_type_strtab = 3,
-    sh_type_rela = 4,
-    sh_type_hash = 5,
-    sh_type_dynamic = 6,
-    sh_type_note = 7,
-    sh_type_nobits = 8,
-    sh_type_rel = 9,
-    sh_type_shlib = 10,
-    sh_type_dynsym = 11,
-    sh_type_loproc = 0x70000000,
-    sh_type_hiproc = 0x7fffffff,
-    sh_type_louser = 0x80000000,
-    sh_type_hiuser = 0xffffffff
-};
-
-enum elf32_sh_flag {
-    elf32_sh_flag_write = 1,
-    elf32_sh_flag_alloc = 2,
-    elf32_sh_flag_exec = 4
-};
-
 struct elf32_shdr {
     uint32_t name;
-    uint32_t type;
+    uint32_t type;  // see elf_sh_type
     uint32_t flags; // See elf32_sh_flag
     uint32_t addr;
     uint32_t offset;
@@ -96,33 +199,6 @@ struct elf32_shdr {
     uint32_t addralign;
     uint32_t entsize;
 } PACKED;
-
-enum ph_type {
-    ph_type_null = 0,
-    ph_type_load = 1,
-    ph_type_dynamic = 2,
-    ph_type_interp = 3,
-    ph_type_note = 4,
-    ph_type_shlib = 5,
-    ph_type_phdr = 6,
-    ph_type_loproc = 0x70000000,
-    ph_type_hiproc = 0x7fffffff
-};
-// Flags	Value	Exact	Allowable
-// none	0	All access denied	All access denied
-// PF_X	1	Execute only	Read, execute
-// PF_W	2	Write only	Read, write, execute
-// PF_W+PF_X	3	Write, execute	Read, write, execute
-// PF_R	4	Read only	Read, execute
-// PF_R+PF_X	5	Read, execute	Read, execute
-// PF_R+PF_W	6	Read, write	Read, write, execute
-// PF_R+PF_W+PF_X	7	Read, write, execute	Read, write, execute
-enum elf32_ph_flag {
-    elf32_ph_flag_none = 0,
-    elf32_ph_flag_x = 1,
-    elf32_ph_flag_w = 2,
-    elf32_ph_flag_r = 4
-};
 
 struct elf32_phdr {
     uint32_t type;
@@ -135,22 +211,22 @@ struct elf32_phdr {
     uint32_t align;
 } PACKED;
 
-static void print_sh_type(enum sh_type type, size_t total_len)
+static void print_sh_type(enum elf_sh_type type, size_t total_len)
 {
     switch(type) {
-        case sh_type_null:
+        case elf_sh_type_null:
             terminal_write_string_endpadded("NULL", total_len);
             break;
-        case sh_type_progbits:
+        case elf_sh_type_progbits:
             terminal_write_string_endpadded("PROGBITS", total_len);
             break;
-        case sh_type_strtab:
+        case elf_sh_type_strtab:
             terminal_write_string_endpadded("STRTAB", total_len);
             break;
-        case sh_type_symtab:
+        case elf_sh_type_symtab:
             terminal_write_string_endpadded("SYMTAB", total_len);
             break;
-        case sh_type_nobits:
+        case elf_sh_type_nobits:
             terminal_write_string_endpadded("NOBITS", total_len);
             break;
         default:
@@ -159,28 +235,28 @@ static void print_sh_type(enum sh_type type, size_t total_len)
     }
 }
 
-static void print_ph_type(enum ph_type type, size_t total_len)
+static void print_ph_type(enum elf_ph_type type, size_t total_len)
 {
     switch(type) {
-        case ph_type_null:
+        case elf_ph_type_null:
             terminal_write_string_endpadded("NULL", total_len);
             break;
-        case ph_type_load:
+        case elf_ph_type_load:
             terminal_write_string_endpadded("LOAD", total_len);
             break;
-        case ph_type_dynamic:
+        case elf_ph_type_dynamic:
             terminal_write_string_endpadded("DYNAMIC", total_len);
             break;
-        case ph_type_interp:
+        case elf_ph_type_interp:
             terminal_write_string_endpadded("INTERP", total_len);
             break;
-        case ph_type_note:
+        case elf_ph_type_note:
             terminal_write_string_endpadded("NOTE", total_len);
             break;
-        case ph_type_shlib:
+        case elf_ph_type_shlib:
             terminal_write_string_endpadded("SHLIB", total_len);
             break;
-        case ph_type_phdr:
+        case elf_ph_type_phdr:
             terminal_write_string_endpadded("PHDR", total_len);
             break;
         default:
@@ -191,17 +267,17 @@ static void print_ph_type(enum ph_type type, size_t total_len)
 
 static void print_ph_flags(uint32_t flags)
 {
-    if((flags & elf32_ph_flag_r) == elf32_ph_flag_r)
+    if((flags & elf_ph_flag_r) == elf_ph_flag_r)
         terminal_write_char('R');
     else
         terminal_write_char(' ');
 
-    if((flags & elf32_ph_flag_w) == elf32_ph_flag_w)
+    if((flags & elf_ph_flag_w) == elf_ph_flag_w)
         terminal_write_char('W');
     else
         terminal_write_char(' ');
 
-    if((flags & elf32_ph_flag_x) == elf32_ph_flag_x)
+    if((flags & elf_ph_flag_x) == elf_ph_flag_x)
         terminal_write_char('X');
     else
         terminal_write_char(' ');
@@ -209,17 +285,17 @@ static void print_ph_flags(uint32_t flags)
 
 static void print_sh_flags(uint32_t flags)
 {
-    if((flags & elf32_sh_flag_alloc) == elf32_sh_flag_alloc)
+    if((flags & elf_sh_flag_alloc) == elf_sh_flag_alloc)
         terminal_write_char('A');
     else
         terminal_write_char(' ');
 
-    if((flags & elf32_sh_flag_write) == elf32_sh_flag_write)
+    if((flags & elf_sh_flag_write) == elf_sh_flag_write)
         terminal_write_char('W');
     else
         terminal_write_char(' ');
 
-    if((flags & elf32_sh_flag_exec) == elf32_sh_flag_exec)
+    if((flags & elf_sh_flag_exec) == elf_sh_flag_exec)
         terminal_write_char('X');
     else
         terminal_write_char(' ');
@@ -305,17 +381,17 @@ static bool verify_header(struct elf32_header* header)
         return false;
     }
 
-    if (header->ident.version != elf32_version_current) {
+    if (header->ident.version != elf_version_current) {
         KERROR("Invalid version");
         return false;
     }
 
-    if(header->machine != elf32_machine_386) {
+    if(header->machine != elf_machine_386) {
         KERROR("Unsupported machine, expected 386");
         return false;
     }
 
-    if(header->ident.class == elf32_class_invalid) {
+    if(header->ident.class == elf_class_invalid) {
         KERROR("Invalid class");
         return false;
     }
@@ -355,11 +431,10 @@ void elf_run(const char* filename)
     terminal_write_string("'\n");
 
     switch (elf->ident.class) {
-        case elf32_class_32:
+        case elf_class_32:
             terminal_write_string("32-bit ELF.\n");
             break;
-
-        case elf32_class_64:
+        case elf_class_64:
             terminal_write_string("64-bit ELF.\n");
             break;
     }
