@@ -5,8 +5,6 @@
 #include <terminal.h>
 #include <mem_mgr.h>
 
-#define EXE_MAX_SEGMENTS 200
-
 enum elf32_class {
     elf32_class_invalid = 0,
     elf32_class_32 = 1,
@@ -309,11 +307,6 @@ static bool verify_header(struct elf32_header* header)
 
     if (header->ident.version != elf32_version_current) {
         KERROR("Invalid version");
-        return false;
-    }
-
-    if(header->phnum > EXE_MAX_SEGMENTS) {
-        KERROR("Too many program headers");
         return false;
     }
 
