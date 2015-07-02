@@ -5,6 +5,8 @@
 #include <terminal.h>
 #include <mem_mgr.h>
 
+#define EXE_MAX_SEGMENTS 200
+
 enum elf32_class {
     elf32_class_invalid = 0,
     elf32_class_32 = 1,
@@ -29,6 +31,18 @@ struct elf32_header_ident {
     uint8_t version;
     uint8_t padding[9];
 } PACKED;
+
+enum elf32_machine {
+    elf32_machine_none  = 0,   // No Machine
+    elf32_machine_m32   = 1,   // AT&T WE 32100
+    elf32_machine_sparc = 2,   // SPARC
+    elf32_machine_386   = 3,   // Intel 80386
+    elf32_machine_68k   = 4,   // Motorola 68000
+    elf32_machine_88k   = 5,   // Motorola 88000
+    // Note: No 6!
+    elf32_machine_860   = 7,   // Intel 80860
+    elf32_machine_mips  = 8    // MIPS RS3000
+};
 
 struct elf32_header {
     struct elf32_header_ident ident; 
@@ -123,7 +137,7 @@ struct elf32_phdr {
     uint32_t align;
 } PACKED;
 
-void print_sh_type(enum sh_type type, size_t total_len)
+static void print_sh_type(enum sh_type type, size_t total_len)
 {
     switch(type) {
         case sh_type_null:
@@ -147,7 +161,7 @@ void print_sh_type(enum sh_type type, size_t total_len)
     }
 }
 
-void print_ph_type(enum ph_type type, size_t total_len)
+static void print_ph_type(enum ph_type type, size_t total_len)
 {
     switch(type) {
         case ph_type_null:
@@ -177,7 +191,7 @@ void print_ph_type(enum ph_type type, size_t total_len)
     }
 }
 
-void print_ph_flags(uint32_t flags)
+static void print_ph_flags(uint32_t flags)
 {
     if((flags & elf32_ph_flag_r) == elf32_ph_flag_r)
         terminal_write_char('R');
@@ -195,7 +209,7 @@ void print_ph_flags(uint32_t flags)
         terminal_write_char(' ');
 }
 
-void print_sh_flags(uint32_t flags)
+static void print_sh_flags(uint32_t flags)
 {
     if((flags & elf32_sh_flag_alloc) == elf32_sh_flag_alloc)
         terminal_write_char('A');
@@ -213,8 +227,9 @@ void print_sh_flags(uint32_t flags)
         terminal_write_char(' ');
 }
 
-void print_section_headers(struct elf32_header* elf, intptr_t buffer)
+static void print_section_headers(struct elf32_header* elf, intptr_t buffer)
 {
+    terminal_write_string("Section headers:\n");
     terminal_write_string("[Nr] Name               Type           Addr       Offset   Size     ES   Flg\n");
 
     struct elf32_shdr* section_headers = (struct elf32_shdr*)(intptr_t)(((char*)buffer) + elf->shoff);
@@ -249,7 +264,7 @@ void print_section_headers(struct elf32_header* elf, intptr_t buffer)
     }
 }
 
-void print_program_headers(struct elf32_header* elf, intptr_t buffer)
+static void print_program_headers(struct elf32_header* elf, intptr_t buffer)
 {
     struct elf32_phdr* program_headers = (struct elf32_phdr*)(intptr_t)(((char*)buffer) + elf->phoff);
     KINFO("Program Headers:");
@@ -278,6 +293,44 @@ void print_program_headers(struct elf32_header* elf, intptr_t buffer)
     }
 }
 
+static bool verify_header(struct elf32_header* header)
+{
+    if(header->ehsize != sizeof(struct elf32_header)) {
+        KWARN("Unexpected size of elf header\n");
+    }
+
+    if(header->ident.signature[0] != 0x7F ||
+       header->ident.signature[1] != 'E' ||
+       header->ident.signature[2] != 'L' ||
+       header->ident.signature[3] != 'F') {
+        KERROR("Invalid ELF header");
+        return false;
+    }
+
+    if (header->ident.version != elf32_version_current) {
+        KERROR("Invalid version");
+        return false;
+    }
+
+    if(header->phnum > EXE_MAX_SEGMENTS) {
+        KERROR("Too many program headers");
+        return false;
+    }
+
+    if(header->machine != elf32_machine_386) {
+        KERROR("Unsupported machine, expected 386");
+        return false;
+    }
+
+    if(header->ident.class == elf32_class_invalid) {
+        KERROR("Invalid class");
+        return false;
+    }
+
+    // All checks passed! Looks good!
+    return true;
+}
+
 void elf_run(const char* filename) 
 {
     struct fat_dir_entry entry;
@@ -300,20 +353,15 @@ void elf_run(const char* filename)
     // We have a buffer, yay!
     struct elf32_header* elf = (struct elf32_header*)buffer;
 
-    SHOWSTR("Elf ident: ", elf->ident.signature);
+    if(!verify_header(elf)) {
+        return;
+    }
 
-    if (elf->ident.version == elf32_version_current) {
-        terminal_write_string("The ELF version number is current.\n");
-    }
-    else {
-        terminal_write_string("The ELF version number is not current.\n");
-    }
+    terminal_write_string("Running elf '");
+    terminal_write_string(filename);
+    terminal_write_string("'\n");
 
     switch (elf->ident.class) {
-        case elf32_class_invalid:
-            terminal_write_string("Invalid processor architecture.\n");
-            break;
-
         case elf32_class_32:
             terminal_write_string("32-bit ELF.\n");
             break;
@@ -329,7 +377,6 @@ void elf_run(const char* filename)
     }
 
     print_section_headers(elf, buffer);
-
 
     print_program_headers(elf, buffer);
 }
