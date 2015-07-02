@@ -83,15 +83,15 @@ enum elf_ph_type {
     elf_ph_type_hiproc = 0x7fffffff
 };
 
-// Flags    Value    Exact            Allowable
-// none	    0	All access denied     All access denied
-// X        1	Execute only	      Read, execute
-// W      	2	Write only	          Read, write, execute
-// W+X  	3	Write, execute        Read, write, execute
-// R        4	Read only             Read, execute
-// R+X    	5	Read, execute         Read, execute
-// R+W    	6	Read, write           Read, write, execute
-// R+W+X	7	Read, write, execut   Read, write, execute
+// Flags    Value    Exact                 Allowable
+// none	    0        All access denied     All access denied
+// X        1        Execute only          Read, execute
+// W      	2        Write only	           Read, write, execute
+// W+X      3        Write, execute        Read, write, execute
+// R        4        Read only             Read, execute
+// R+X    	5        Read, execute         Read, execute
+// R+W    	6        Read, write           Read, write, execute
+// R+W+X    7        Read, write, execut   Read, write, execute
 enum elf_ph_flag {
     elf_ph_flag_none = 0,
     elf_ph_flag_x = 1,
