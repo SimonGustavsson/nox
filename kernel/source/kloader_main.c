@@ -6,8 +6,8 @@
 #include <ata.h>
 #include <fs.h>
 #include <fat.h>
+#include <debug.h>
 
-#define KERNEL_LOAD_ADDRESS 0x7C00
 typedef void ((*kernel_entry)(struct mem_map_entry[], uint32_t));
 
 void kloader_cmain(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
@@ -16,11 +16,11 @@ void kloader_cmain(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     screen_cursor_hide();
     terminal_init();
 
+    KINFO("Welcome to Nox (Bootloader mode)");
+
     mem_mgr_init(mem_map, mem_entry_count);
 
-    // Let's do some hdd stuff m8
     ata_init();
-
     fs_init();
 
     struct fat_part_info* part_info = fs_get_system_part();
@@ -34,12 +34,14 @@ void kloader_cmain(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     if(kernel.size % PAGE_SIZE)
         pages_req++;
 
-    intptr_t buffer = (intptr_t)KERNEL_LOAD_ADDRESS;
+    uint32_t load_addr = 0x10000;
+    intptr_t buffer = (intptr_t)load_addr;
 
     if(!fat_read_file(part_info, &kernel, buffer, pages_req * PAGE_SIZE)) {
         KPANIC("Failed to read KERNEL.BIN");
     }
 
+    KINFO("Kernel found, jumping!?");
     kernel_entry cmain = (kernel_entry)(buffer);
 
     cmain(mem_map, mem_entry_count);

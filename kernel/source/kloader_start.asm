@@ -8,17 +8,17 @@
 ;*******************************************************************************
 ; Directives
 ;*******************************************************************************
-resb 0x600
 bits 16                 ; We're in real mode
 ;[map all build/kloader.map]
 
 [section .text.boot]
 
 _start:
-jmp 0:0x7C00 + relocate_start - 0x600
+jmp relocate_start
+
 KERNEL_STACK_START_FLAT     EQU 0x7FFFF
 variables:
-    .memMapEntries       dd     0
+    .memMapEntries          dd     0
 .endvariables:
 
 msg_a20_interrupt_failed    db "A20 via Int 0x15 failed. Halting.", 0x0D, 0x0A, 0
@@ -47,23 +47,24 @@ gdtDescriptor:
 		dd              gdt
 .end:
 
-%include "bootloader/include/int10.inc"
-%include "bootloader/include/int13.inc"
+;%include "bootloader/include/int10.inc"
+;%include "bootloader/include/int13.inc"
 
 ;*******************************************************************************
 ; Relocation
 ;*******************************************************************************
 relocate_start:
-    mov cx, code_end - $$
-    xor ax, ax
-    mov es, ax
-    mov ds, ax
-    mov si, 0x7C00
-    mov di, 0x600
-    rep movsb
+    jmp 0:main
+
+    ;mov cx, code_end - $$
+    ;xor ax, ax
+    ;mov es, ax
+    ;mov ds, ax
+    ;mov si, 0x7C00
+    ;mov di, 0x600
+    ;rep movsb
     
     ; Far Jump to Relocated Code
-    jmp 0:main
 
 ;*******************************************************************************
 ; Main
@@ -118,8 +119,8 @@ halt:
     hlt
 KERNEL_LOAD_ADDR            EQU 0x7C00
 MEM_MAP_ADDR                EQU (KERNEL_LOAD_ADDR - (128 * 24))
-detect_memory:
 
+detect_memory:
 
     ; TODO: ES:DI to address of buffer we want to use
     mov edi, MEM_MAP_ADDR
@@ -141,7 +142,7 @@ detect_memory:
         cmp cl, 20
         jne .twenty_four_byte_entry
         .twenty_byte_entry:
-            mov dword [ds:edi + 16], 1
+        mov dword [ds:edi + 16], 1
         .twenty_four_byte_entry:
 
         mov eax, [variables.memMapEntries]
@@ -192,16 +193,46 @@ detect_memory:
 
     ret
 
-enableA20:
-	mov ax, 0x2401
-	int 0x15
-	jc	.fail
-	ret
+print_string_z:
 
-	.fail:
-    	mov si, msg_a20_interrupt_failed
-    	call print_string_z
-		jmp halt
+    mov ah, 0eh
+
+    .print_char:
+        lodsb
+
+        or al, al
+        jz .done
+
+        int 10h
+
+        jmp .print_char
+
+    .done:
+        ret
+
+enableA20:
+    mov ax, 0x2401
+    int 0x15
+    jc	.fail
+    ret
+
+    .fail:
+        mov si, msg_a20_interrupt_failed
+        call print_string_z
+        jmp halt
+
+reset_disk:
+    push ax
+
+    ; Reset floppy/hdd function
+    mov ah, 0
+    int 0x13
+
+    ; Try again if carry flag is set
+    jc reset_disk
+
+    pop ax
+    ret
 
 ; THIS MUST GO LAST IN THE FILE BECAUSE IT CHANGES
 ; CODE GENERATION TO USE 32-bit INSTRUCTIONS
@@ -233,10 +264,10 @@ enterProtectedMode:
     ; attempts to ret, a GPF will occur
     push dword 0
 
-extern kloader_cmain
+    extern kloader_cmain
 
     ; Jump to the kernel
-    jmp 0x08:kloader_cmain
+    jmp dword 0x08:kloader_cmain
 
 ; Note: This label is used to calculate the size of the binary! :-)
 code_end:

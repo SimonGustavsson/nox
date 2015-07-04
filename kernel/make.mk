@@ -81,7 +81,7 @@ $(OBJ_DIR)/%.o : $(ASOURCE_DIR)/%.asm
 
 	@echo "AS $<"
 
-	nasm $< -o $@ -f elf32 -i $(INCLUDE_DIR)
+	@nasm $< -o $@ -f elf32 -i $(INCLUDE_DIR)
 
 #################################################################################
 #
@@ -97,12 +97,12 @@ KLOADER_OBJECTS := $(subst $(CSOURCE_DIR), $(OBJ_DIR), $(KLOADER_OBJECTS))
 KLOADER_OBJECTS := $(subst $(ASOURCE_DIR), $(OBJ_DIR), $(KLOADER_OBJECTS))
 
 $(BUILD)/BOOT.SYS: $(BUILD)/boot.elf
-	@$(TOOL)-objcopy $^ -O binary --set-section-flags .bss=alloc,load,contents $@
+	@echo "OBJCOPY $<"
+	@@$(TOOL)-objcopy $^ -O binary --set-section-flags .bss=alloc,load,contents $@
 
 $(BUILD)/boot.elf: kernel_directories $(KLOADER_OBJECTS)
-	@echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-	$(TOOL)-ld -T kernel.ld $(filter-out kernel_directories, $^) -o $@
-	@echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+	@echo "LD $^"
+	@$(TOOL)-ld -T kernel.ld $(filter-out kernel_directories, $^) -o $@
 
 kernel_directories:
 	@mkdir -p $(DEP_DIR)

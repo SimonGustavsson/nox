@@ -74,6 +74,7 @@ static enum ready_result wait_until_ready(enum ata_controller controller)
 // sector_count of 0 means 256 sectors, 1-255 mean what they say
 bool ata_read_sectors(uint32_t lba, uint8_t sector_count, uintptr_t buffer)
 {
+    KINFO("Reading sectors...");
     uint16_t* data = (uint16_t*)(buffer);
 
     enum ata_drive drive = ata_drive_master;
