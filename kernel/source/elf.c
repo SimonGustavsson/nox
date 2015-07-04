@@ -391,8 +391,8 @@ static bool verify_header(struct elf32_header* header)
         return false;
     }
 
-    if(header->ident.class == elf_class_invalid) {
-        KERROR("Invalid class");
+    if(header->ident.class != elf_class_32) {
+        KERROR("Invalid class, only 32-bit elfs are supported!");
         return false;
     }
 

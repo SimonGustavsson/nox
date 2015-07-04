@@ -51,7 +51,7 @@ CLEAN_DIRS += $(OBJ_DIR) $(DEP_DIR)
 #
 
 # Note: Upper case because we use FAT12 and this makes it easy for now
-$(BUILD)/KERNEL.BIN: $(OBJ_DIR)/kernel.elf
+$(BUILD)/KERNEL.BIN: $(OBJ_DIR)/kernel.elf 
 	@echo "OBJCOPY $<"
 
 	@$(TOOL)-objcopy $^ -O binary --set-section-flags .bss=alloc,load,contents $@
