@@ -2,6 +2,7 @@
 #include <types.h>
 #include <mem_mgr.h>
 #include <terminal.h>
+#include <debug.h>
 
 // -------------------------------------------------------------------------
 // Static Defines
@@ -14,6 +15,20 @@
 #define IS_FIRST_IN_ALLOCATION(x) ((x & FIRST_IN_ALLOCATION) == FIRST_IN_ALLOCATION)
 #define IS_PAGE_RESERVED(x) ((x & PAGE_RESERVED) == PAGE_RESERVED)
 
+#define NYBL(TargetType, Value, AtBit) ((((TargetType)Value) >> AtBit) & 0x0F)
+#define BYTE(TargetType, Value, AtBit) ((((TargetType)Value) >> AtBit) & 0xFF)
+#define WORD(TargetType, Value, AtBit) ((((TargetType)Value) >> AtBit) & 0xFFFF)
+#define ACCESS_RESERVED (1 << 4)
+#define GDT_ENTRY(Limit, Base, Access, Flags) GDT_ENTRY_(Limit, Base, (Access | ACCESS_RESERVED), Flags)
+#define GDT_ENTRY_(Limit, Base, Access, Flags) (                      \
+            WORD(uint64_t, Limit,  0)   << 00 |  \
+            WORD(uint64_t, Base,   0)   << 16 |  \
+            BYTE(uint64_t, Base,   16)  << 32 |  \
+            BYTE(uint64_t, Access, 0)   << 40 |  \
+            NYBL(uint64_t, Limit,  16)  << 48 |  \
+            NYBL(uint64_t, Flags,  0)   << 52 |  \
+            BYTE(uint64_t, Base,   24)  << 56 )
+
 // -------------------------------------------------------------------------
 // Static Types
 // -------------------------------------------------------------------------
@@ -24,6 +39,21 @@ struct page {
     //       are limited to UINT16_MAXVALUE, which is roughly 256MB
     uint16_t consecutive_pages_allocated;
 } PACKED;
+
+enum gdt_flag {
+   gdt_flag_4k = 1 << 3,
+   gdt_flag_32bit = 1 << 2
+};
+
+enum gdt_access {
+    gdt_access_present        = 1 << 7,
+    gdt_access_priv_ring2     = 2 << 5,
+    gdt_access_priv_ring3     = 3 << 5,
+    gdt_access_executable     = 1 << 3,
+    gdt_access_direction_down = 1 << 2,
+    gdt_access_rw             = 1 << 1,
+    gdt_access_accessed       = 1,
+};
 
 // -------------------------------------------------------------------------
 // Global variables
@@ -41,6 +71,15 @@ static struct page* g_pages;
 static size_t g_max_pages;
 static size_t g_total_available_memory;
 
+// Global descriptor table
+#define GDT_SIZE 8
+
+static uint64_t g_gdt[GDT_SIZE] = {
+    GDT_ENTRY_(0, 0, 0, 0),
+    GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present | gdt_access_executable, gdt_flag_4k | gdt_flag_32bit),
+    GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present, gdt_flag_4k | gdt_flag_32bit)
+};
+
 // -------------------------------------------------------------------------
 // Forward Declarations
 // -------------------------------------------------------------------------
@@ -56,6 +95,18 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
 {
     g_mem_map = &mem_map;
     g_mem_map_entries = mem_entry_count;
+
+    terminal_write_string("Global Descriptor Table: \n");
+    terminal_indentation_increase();
+    for (int i = 0; i < GDT_SIZE; i++) {
+        terminal_write_string("GDT Entry at Index ");
+        terminal_write_uint32(i);
+        terminal_write_string(" is ");
+        terminal_write_uint64_x(g_gdt[i]);
+        terminal_write_string(".\n");
+    }
+    terminal_indentation_decrease();
+    BREAK();
 
     if(mem_entry_count == 0) {
         terminal_write_string("Surprisignly enough, we have all of memory to ourselves!\n");
@@ -135,33 +186,9 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     mem_print_usage();
 }
 
-enum gdt_flag {
-   gdt_flag_granularity4kib = 1 << 3,
-   gdt_flag_size32bit = 1 << 2
-};
-
-enum gdt_access {
-    gdt_access_present        = 1 << 7,
-    gdt_access_priv_ring2     = 2 << 5,
-    gdt_access_priv_ring3     = 3 << 5,
-    gdt_access_executable     = 1 << 3,
-    gdt_access_direction_down = 1 << 2,
-    gdt_access_rw             = 1 << 1,
-    gdt_access_accessed       = 1,
-};
-
 uint64_t gdte_create(uint32_t limit, uint32_t base, uint8_t access, enum gdt_flag flags)
 {
-    uint64_t entry;
-    //  0:15 - Limit (0:15)
-    // 16:31 - Base (0:15)
-    // 32:39 - Base (16:23)
-    // 40:47 - Access byte
-    // 48:51 - Limit (16:19)
-    // 52:55 - Flags
-    // 56:63 - Base (24:31)
-
-    return entry;
+    return GDT_ENTRY(limit, base, access, flags);
 }
 
 void mem_print_usage()
