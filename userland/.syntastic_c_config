@@ -1,0 +1,8 @@
+-std=c11
+-ffreestanding
+-Wall
+-Werror
+-I include
+-D PLATFORM_BITS=32
+-D PLATFORM_ARCH_X86
+-D PLATFORM_DEBUG_BOCHS

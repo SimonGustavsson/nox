@@ -6,7 +6,7 @@ PART_OFFSET_SECTORS :=2048
 TOOL := i686-elf
 BUILD := build
 
-MODULES := kernel bootloader
+MODULES := kernel bootloader userland
 
 # These variables are populated by modules
 IMAGE_ASSETS :=
@@ -61,6 +61,7 @@ $(BUILD)/nox-fs.img: $(IMAGE_ASSETS)
 	@mcopy -i $@ $(BUILD)/BOOT.SYS ::BOOT.SYS
 	@mcopy -i $@ $(BUILD)/KERNEL.BIN ::KERNEL.BIN
 	@mcopy -i $@ kernel/obj/kernel.elf ::KERNELSS.ELF
+	@mcopy -i $@ $(BUILD)/USERLAND.ELF ::USERLAND.ELF
 
 directories:
 	@mkdir -p $(BUILD)
