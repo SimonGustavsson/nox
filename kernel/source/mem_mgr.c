@@ -135,6 +135,35 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     mem_print_usage();
 }
 
+enum gdt_flag {
+   gdt_flag_granularity4kib = 1 << 3,
+   gdt_flag_size32bit = 1 << 2
+};
+
+enum gdt_access {
+    gdt_access_present        = 1 << 7,
+    gdt_access_priv_ring2     = 2 << 5,
+    gdt_access_priv_ring3     = 3 << 5,
+    gdt_access_executable     = 1 << 3,
+    gdt_access_direction_down = 1 << 2,
+    gdt_access_rw             = 1 << 1,
+    gdt_access_accessed       = 1,
+};
+
+uint64_t gdte_create(uint32_t limit, uint32_t base, uint8_t access, enum gdt_flag flags)
+{
+    uint64_t entry;
+    //  0:15 - Limit (0:15)
+    // 16:31 - Base (0:15)
+    // 32:39 - Base (16:23)
+    // 40:47 - Access byte
+    // 48:51 - Limit (16:19)
+    // 52:55 - Flags
+    // 56:63 - Base (24:31)
+
+    return entry;
+}
+
 void mem_print_usage()
 {
     size_t available_pages = mem_page_count(true);
