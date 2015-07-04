@@ -15,7 +15,7 @@ C_HEADERS := $(patsubst %,-I%, $(shell find $(INCLUDE_DIR) -type d))
 $(BUILD)/USERLAND.ELF: user_directories $(OBJ_DIR)/userland.o
 	@echo "LD $<"
 
-	@$(TOOL)-ld -T kernel.ld $(filter-out user_directories, $^) -o $@
+	@$(TOOL)-ld -T $(MODULE)userland.ld $(filter-out user_directories, $^) -o $@
 
 $(OBJ_DIR)/%.o : $(SOURCE_DIR)/%.c
 

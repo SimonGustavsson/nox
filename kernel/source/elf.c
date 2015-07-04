@@ -4,6 +4,10 @@
 #include <fat.h>
 #include <terminal.h>
 #include <mem_mgr.h>
+#include <string.h>
+#include <debug.h>
+
+typedef void (*userland_entry)();
 
 //=============================================================
 // Generic elf types
@@ -444,8 +448,30 @@ void elf_run(const char* filename)
         return;
     }
 
-    print_section_headers(elf, buffer);
+    // Go through all sections
+    char* file_buf = (char*)(buffer);
+    struct elf32_phdr* phdrs = (struct elf32_phdr*)(file_buf + elf->phoff);
 
-    print_program_headers(elf, buffer);
+    for(size_t i = 0; i < elf->phnum; i++) {
+        struct elf32_phdr* ph = &phdrs[i];
+
+        if(ph->type != elf_ph_type_load)
+            continue;
+
+        SHOWVAL_x("Loading segment to: ", ph->vaddr);
+        SHOWVAL("Loading this many bytes: ", ph->file_size);
+
+        // Load all loadable program headers into memory
+        kstrcpy_n((char*)ph->vaddr, ph->file_size, file_buf + ph->offset);
+    }
+    userland_entry user_entry = (userland_entry)(elf->entry);
+
+    user_entry();
+    BREAK();
+
+    if(1 == 2) {
+        print_section_headers(elf, buffer);
+        print_program_headers(elf, buffer);
+    }
 }
 

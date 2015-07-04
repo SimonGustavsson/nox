@@ -1,6 +1,8 @@
 #include <userland.h>
 #include <types.h>
 
+#define SECTION_START __attribute__((section(".text.start")))
+
 static const size_t VGA_WIDTH = 80;
 static const size_t VGA_HEIGHT = 25;
 static uint16_t* g_terminal = (uint16_t*)0xB8000;
@@ -38,7 +40,7 @@ void screen_put_entry(uint16_t entry, size_t x, size_t y)
     g_terminal[index] = entry;
 }
 
-void main()
+SECTION_START void main()
 {
     screen_put_entry(screen_create_entry('H', vga_color_light_blue), 0, 0);
     screen_put_entry(screen_create_entry('E', vga_color_light_blue), 1, 0);
