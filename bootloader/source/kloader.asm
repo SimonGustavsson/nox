@@ -265,8 +265,8 @@ kernelFound:
     ;   This currently just loads 10240 bytes, assuming the size of the kernel
     ;   does not exceed this. We keep hitting the limit and incrementing it.
     ;   We'll get around to actually just reading the file size one of these days I'm sure..
-    kernel_physical_sector_count    EQU 80
-    kernel_virtual_sector_count     EQU 80
+    kernel_physical_sector_count    EQU 110
+    kernel_virtual_sector_count     EQU 110
     kernel_virtual_dword_count      EQU (kernel_virtual_sector_count * 512 / 4)
 
     push eax

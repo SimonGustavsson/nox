@@ -20,6 +20,7 @@ void terminal_write_uint16_x(uint16_t val);
 void terminal_write_uint24_x(uint32_t val);
 void terminal_write_uint32_x(uint32_t val);
 void terminal_write_uint64_x(uint64_t val);
+void terminal_write_uint64_bytes(uint64_t val);
 void terminal_write_ptr(void* val);
 
 #endif

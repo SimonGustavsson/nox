@@ -20,7 +20,7 @@
 #define WORD(TargetType, Value, AtBit) ((((TargetType)Value) >> AtBit) & 0xFFFF)
 #define ACCESS_RESERVED (1 << 4)
 #define GDT_ENTRY(Limit, Base, Access, Flags) GDT_ENTRY_(Limit, Base, (Access | ACCESS_RESERVED), Flags)
-#define GDT_ENTRY_(Limit, Base, Access, Flags) (                      \
+#define GDT_ENTRY_(Limit, Base, Access, Flags) ( \
             WORD(uint64_t, Limit,  0)   << 00 |  \
             WORD(uint64_t, Base,   0)   << 16 |  \
             BYTE(uint64_t, Base,   16)  << 32 |  \
@@ -40,6 +40,11 @@ struct page {
     uint16_t consecutive_pages_allocated;
 } PACKED;
 
+struct gtdd {
+    uint16_t size;   // Size of table - 1
+    uint32_t offset; // Address in linear address space
+} PACKED;
+
 enum gdt_flag {
    gdt_flag_4k = 1 << 3,
    gdt_flag_32bit = 1 << 2
@@ -54,6 +59,36 @@ enum gdt_access {
     gdt_access_rw             = 1 << 1,
     gdt_access_accessed       = 1,
 };
+
+struct tss {
+    uint32_t link;       // High 16-bits reserved
+    uint32_t esp0;
+    uint32_t ss0;        // High 16-bits reserved
+    uint32_t esp1;
+    uint32_t ss1;        // High 16-bits reserved
+    uint32_t esp2;
+    uint32_t ss2;        // High 16-bits reserved
+    uint32_t cr3;
+    uint32_t eip;
+    uint32_t eflags;
+    uint32_t eax;
+    uint32_t ecx;
+    uint32_t edx;
+    uint32_t ebx;
+    uint32_t esp;
+    uint32_t ebp;
+    uint32_t esi;
+    uint32_t edi;
+    uint32_t es;          // High 16-bits reserved
+    uint32_t cs;          // High 16-bits reserved
+    uint32_t ss;          // High 16-bits reserved
+    uint32_t ds;          // High 16-bits reserved 
+    uint32_t fs;          // High 16-bits reserved 
+    uint32_t gs;          // High 16-bits reserved 
+    uint32_t ldtr;        // High 16-bits reserved 
+    uint16_t reserved;
+    uint16_t iopb; 
+} PACKED;
 
 // -------------------------------------------------------------------------
 // Global variables
@@ -72,13 +107,21 @@ static size_t g_max_pages;
 static size_t g_total_available_memory;
 
 // Global descriptor table
-#define GDT_SIZE 8
+#define GDT_SIZE 6
 
-static uint64_t g_gdt[GDT_SIZE] = {
+static uint64_t g_gdt[GDT_SIZE] ALIGN(8) = {
     GDT_ENTRY_(0, 0, 0, 0),
     GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present | gdt_access_executable, gdt_flag_4k | gdt_flag_32bit),
-    GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present, gdt_flag_4k | gdt_flag_32bit)
+    GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present, gdt_flag_4k | gdt_flag_32bit),
+    GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present | gdt_access_priv_ring3 | gdt_access_executable, gdt_flag_4k | gdt_flag_32bit),
+    GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present | gdt_access_priv_ring3, gdt_flag_4k | gdt_flag_32bit)
 };
+
+static struct gtdd g_gtdd ALIGN(8);
+
+#define TSS_GTD_TYPE (0x89)
+#define TSS_GDTD_INDEX 5
+static struct tss g_tss ALIGN(8);
 
 // -------------------------------------------------------------------------
 // Forward Declarations
@@ -87,6 +130,22 @@ static char* get_mem_type(enum region_type type);
 static void print_memory_nice(uint64_t memory_in_bytes);
 static void print_mem_entry(size_t index, uint64_t base, uint64_t length, char* description);
 static void test_allocator();
+static void tss_install();
+static void gdt_install();
+
+void print_gdt()
+{
+    terminal_write_string("Global Descriptor Table: \n");
+    terminal_indentation_increase();
+    for (int i = 0; i < GDT_SIZE; i++) {
+        terminal_write_char('[');
+        terminal_write_uint32(i);
+        terminal_write_string("] ");
+        terminal_write_uint64_bytes(g_gdt[i]);
+        terminal_write_string(".\n");
+    }
+    terminal_indentation_decrease();
+}
 
 // -------------------------------------------------------------------------
 // Public Contract
@@ -95,18 +154,6 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
 {
     g_mem_map = &mem_map;
     g_mem_map_entries = mem_entry_count;
-
-    terminal_write_string("Global Descriptor Table: \n");
-    terminal_indentation_increase();
-    for (int i = 0; i < GDT_SIZE; i++) {
-        terminal_write_string("GDT Entry at Index ");
-        terminal_write_uint32(i);
-        terminal_write_string(" is ");
-        terminal_write_uint64_x(g_gdt[i]);
-        terminal_write_string(".\n");
-    }
-    terminal_indentation_decrease();
-    BREAK();
 
     if(mem_entry_count == 0) {
         terminal_write_string("Surprisignly enough, we have all of memory to ourselves!\n");
@@ -125,8 +172,8 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     }
     g_max_pages = g_total_available_memory / PAGE_SIZE;
 
-    uint32_t kernel_end = (uint32_t)&LD_KERNEL_END;
-    uint32_t kernel_start = (uint32_t)&LD_KERNEL_START;
+    uint32_t kernel_end = (uint32_t)(intptr_t)&LD_KERNEL_END;
+    uint32_t kernel_start = (uint32_t)(intptr_t)&LD_KERNEL_START;
     uint32_t kernel_size = kernel_end - kernel_start;
 
     terminal_write_string("Kernel address: ");
@@ -150,7 +197,7 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     terminal_write_uint32_x(mem_map_address);
     terminal_write_string("->");
 
-    g_pages = (struct page*)(kernel_start + (kernel_pages * PAGE_SIZE));
+    g_pages = (struct page*)(intptr_t)(kernel_start + (kernel_pages * PAGE_SIZE));
 
     // Reserve pages for the page map itself
     size_t max_pages = g_total_available_memory / PAGE_SIZE;
@@ -179,6 +226,49 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     if(!mem_page_reserve((void*)kernel_start, kernel_pages))
         KERROR("Failed to reserve pages for the kernel!");
 
+    // Setup GDT and TSS
+    SHOWVAL_x("tss addr:", (uint32_t)(intptr_t)(&g_tss));
+    // Set up the TSS
+    g_tss.ss0 = 0x10; // Kernel data-segment selector
+
+    // ISR stack is one page, might want to make bigger?
+    g_tss.esp0 = (uint32_t)(intptr_t)(mem_page_get() + PAGE_SIZE);
+    g_tss.iopb = sizeof(struct tss);
+    uint32_t tss_base = (uint32_t)(intptr_t)(&g_tss);
+    uint32_t tss_size = sizeof(struct tss);
+
+    // TSS Access byte is different from normal GDT entries:
+    // 0: Always 1
+    // 1   -  Busy Flag (0 in our case, as it must be available)
+    // 2   - Always 0
+    // 3   - Always 1
+    // 4   - Always 0
+    // 4:5 - DPL
+    // 6   - Present (Must be 1)
+    //
+    // This means the base value is 1~~01001, with '~~' being the priv level
+    // (The TSS flag nybble is a bit different as well, but nothing that is relevant to us)
+    g_gdt[TSS_GDTD_INDEX] = GDT_ENTRY_(tss_size - 1, tss_base, 0x89, 0);
+    
+    // This is what it is at runtime: 6700 805A 01E9 0000
+    // Base: 015A80
+    // Limit: 0067
+    // Access: E9
+    // Flags: 0
+
+    print_gdt();
+
+    terminal_write_string("TSS GDT Entry: ");
+    terminal_write_uint64_bytes(g_gdt[TSS_GDTD_INDEX]);
+    terminal_write_char('\n');
+
+    g_gtdd.size = (sizeof(uint64_t) * GDT_SIZE) - 1;
+    g_gtdd.offset = (uint32_t)(intptr_t)&g_gdt;
+
+    gdt_install();
+
+    tss_install();
+
     // And just a quick test to make sure everything words
     test_allocator();
 
@@ -191,6 +281,8 @@ uint64_t gdte_create(uint32_t limit, uint32_t base, uint8_t access, enum gdt_fla
     return GDT_ENTRY(limit, base, access, flags);
 }
 
+    //gpf_trigger(); //gpf_trigger(); //gpf_trigger();
+    //gpf_trigger();
 void mem_print_usage()
 {
     size_t available_pages = mem_page_count(true);
@@ -448,5 +540,26 @@ static void test_allocator()
         terminal_write_uint32(allocated_pages_after);
         terminal_write_char('\n');
     }
+}
+
+static void gdt_install()
+{
+    KINFO("Installing GDT");
+    SHOWVAL_x("GTDD Address: ", (uint32_t)(intptr_t)&g_gtdd);
+    SHOWVAL("Size: ", g_gtdd.size);
+    SHOWVAL_x("GTD address: ", g_gtdd.offset);
+
+    __asm ("lgdt (%0)" :: "m" (g_gtdd));
+}
+
+static void tss_install()
+{
+    terminal_write_string("Installing LDT: ");
+    terminal_write_uint64_x(g_gdt[TSS_GDTD_INDEX]);
+    terminal_write_char('\n');
+
+    BREAK();
+    __asm("push (0x123456)\n\t"
+            "ltr (0x28)" ::);
 }
 

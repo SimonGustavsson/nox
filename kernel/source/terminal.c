@@ -167,6 +167,18 @@ void terminal_write_uint64_x(uint64_t val)
 	terminal_write_hex_byte(BYTE(val, 0));
 }
 
+void terminal_write_uint64_bytes(uint64_t val)
+{
+	terminal_write_hex_byte(BYTE(val, 0));
+	terminal_write_hex_byte(BYTE(val, 1));
+	terminal_write_hex_byte(BYTE(val, 2));
+	terminal_write_hex_byte(BYTE(val, 3));
+	terminal_write_hex_byte(BYTE(val, 4));
+	terminal_write_hex_byte(BYTE(val, 5));
+	terminal_write_hex_byte(BYTE(val, 6));
+	terminal_write_hex_byte(BYTE(val, 7));
+}
+
 static void buffer_sync_with_screen()
 {
     for(size_t x = 0; x < screen_width_get(); x++) {

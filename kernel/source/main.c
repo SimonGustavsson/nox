@@ -16,10 +16,53 @@
 #include <ata.h>
 #include <fs.h>
 #include <elf.h>
+#include <pic.h>
 
 static void gpf(uint8_t irq, struct irq_regs* regs)
 {
-    terminal_write_string("General Protection Fault!\n");
+    KERROR("FAULT: Generation Protection Fault!");
+    uint32_t* saved_esp = (uint32_t*)(intptr_t)(regs->esp);
+
+    SHOWVAL_x("Saved ESP Addr: ", (uint32_t)saved_esp);
+
+    for(size_t i = 0; i < 10; i++) {
+        terminal_write_string("ESP+");
+        terminal_write_uint32(i);
+        terminal_write_string(": ");
+        terminal_write_uint32_x(*(saved_esp + i));
+        terminal_write_char('\n');
+    }
+    BREAK();
+}
+
+static void page_fault(uint8_t irq, struct irq_regs* regs)
+{
+    KERROR("FAULT: Page fault!");
+    BREAK();
+}
+
+static void stack_segment_fault(uint8_t irq, struct irq_regs* regs)
+{
+    KERROR("FAULT: Stack segment fault!");
+    BREAK();
+}
+
+static void invalid_tss(uint8_t irq, struct irq_regs* regs)
+{
+    KERROR("FAULT: Invalid-TSS!");
+    BREAK();
+}
+
+static void segment_not_present(uint8_t irq, struct irq_regs* regs)
+{
+    KERROR("FAULT: Segment not present");
+    BREAK();
+}
+
+static void double_fault(uint8_t irq, struct irq_regs* regs)
+{
+    KERROR("Double fault!");
+    BREAK();
 }
 
 static void call_test_sys_call(uint32_t foo)
@@ -57,13 +100,21 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
 
     print_welcome();
 
-    mem_mgr_init(mem_map, mem_entry_count);
-
     interrupt_init_system();
+    interrupt_receive_trap(0x08, double_fault);
+    interrupt_receive_trap(0x0A, invalid_tss);
+    interrupt_receive_trap(0x0B, segment_not_present);
+    interrupt_receive_trap(0x0C, stack_segment_fault);
     interrupt_receive_trap(0x0D, gpf);
+    interrupt_receive_trap(0x0E, page_fault);
     interrupt_receive_trap(0x80, isr_syscall);
 
+    // Re-enable interrupts, we're ready now!
+    interrupt_enable_all();
     pic_init();
+
+    mem_mgr_init(mem_map, mem_entry_count);
+
     kb_init();
 
     // Let's do some hdd stuff m8
@@ -71,8 +122,6 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
 
     fs_init();
 
-    // Re-enable interrupts, we're ready now!
-    interrupt_enable_all();
 
     pit_set(1000);
 

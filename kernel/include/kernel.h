@@ -4,7 +4,7 @@
 #define PACKED __attribute__((__packed__))
 #define SECTION_BOOT __attribute__((section(".text.boot")))
 #define NO_INLINE __attribute__((noinline))
-
+#define ALIGN(x) __attribute__ ((aligned (x))) 
 #define PRINTK(str, fg, bg) \
             do {                                 \
                 terminal_set_color(fg, bg);      \
