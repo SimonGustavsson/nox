@@ -559,7 +559,6 @@ static void tss_install()
     terminal_write_char('\n');
 
     BREAK();
-    __asm("push (0x123456)\n\t"
-            "ltr (0x28)" ::);
+    __asm("ltr %%ax" :: "a" (0x28));
 }
 
