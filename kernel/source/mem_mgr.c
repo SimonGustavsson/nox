@@ -558,7 +558,6 @@ static void tss_install()
     terminal_write_uint64_x(g_gdt[TSS_GDTD_INDEX]);
     terminal_write_char('\n');
 
-    BREAK();
     __asm("ltr %%ax" :: "a" (0x28));
 }
 

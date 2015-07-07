@@ -40,13 +40,14 @@ void screen_put_entry(uint16_t entry, size_t x, size_t y)
     g_terminal[index] = entry;
 }
 
-SECTION_START void main()
+SECTION_START int main()
 {
-    screen_put_entry(screen_create_entry('H', vga_color_light_blue), 0, 0);
-    screen_put_entry(screen_create_entry('E', vga_color_light_blue), 1, 0);
-    screen_put_entry(screen_create_entry('L', vga_color_light_blue), 2, 0);
-    screen_put_entry(screen_create_entry('L', vga_color_light_blue), 3, 0);
-    screen_put_entry(screen_create_entry('O', vga_color_light_blue), 4, 0);
-    
+    screen_put_entry(screen_create_entry('H', vga_color_light_blue), 0, 10);
+    screen_put_entry(screen_create_entry('E', vga_color_light_blue), 1, 10);
+    screen_put_entry(screen_create_entry('L', vga_color_light_blue), 2, 10);
+    screen_put_entry(screen_create_entry('L', vga_color_light_blue), 3, 10);
+    screen_put_entry(screen_create_entry('O', vga_color_light_blue), 4, 10);
+
+    return 1;
 }
 

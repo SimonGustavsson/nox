@@ -7,7 +7,7 @@
 #include <string.h>
 #include <debug.h>
 
-typedef void (*userland_entry)();
+typedef int (*userland_entry)();
 
 //=============================================================
 // Generic elf types
@@ -462,12 +462,15 @@ void elf_run(const char* filename)
         SHOWVAL("Loading this many bytes: ", ph->file_size);
 
         // Load all loadable program headers into memory
-        kstrcpy_n((char*)ph->vaddr, ph->file_size, file_buf + ph->offset);
+        kstrcpy_n((char*)(intptr_t)ph->vaddr, ph->file_size, file_buf + ph->offset);
     }
-    userland_entry user_entry = (userland_entry)(elf->entry);
+    userland_entry user_entry = (userland_entry)(intptr_t)(elf->entry);
 
-    user_entry();
-    BREAK();
+    KINFO("Running userland");
+    int result = user_entry();
+    terminal_write_string("Program exit (");
+    terminal_write_uint32(result);
+    terminal_write_string(")\n");
 
     if(1 == 2) {
         print_section_headers(elf, buffer);
