@@ -13,6 +13,7 @@ bits 16                 ; We're in real mode
 
 [section .text.boot]
 
+global _start
 _start:
 jmp relocate_start
 

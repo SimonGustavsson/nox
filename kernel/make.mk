@@ -13,8 +13,8 @@ ASOURCE := $(shell find $(ASOURCE_DIR) -name '*.asm')
 CSOURCE := $(shell find $(CSOURCE_DIR) -name '*.c')
 
 # Remove kloader from standard Nox
-ASOURCE := $(filter-out $(ASOURCE_DIR)/kloader_*, $(ASOURCE))
-CSOURCE := $(filter-out $(CSOURCE_DIR)/kloader_*, $(CSOURCE))
+ASOURCE := $(filter-out $(ASOURCE_DIR)/kloader_start.asm, $(ASOURCE))
+CSOURCE := $(filter-out $(CSOURCE_DIR)/kloader_main.c, $(CSOURCE))
 
 # Construct a list of all object files
 COBJECTS := $(CSOURCE:.c=.o)
@@ -63,7 +63,7 @@ $(BUILD)/KERNEL.BIN: $(OBJ_DIR)/kernel.elf
 # Note: Build into root build directory
 $(OBJ_DIR)/kernel.elf: kernel_directories $(COBJECTS) $(AOBJECTS)
 
-	@echo "LD $^"
+	@echo "LD      $@"
 
 	@$(TOOL)-ld -T kernel.ld $(filter-out kernel_directories, $^) -o $@
 
@@ -71,7 +71,7 @@ $(OBJ_DIR)/%.o : $(CSOURCE_DIR)/%.c
 
 	@mkdir -p $(dir $@)
 	@mkdir -p $(DEP_DIR)/$(dir $*)
-	@echo "CC $<"
+	@echo "CC      $<"
 
 	@$(TOOL)-gcc $< -o $@ $(CINCLUDE) $(CFLAGS) -MD -MF $(DEP_DIR)/$*.d
 
@@ -79,7 +79,7 @@ $(OBJ_DIR)/%.o : $(ASOURCE_DIR)/%.asm
 
 	@mkdir -p $(dir $@)
 
-	@echo "AS $<"
+	@echo "AS      $<"
 
 	@nasm $< -o $@ -f elf32 -i $(INCLUDE_DIR)
 
@@ -101,8 +101,8 @@ $(BUILD)/BOOT.SYS: $(BUILD)/boot.elf
 	@@$(TOOL)-objcopy $^ -O binary --set-section-flags .bss=alloc,load,contents $@
 
 $(BUILD)/boot.elf: kernel_directories $(KLOADER_OBJECTS)
-	@echo "LD $^"
-	@$(TOOL)-ld -T kernel.ld $(filter-out kernel_directories, $^) -o $@
+	@echo "LD      $@" 
+	@$(TOOL)-ld -T kloader.ld $(filter-out kernel_directories, $^) -o $@
 
 kernel_directories:
 	@mkdir -p $(DEP_DIR)

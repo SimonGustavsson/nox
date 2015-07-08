@@ -17,7 +17,7 @@ nox: directories tags $(BUILD)/nox-disk.img
 include $(patsubst %, %/make.mk, $(MODULES))
 
 $(BUILD)/nox-disk.img: $(BUILD)/nox-fs.img
-	@echo "MKFS.FAT $<"
+	@echo "MKFSFAT $<"
 
 # Empty file for the disk image
 	@dd if=/dev/zero of=$@ count=$(DISK_SECTOR_COUNT) > /dev/null 2>&1
@@ -60,8 +60,8 @@ $(BUILD)/nox-fs.img: $(IMAGE_ASSETS)
 	@dd if=$(BUILD)/vbr.bin of=$@ bs=1 count=448 skip=62 seek=62 conv=notrunc > /dev/null 2>&1
 	@mcopy -i $@ $(BUILD)/BOOT.SYS ::BOOT.SYS
 	@mcopy -i $@ $(BUILD)/KERNEL.BIN ::KERNEL.BIN
-	@echo "MCOPY BOOT.SYS into $@"
-	@echo "MCOPY KERNEL.BIN into $@"
+	@echo "MCOPY   $(BUILD)/BOOT.SYS $@"
+	@echo "MCOPY   $(BUILD)/KERNEL.BIN -> $@"
 
 directories:
 	@mkdir -p $(BUILD)
