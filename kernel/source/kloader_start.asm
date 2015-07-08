@@ -4,20 +4,28 @@
 ;  of the partition, in a file called BOOT.SYS
 ;
 ;*******************************************************************************
+KERNEL_STACK_START_FLAT     EQU 0x7FFFF
+KERNEL_LOAD_ADDR            EQU 0x7C00
+MEM_MAP_ADDR                EQU (KERNEL_LOAD_ADDR - (128 * 24))
 
 ;*******************************************************************************
 ; Directives
 ;*******************************************************************************
 bits 16                 ; We're in real mode
-;[map all build/kloader.map]
-
 [section .text.boot]
 
+;*******************************************************************************
+; Entry point
+;*******************************************************************************
 global _start
 _start:
-jmp relocate_start
+    jmp main            ; Skip past the variables
 
-KERNEL_STACK_START_FLAT     EQU 0x7FFFF
+
+;*******************************************************************************
+; Variables
+;
+;*******************************************************************************
 variables:
     .memMapEntries          dd     0
 .endvariables:
@@ -48,34 +56,11 @@ gdtDescriptor:
 		dd              gdt
 .end:
 
-;%include "bootloader/include/int10.inc"
-;%include "bootloader/include/int13.inc"
-
-;*******************************************************************************
-; Relocation
-;*******************************************************************************
-relocate_start:
-    jmp 0:main
-
-    ;mov cx, code_end - $$
-    ;xor ax, ax
-    ;mov es, ax
-    ;mov ds, ax
-    ;mov si, 0x7C00
-    ;mov di, 0x600
-    ;rep movsb
-    
-    ; Far Jump to Relocated Code
-
 ;*******************************************************************************
 ; Main
-;
-; Preconditions:
-;   DS = 0
-;   ES = 0
-;   AX = 0
 ;*******************************************************************************
 main:
+    xor ax, ax
     mov fs, ax
     mov gs, ax
     mov ss, ax
@@ -118,12 +103,27 @@ main:
 halt:
     cli
     hlt
-KERNEL_LOAD_ADDR            EQU 0x7C00
-MEM_MAP_ADDR                EQU (KERNEL_LOAD_ADDR - (128 * 24))
 
+;*******************************************************************************
+; Callable functions
+;*******************************************************************************
 detect_memory:
 
-    ; TODO: ES:DI to address of buffer we want to use
+    ; Entries are stored in ES:DI
+    ; Entry format:
+    ;   uin64_t  - Base address
+    ;   uint64_t - "Length of region" (ignore 0 values)
+    ;   uint32_t - Region type
+    ;       Type 1: Usable (normal) RAM
+    ;       Type 2: Reserved
+    ;       Type 3: ACPI reclaimable memory
+    ;       Type 4: ACPI NVS memory
+    ;       Type 5: Bad memory
+    ;   uint32_t - Ext attr (if 24 bytes are returned)
+    ;       0 : ignore entry if 0
+    ;       1 : Non-volatile
+    ;    31:2 : Unused
+
     mov edi, MEM_MAP_ADDR
     xor ebx, ebx
     mov edx, 'PAMS' ; 'SMAP' reversed
@@ -176,23 +176,6 @@ detect_memory:
 
     .done:
         ret
-
-    ; Entries are stored in ES:DI
-    ; Entry format:
-    ;   uin64_t  - Base address
-    ;   uint64_t - "Length of region" (ignore 0 values)
-    ;   uint32_t - Region type
-    ;       Type 1: Usable (normal) RAM
-    ;       Type 2: Reserved
-    ;       Type 3: ACPI reclaimable memory
-    ;       Type 4: ACPI NVS memory
-    ;       Type 5: Bad memory
-    ;   uint32_t - Ext attr (if 24 bytes are returned)
-    ;       0 : ignore entry if 0
-    ;       1 : Non-volatile
-    ;    31:2 : Unused
-
-    ret
 
 print_string_z:
 
@@ -269,9 +252,6 @@ enterProtectedMode:
 
     ; Jump to the kernel
     jmp dword 0x08:kloader_cmain
-
-; Note: This label is used to calculate the size of the binary! :-)
-code_end:
 
 ; NASM Syntax
 ; vim: ft=nasm expandtab
