@@ -41,7 +41,6 @@ void kloader_cmain(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
         KPANIC("Failed to read KERNEL.BIN");
     }
 
-    KINFO("Kernel found, jumping!?");
     kernel_entry cmain = (kernel_entry)(buffer);
 
     cmain(mem_map, mem_entry_count);
