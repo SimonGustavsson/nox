@@ -20,8 +20,8 @@
 
 static void gpf(uint8_t irq, struct irq_regs* regs)
 {
-    BREAK();
     KERROR("FAULT: Generation Protection Fault!");
+    BREAK();
     //uint32_t* saved_esp = (uint32_t*)(intptr_t)(regs->esp);
 
     //SHOWVAL_x("Saved ESP Addr: ", (uint32_t)saved_esp);
@@ -130,7 +130,7 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
 
     terminal_write_string("Kernel initialized, off to you, interrupts!\n");
 
-    //elf_run("USERLANDELF");
+    elf_run("USERLANDELF");
 
     // Re-enable interrupts, we're ready now!
     interrupt_enable_all();
