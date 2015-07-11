@@ -8,7 +8,7 @@ SECTIONS
 {
 	/* Begin putting sections at 1 MiB, a conventional place for kernels to be
 	   loaded at by the bootloader. */
-	. = 0x10000;
+	. = 0x20000;
 
     LD_KERNEL_START = .;
 
