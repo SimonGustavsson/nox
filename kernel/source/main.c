@@ -20,19 +20,20 @@
 
 static void gpf(uint8_t irq, struct irq_regs* regs)
 {
-    KERROR("FAULT: Generation Protection Fault!");
-    uint32_t* saved_esp = (uint32_t*)(intptr_t)(regs->esp);
-
-    SHOWVAL_x("Saved ESP Addr: ", (uint32_t)saved_esp);
-
-    for(size_t i = 0; i < 10; i++) {
-        terminal_write_string("ESP+");
-        terminal_write_uint32(i);
-        terminal_write_string(": ");
-        terminal_write_uint32_x(*(saved_esp + i));
-        terminal_write_char('\n');
-    }
     BREAK();
+    KERROR("FAULT: Generation Protection Fault!");
+    //uint32_t* saved_esp = (uint32_t*)(intptr_t)(regs->esp);
+
+    //SHOWVAL_x("Saved ESP Addr: ", (uint32_t)saved_esp);
+
+    //for(size_t i = 0; i < 10; i++) {
+    //    terminal_write_string("ESP+");
+    //    terminal_write_uint32(i);
+    //    terminal_write_string(": ");
+    //    terminal_write_uint32_x(*(saved_esp + i));
+    //    terminal_write_char('\n');
+    //}
+    //BREAK();
 }
 
 static void page_fault(uint8_t irq, struct irq_regs* regs)
@@ -109,11 +110,10 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
     interrupt_receive_trap(0x0E, page_fault);
     interrupt_receive_trap(0x80, isr_syscall);
 
-    // Re-enable interrupts, we're ready now!
-    interrupt_enable_all();
     pic_init();
 
     mem_mgr_init(mem_map, mem_entry_count);
+    mem_mgr_gdt_setup();
 
     kb_init();
 
@@ -121,7 +121,6 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
     ata_init();
 
     fs_init();
-
 
     pit_set(1000);
 
@@ -131,7 +130,10 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
 
     terminal_write_string("Kernel initialized, off to you, interrupts!\n");
 
-    elf_run("USERLANDELF");
+    //elf_run("USERLANDELF");
+
+    // Re-enable interrupts, we're ready now!
+    interrupt_enable_all();
 
     cli_init();
     cli_run();

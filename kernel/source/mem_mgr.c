@@ -223,9 +223,18 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
         KERROR("Failed to reserve BIOS pages");
     if(!mem_page_reserve((void*)g_pages, mem_map_pages))
         KERROR("Failed to reserve pages for the page map!");
-    if(!mem_page_reserve((void*)kernel_start, kernel_pages))
+    if(!mem_page_reserve((void*)(intptr_t)kernel_start, kernel_pages))
         KERROR("Failed to reserve pages for the kernel!");
 
+    // And just a quick test to make sure everything words
+    test_allocator();
+
+    terminal_write_string("Reserved ");
+    mem_print_usage();
+}
+
+void mem_mgr_gdt_setup()
+{
     // Setup GDT and TSS
     SHOWVAL_x("tss addr:", (uint32_t)(intptr_t)(&g_tss));
     // Set up the TSS
@@ -268,12 +277,6 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     gdt_install();
 
     tss_install();
-
-    // And just a quick test to make sure everything words
-    test_allocator();
-
-    terminal_write_string("Reserved ");
-    mem_print_usage();
 }
 
 uint64_t gdte_create(uint32_t limit, uint32_t base, uint8_t access, enum gdt_flag flags)
