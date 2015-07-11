@@ -122,7 +122,7 @@ relocated:
     ; every time we read a cluster
     mov bx, [this_bpb + bpb_fat16.bytes_per_sector]
     mul bx
-    mov [CLUSTER_BYTE_SIZE], bx
+    mov [CLUSTER_BYTE_SIZE], eax
 
     ; Calculate size of root directory
     mov ax, [this_bpb + bpb_fat16.max_root_entry_count]
@@ -295,7 +295,7 @@ read:
 
         ; Buffer has already been all set up so we're ready
         ; to read the next cluster
-        jl .read_loop
+        jb .read_loop
 
     .done:
         ret
