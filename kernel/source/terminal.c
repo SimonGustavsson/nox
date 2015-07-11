@@ -70,6 +70,18 @@ void terminal_set_color(enum vga_color fg, enum vga_color bg)
 	g_current_color = screen_create_color(fg, bg);
 }
 
+void terminal_write_string_endpadded(const char* data, size_t total_length)
+{
+    size_t str_len = strlen(data);
+    size_t spaces_to_insert = total_length - str_len;
+    
+    terminal_write_string_n(data, str_len);
+
+    for(size_t i = 0; i < spaces_to_insert; i++) {
+        terminal_write_char(' ');
+    }
+}
+
 void terminal_write_string(const char* data)
 {
 	size_t data_len = strlen(data);
@@ -107,12 +119,28 @@ void terminal_write_ptr(void* val)
 #endif
 }
 
+void terminal_write_uint8_x(uint8_t val)
+{
+    terminal_write_char('0');
+    terminal_write_char('x');
+    terminal_write_hex_byte(BYTE(val, 1));
+}
+
 void terminal_write_uint16_x(uint16_t val)
 {
     terminal_write_char('0');
     terminal_write_char('x');
     terminal_write_hex_byte(BYTE(val, 1));
     terminal_write_hex_byte(BYTE(val, 2));
+}
+
+void terminal_write_uint24_x(uint32_t val)
+{
+    terminal_write_char('0');
+    terminal_write_char('x');
+	terminal_write_hex_byte(BYTE(val, 2));
+	terminal_write_hex_byte(BYTE(val, 1));
+	terminal_write_hex_byte(BYTE(val, 0));
 }
 
 void terminal_write_uint32_x(uint32_t val)
@@ -137,6 +165,18 @@ void terminal_write_uint64_x(uint64_t val)
 	terminal_write_hex_byte(BYTE(val, 2));
 	terminal_write_hex_byte(BYTE(val, 1));
 	terminal_write_hex_byte(BYTE(val, 0));
+}
+
+void terminal_write_uint64_bytes(uint64_t val)
+{
+	terminal_write_hex_byte(BYTE(val, 0));
+	terminal_write_hex_byte(BYTE(val, 1));
+	terminal_write_hex_byte(BYTE(val, 2));
+	terminal_write_hex_byte(BYTE(val, 3));
+	terminal_write_hex_byte(BYTE(val, 4));
+	terminal_write_hex_byte(BYTE(val, 5));
+	terminal_write_hex_byte(BYTE(val, 6));
+	terminal_write_hex_byte(BYTE(val, 7));
 }
 
 static void buffer_sync_with_screen()

@@ -144,8 +144,9 @@ bool fat_get_dir_entry(struct fat_part_info* part_info, const char* filename83, 
                     is_system(entry->attribute))
                 continue;
 
-            if(!kstrcmp_n(entry->name, filename83, 11))
+            if(!kstrcmp_n(entry->name, filename83, 11)) {
                 continue; // Not this file!
+            }
 
             // Copy into result as the entry we have will be freed
             kstrcpy_n((char*)result, sizeof(struct fat_dir_entry), (char*)entry);

@@ -6,7 +6,7 @@ PART_OFFSET_SECTORS :=2048
 TOOL := i686-elf
 BUILD := build
 
-MODULES := kernel bootloader
+MODULES := kernel bootloader userland
 
 # These variables are populated by modules
 IMAGE_ASSETS :=
@@ -58,10 +58,15 @@ $(BUILD)/nox-fs.img: $(IMAGE_ASSETS)
 	@dd if=$(BUILD)/vbr.bin of=$@ bs=1 count=3 conv=notrunc > /dev/null 2>&1
 # Secondly, blit in the code section, skipping past the BPB
 	@dd if=$(BUILD)/vbr.bin of=$@ bs=1 count=448 skip=62 seek=62 conv=notrunc > /dev/null 2>&1
-	@mcopy -i $@ $(BUILD)/BOOT.SYS ::BOOT.SYS
-	@mcopy -i $@ $(BUILD)/KERNEL.BIN ::KERNEL.BIN
+
 	@echo "MCOPY   $(BUILD)/BOOT.SYS $@"
-	@echo "MCOPY   $(BUILD)/KERNEL.BIN -> $@"
+	@mcopy -i $@ $(BUILD)/BOOT.SYS ::BOOT.SYS
+
+	@echo "MCOPY   $(BUILD)/KERNEL.ELF -> $@"
+	@mcopy -i $@ kernel/obj/kernel.elf ::KERNEL.ELF
+
+	@echo "MCOPY   $(BUILD)/USERLAND.ELF -> $@"
+	@mcopy -i $@ $(BUILD)/USERLAND.ELF ::USERLAND.ELF
 
 directories:
 	@mkdir -p $(BUILD)

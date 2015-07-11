@@ -8,6 +8,7 @@
 #include <arch/x86/cpu.h>
 #include <string.h>
 #include <fs.h>
+#include <elf.h>
 
 #define MAX_COMMAND_SIZE 1024
 #define COMMAND_BUFFER_SIZE (MAX_COMMAND_SIZE + 1)
@@ -178,6 +179,9 @@ static void dispatch_command(char* args[], size_t arg_count)
             return;
         }
         fs_cat(args[1]);
+    }
+    else if(kstrcmp(args[0], "elf")) {
+        elf_run(args[1]);
     }
     else if(kstrcmp(args[0], "help")) {
         terminal_write_string("RTFM\n");
