@@ -71,7 +71,7 @@ bool fat_init(struct mbr_partition_entry* partition_entry, struct fat_part_info*
         dump_fat_part_info(info_result);
 
     struct fat_dir_entry kittens_de;
-    if(!fat_get_dir_entry(info_result, "KERNEL  BIN", &kittens_de)) {
+    if(!fat_get_dir_entry(info_result, "KERNEL  ELF", &kittens_de)) {
         if(false)
             dump_fat_dir_entry(&kittens_de);
         KWARN("Unable to find the kernel, something is amiss!");

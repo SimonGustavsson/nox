@@ -62,9 +62,8 @@ $(BUILD)/nox-fs.img: $(IMAGE_ASSETS)
 	@echo "MCOPY   $(BUILD)/BOOT.SYS $@"
 	@mcopy -i $@ $(BUILD)/BOOT.SYS ::BOOT.SYS
 
-	@echo "MCOPY   $(BUILD)/KERNEL.BIN -> $@"
-	@mcopy -i $@ $(BUILD)/KERNEL.BIN ::KERNEL.BIN
-	@mcopy -i $@ kernel/obj/kernel.elf ::KERNELSS.ELF
+	@echo "MCOPY   $(BUILD)/KERNEL.ELF -> $@"
+	@mcopy -i $@ kernel/obj/kernel.elf ::KERNEL.ELF
 
 	@echo "MCOPY   $(BUILD)/USERLAND.ELF -> $@"
 	@mcopy -i $@ $(BUILD)/USERLAND.ELF ::USERLAND.ELF

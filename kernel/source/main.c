@@ -15,6 +15,7 @@
 #include <mem_mgr.h>
 #include <ata.h>
 #include <fs.h>
+#include <fat.h>
 #include <elf.h>
 #include <pic.h>
 

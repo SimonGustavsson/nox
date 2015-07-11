@@ -3,7 +3,7 @@ ENTRY(_start)
 SECTIONS
 {
     /* This is where kloader will put us at boot */
-	. = 0x10000;
+	. = 0x100000;
 
     LD_KERNEL_START = .;
 
@@ -35,6 +35,11 @@ SECTIONS
 		*(.bss)
 		*(.bootstrap_stack)
 	}
+
+    .checksum ALIGN(4):
+    {
+        *(.checksum)
+    }
 
     LD_KERNEL_END = .;
 }

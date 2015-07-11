@@ -7,6 +7,9 @@
 #include <fs.h>
 #include <fat.h>
 #include <debug.h>
+#include <elf.h>
+
+#define KERNEL_LOAD_ADDRESS 0x100000
 
 typedef void ((*kernel_entry)(struct mem_map_entry[], uint32_t));
 
@@ -25,25 +28,23 @@ void kloader_cmain(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
 
     struct fat_part_info* part_info = fs_get_system_part();
     struct fat_dir_entry kernel;
-    if(!fat_get_dir_entry(part_info, "KERNEL  BIN", &kernel)) {
-        KPANIC("Failed to locate KERNEL.BIN");
+    if(!fat_get_dir_entry(part_info, "KERNEL  ELF", &kernel)) {
+        KPANIC("Failed to locate KERNEL.ELF");
         while(1);
     }
 
-    size_t pages_req = kernel.size / PAGE_SIZE;
-    if(kernel.size % PAGE_SIZE)
-        pages_req++;
+    intptr_t kernel_entry_point;
 
-    uint32_t load_addr = 0x10000;
-    intptr_t buffer = (intptr_t)load_addr;
+    if(!elf_load_trusted("KERNEL  ELF", &kernel_entry_point)) {
+        KWARN("Failed to load elf!");
+    } 
 
-    if(!fat_read_file(part_info, &kernel, buffer, pages_req * PAGE_SIZE)) {
-        KPANIC("Failed to read KERNEL.BIN");
-    }
-
-    kernel_entry cmain = (kernel_entry)(buffer);
+    kernel_entry cmain = (kernel_entry)(kernel_entry_point);
 
     cmain(mem_map, mem_entry_count);
+
+
+    KINFO("Bootloader done");
 
     while(1);
 }

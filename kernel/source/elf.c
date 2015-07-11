@@ -404,6 +404,50 @@ static bool verify_header(struct elf32_header* header)
     return true;
 }
 
+// Finds the given elf on the drive, and loads it wherever it wants
+// to be loaded
+bool elf_load_trusted(const char* filename, intptr_t* res_entry)
+{
+    struct fat_dir_entry entry;
+    if(!fat_get_dir_entry(fs_get_system_part(), filename, &entry)) {
+        KERROR("That file doesn't exist!");
+        return false;
+    }
+
+    // first off, allocate a buffer where we'll temporararily load the file
+    size_t pages_req = entry.size / PAGE_SIZE;
+    if(entry.size % PAGE_SIZE)
+        pages_req++;
+
+    intptr_t buffer = (intptr_t)mem_page_get_many(pages_req);
+    if(!fat_read_file(fs_get_system_part(), &entry, buffer, pages_req * PAGE_SIZE)) {
+        KERROR("Failed to read file");
+        return false;
+    }
+
+    struct elf32_header* elf = (struct elf32_header*)buffer;
+    if(!verify_header(elf)) {
+        mem_page_free((void*)buffer);
+        return false;
+    }
+
+    struct elf32_phdr* phdrs = (struct elf32_phdr*)(buffer + elf->phoff);
+
+    char* file_buf = (char*)(buffer);
+    for(size_t i = 0; i < elf->phnum; i++) {
+        struct elf32_phdr* ph = &phdrs[i];
+
+        if(ph->type != elf_ph_type_load)
+            continue;
+
+        // Load all loadable program headers into memory
+        kstrcpy_n((char*)(intptr_t)ph->vaddr, ph->file_size, file_buf + ph->offset);
+    }
+
+    *res_entry = (intptr_t)elf->entry;
+    return true;
+}
+
 void elf_run(const char* filename) 
 {
     struct fat_dir_entry entry;

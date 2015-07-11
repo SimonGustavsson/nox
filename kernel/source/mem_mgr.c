@@ -195,7 +195,7 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
 
     terminal_write_string("Page map address: ");
     terminal_write_uint32_x(mem_map_address);
-    terminal_write_string("->");
+    terminal_write_string("\n");
 
     g_pages = (struct page*)(intptr_t)(kernel_start + (kernel_pages * PAGE_SIZE));
 
@@ -217,14 +217,14 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
 
     // Reserve the pages we know about right now
     // Screen is 80*25 2-byte characters
-    if(!mem_page_reserve((void*)0xB8000, PAGE_SIZE))
-        KERROR("Failed to reserve screen memory!");
-    if(!mem_page_reserve((void*)0x0, 0x7C00 / PAGE_SIZE))
+    if(!mem_page_reserve("BIOS", (void*)0x0, 0x7C00 / PAGE_SIZE))
         KERROR("Failed to reserve BIOS pages");
-    if(!mem_page_reserve((void*)g_pages, mem_map_pages))
-        KERROR("Failed to reserve pages for the page map!");
-    if(!mem_page_reserve((void*)(intptr_t)kernel_start, kernel_pages))
+    if(!mem_page_reserve("Screen", (void*)0xB8000, 1))
+        KERROR("Failed to reserve screen memory!");
+    if(!mem_page_reserve("KRNL", (void*)(intptr_t)kernel_start, kernel_pages))
         KERROR("Failed to reserve pages for the kernel!");
+    if(!mem_page_reserve("PAGES", (void*)g_pages, mem_map_pages))
+        KERROR("Failed to reserve pages for the page map!");
 
     // And just a quick test to make sure everything words
     test_allocator();
@@ -297,20 +297,32 @@ void mem_print_usage()
     terminal_write_uint32(mem_page_count(true));
     terminal_write_string("/");
     terminal_write_uint32(g_max_pages);
-    terminal_write_string("pages)\n");
+    terminal_write_string(" pages)\n");
 }
 
-bool mem_page_reserve(void* address, size_t num_pages)
+bool mem_page_reserve(const char* identifier, void* address, size_t num_pages)
 {
-    size_t page_index = ((size_t)(address)) / PAGE_SIZE;
+    terminal_write_string("Reserved ");
+    terminal_write_uint32_x((uint32_t)(intptr_t)address);
+    terminal_write_string(" -> ");
+    terminal_write_uint32_x((uint32_t)(intptr_t)(address + (num_pages * PAGE_SIZE)));
+    terminal_write_string(" (");
+    terminal_write_string(identifier);
+    terminal_write_string(")\n");
+
+    size_t page_index = ((size_t)(intptr_t)(address)) / PAGE_SIZE;
     if(page_index < 0 || page_index > g_max_pages)
     {
         KWARN("An attempt was made to reserve a page outside of memory");
+        terminal_write_string("The page at ");
+        terminal_write_uint32_x((uint32_t)(intptr_t)address);
+        terminal_write_string(" has already been reserved!\n");
         return false;
     }
 
     if(IS_PAGE_RESERVED(g_pages[page_index].flags)) {
         KWARN("An attempt was made to re-reserve a page!");
+        SHOWVAL_x("The following page is already reserved: ", (uint32_t)(intptr_t)address);
         return false;
     }
 
@@ -378,7 +390,7 @@ void* mem_page_get_many(uint16_t how_many)
             g_pages[i + j].flags |= PAGE_USED;
         }
 
-        return (void*)(i * PAGE_SIZE);
+        return (void*)(intptr_t)(i * PAGE_SIZE);
     }
 
     KWARN("No pages available!");
@@ -394,7 +406,7 @@ void* mem_page_get()
         if(!IS_PAGE_USED(cur->flags) && ! IS_FIRST_IN_ALLOCATION(cur->flags)) {
             cur->flags = PAGE_USED | FIRST_IN_ALLOCATION;
 
-            return (void*)(i * PAGE_SIZE);
+            return (void*)(intptr_t)(i * PAGE_SIZE);
         }
     }
 
@@ -408,14 +420,14 @@ void mem_page_free(void* address)
         return;
     }
 
-    size_t page_index = ((size_t)(address)) / PAGE_SIZE;
+    size_t page_index = ((size_t)(intptr_t)(address)) / PAGE_SIZE;
     if(page_index < 0 || page_index > g_max_pages)
         return;
 
     struct page* cur = &g_pages[page_index];
     if(!IS_FIRST_IN_ALLOCATION(cur->flags)) {
         terminal_write_string("Invalid call to page_free(");
-        terminal_write_uint32_x((uint32_t)address);
+        terminal_write_uint32_x((uint32_t)(intptr_t)address);
         terminal_write_string(" not first page!\n");
         return; // This is not the first page of an allocation
     }

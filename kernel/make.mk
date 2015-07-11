@@ -65,7 +65,7 @@ $(OBJ_DIR)/kernel.elf: kernel_directories $(COBJECTS) $(AOBJECTS)
 
 	@echo "LD      $@"
 
-	@$(TOOL)-ld -T kernel.ld $(filter-out kernel_directories, $^) -o $@
+	@$(TOOL)-ld -T kernel.ld -Map=$(BUILD)/kernel.map $(filter-out kernel_directories, $^) -o $@
 
 $(OBJ_DIR)/%.o : $(CSOURCE_DIR)/%.c
 
@@ -88,7 +88,7 @@ $(OBJ_DIR)/%.o : $(ASOURCE_DIR)/%.asm
 # Kloader
 #
 ################################################################################
-KLOADER_CSOURCES := $(CSOURCE_DIR)/ata.c $(CSOURCE_DIR)/fat.c $(CSOURCE_DIR)/fs.c $(CSOURCE_DIR)/kloader_main.c $(CSOURCE_DIR)/mem_mgr.c $(CSOURCE_DIR)/pio.c $(CSOURCE_DIR)/screen.c $(CSOURCE_DIR)/terminal.c $(CSOURCE_DIR)/string.c $(CSOURCE_DIR)/kloader_main.c
+KLOADER_CSOURCES := $(CSOURCE_DIR)/ata.c $(CSOURCE_DIR)/fat.c $(CSOURCE_DIR)/fs.c $(CSOURCE_DIR)/kloader_main.c $(CSOURCE_DIR)/mem_mgr.c $(CSOURCE_DIR)/pio.c $(CSOURCE_DIR)/screen.c $(CSOURCE_DIR)/terminal.c $(CSOURCE_DIR)/string.c $(CSOURCE_DIR)/kloader_main.c $(CSOURCE_DIR)/elf.c
 KLOADER_ASOURCES := $(CSOURCE_DIR)/kloader_start.asm
 
 KLOADER_OBJECTS := $(KLOADER_CSOURCES:.c=.o)
