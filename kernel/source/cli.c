@@ -202,6 +202,7 @@ static void dispatch_command(char* args[], size_t arg_count)
         terminal_write_string("reset - Restarts the computer\n");
         terminal_write_string("clear - Clears the screen\n");
         terminal_write_string("cat <file> - Show file content\n");
+        terminal_write_string("elf <file  - Prints file info\n");
         terminal_write_string("run <file> - Runs the given program\n");
     }
     else {
