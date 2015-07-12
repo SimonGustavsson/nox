@@ -442,6 +442,15 @@ bool elf_load_trusted(const char* filename, intptr_t* res_entry)
 
         // Load all loadable program headers into memory
         kstrcpy_n((char*)(intptr_t)ph->vaddr, ph->file_size, file_buf + ph->offset);
+
+        if(ph->file_size < ph->mem_size) {
+
+            char* start = (char*)(intptr_t)(ph->vaddr + ph->file_size + 1);
+            size_t len = ph->mem_size - ph->file_size;
+            for(size_t i = 0; i < len; i++) {
+                *start++ = 0;
+            }
+        }
     }
 
     *res_entry = (intptr_t)elf->entry;
