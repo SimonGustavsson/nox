@@ -83,6 +83,9 @@ static void cli_key_up(enum keys key)
         if(g_shift_pressed && c >= 'a' && c <= 'z') {
                 c -= 0x20;
         }
+        else if(g_shift_pressed && c == '\'') {
+            c = '"';
+        }
 
         // Add key to command buffer
         g_input_buffer[g_input_write_index++] = c;
@@ -180,11 +183,19 @@ static void dispatch_command(char* args[], size_t arg_count)
         }
         fs_cat(args[1]);
     }
-    else if(kstrcmp(args[0], "elf")) {
+    else if(kstrcmp(args[0], "run")) {
+        if(kstrcmp(args[1], "KERNEL  ELF")) {
+            KWARN("That is a SERIOUSLY bad idea!");
+            return;
+        }
         elf_run(args[1]);
     }
     else if(kstrcmp(args[0], "help")) {
-        terminal_write_string("RTFM\n");
+        terminal_write_string("These are the things you can do!\n");
+        terminal_write_string("reset - Restarts the computer\n");
+        terminal_write_string("clear - Clears the screen\n");
+        terminal_write_string("cat <file> - Show file content\n");
+        terminal_write_string("run <file> - Runs the given program\n");
     }
     else {
         print_invalid_command(args, arg_count);
@@ -197,24 +208,53 @@ static size_t parse_command(char* buffer, size_t buffer_size, char** args, size_
     // do a better job, but we've got no malloc yet, so just fuck off and stop
     // complaining
     char* arg_start = buffer;
-    size_t   arg_count = 0;
+    size_t arg_count = 0;
+    bool in_str = false;
 
+    // TODO: This currently does NOT deal with arguments lacking
+    //       a terminating quote.
+    //
+    //       The string below will therefore result in 0 args
+    //       "hello, World
+    //
     for (int i = 0; i < buffer_size; i++) {
-        if (buffer[i] != ' ') {
-            continue;
+        switch(buffer[i]) {
+
+            case '"': {
+                if(!in_str) {
+                    // Found the first quote
+                    in_str = true;
+                    arg_start++; // Skip first quote in result string
+                    continue; // Move to the next char
+                }
+                else {
+                    // We found the terminating quote
+                    in_str = false;
+                }
+                break;
+            }
+            case ' ': {
+                if(!in_str) {
+
+                    // End of argument
+                    char* arg_end = &buffer[i];
+                    if(buffer[i - 1] == '"')
+                        arg_end--; // Don't include the quote :)
+
+                    if (arg_end == arg_start) {
+                        arg_start++;
+                        continue;
+                    }
+
+                    *arg_end = '\0';
+                    args[arg_count++] = arg_start;
+
+                    arg_start = arg_end + 1;
+
+                }
+                break;
+            }
         }
-
-        char* arg_end = &buffer[i];
-
-        if (arg_end == arg_start) {
-            arg_start++;
-            continue;
-        }
-
-        *arg_end = '\0';
-        args[arg_count++] = arg_start;
-
-        arg_start = arg_end + 1;
     }
 
     return arg_count;
