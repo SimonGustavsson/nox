@@ -4,6 +4,8 @@
 #include <terminal.h>
 #include <debug.h>
 
+//#define GDT_DEBUG
+
 // -------------------------------------------------------------------------
 // Static Defines
 // -------------------------------------------------------------------------
@@ -133,6 +135,7 @@ static void test_allocator();
 static void tss_install();
 static void gdt_install();
 
+#ifdef GDT_DEBUG
 void print_gdt()
 {
     terminal_write_string("Global Descriptor Table: \n");
@@ -146,6 +149,7 @@ void print_gdt()
     }
     terminal_indentation_decrease();
 }
+#endif
 
 // -------------------------------------------------------------------------
 // Public Contract
@@ -176,12 +180,6 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     uint32_t kernel_start = (uint32_t)(intptr_t)&LD_KERNEL_START;
     uint32_t kernel_size = kernel_end - kernel_start;
 
-    terminal_write_string("Kernel address: ");
-    terminal_write_uint32_x(kernel_start);
-    terminal_write_string("->");
-    terminal_write_uint32_x(kernel_end);
-    terminal_write_char('\n');
-
     uint32_t kernel_start_page = (kernel_start / PAGE_SIZE);
     if(kernel_start % PAGE_SIZE != 0)
         kernel_start_page++;
@@ -191,12 +189,6 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
       kernel_pages++;
 
     // We put the page map right after the kernel in memory
-    uint32_t mem_map_address = (kernel_start + (kernel_pages * PAGE_SIZE));
-
-    terminal_write_string("Page map address: ");
-    terminal_write_uint32_x(mem_map_address);
-    terminal_write_string("->");
-
     g_pages = (struct page*)(intptr_t)(kernel_start + (kernel_pages * PAGE_SIZE));
 
     // Reserve pages for the page map itself
@@ -205,9 +197,6 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     size_t mem_map_pages = mem_map_size / PAGE_SIZE;
     if(mem_map_size % PAGE_SIZE != 0)
         mem_map_pages++;
-
-    terminal_write_uint32_x(mem_map_address + (mem_map_pages * PAGE_SIZE) - 1);
-    terminal_write_string("\n");
 
     // Zero out the memory map
     for(size_t i = 0; i < g_max_pages; i++) {
@@ -223,11 +212,9 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
         KERROR("Failed to reserve BIOS pages");
     if(!mem_page_reserve((void*)g_pages, mem_map_pages))
         KERROR("Failed to reserve pages for the page map!");
-    if(!mem_page_reserve((void*)kernel_start, kernel_pages))
+    if(!mem_page_reserve((void*)(intptr_t)kernel_start, kernel_pages))
         KERROR("Failed to reserve pages for the kernel!");
 
-    // Setup GDT and TSS
-    SHOWVAL_x("tss addr:", (uint32_t)(intptr_t)(&g_tss));
     // Set up the TSS
     g_tss.ss0 = 0x10; // Kernel data-segment selector
 
@@ -256,11 +243,9 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     // Access: E9
     // Flags: 0
 
+#ifdef GDT_DEBUG
     print_gdt();
-
-    terminal_write_string("TSS GDT Entry: ");
-    terminal_write_uint64_bytes(g_gdt[TSS_GDTD_INDEX]);
-    terminal_write_char('\n');
+#endif
 
     g_gtdd.size = (sizeof(uint64_t) * GDT_SIZE) - 1;
     g_gtdd.offset = (uint32_t)(intptr_t)&g_gdt;
@@ -281,8 +266,6 @@ uint64_t gdte_create(uint32_t limit, uint32_t base, uint8_t access, enum gdt_fla
     return GDT_ENTRY(limit, base, access, flags);
 }
 
-    //gpf_trigger(); //gpf_trigger(); //gpf_trigger();
-    //gpf_trigger();
 void mem_print_usage()
 {
     size_t available_pages = mem_page_count(true);
@@ -299,7 +282,7 @@ void mem_print_usage()
 
 bool mem_page_reserve(void* address, size_t num_pages)
 {
-    size_t page_index = ((size_t)(address)) / PAGE_SIZE;
+    size_t page_index = ((size_t)(intptr_t)(address)) / PAGE_SIZE;
     if(page_index < 0 || page_index > g_max_pages)
     {
         KWARN("An attempt was made to reserve a page outside of memory");
@@ -544,19 +527,23 @@ static void test_allocator()
 
 static void gdt_install()
 {
+#ifdef GDT_DEBUG
     KINFO("Installing GDT");
     SHOWVAL_x("GTDD Address: ", (uint32_t)(intptr_t)&g_gtdd);
     SHOWVAL("Size: ", g_gtdd.size);
     SHOWVAL_x("GTD address: ", g_gtdd.offset);
+#endif
 
     __asm ("lgdt (%0)" :: "m" (g_gtdd));
 }
 
 static void tss_install()
 {
+#ifdef GDT_DEBUG
     terminal_write_string("Installing LDT: ");
     terminal_write_uint64_x(g_gdt[TSS_GDTD_INDEX]);
     terminal_write_char('\n');
+#endif
 
     __asm("ltr %%ax" :: "a" (0x28));
 }
