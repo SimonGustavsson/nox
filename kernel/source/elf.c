@@ -215,6 +215,15 @@ struct elf32_phdr {
     uint32_t align;
 } PACKED;
 
+void print_file_not_found(const char* file)
+{
+    terminal_set_color(vga_color_red, vga_color_black);
+    terminal_write_string("The file '");
+    terminal_write_string(file);
+    terminal_write_string("' doesn't exist!\n");
+    terminal_reset_color();
+}
+
 static void print_sh_type(enum elf_sh_type type, size_t total_len)
 {
     switch(type) {
@@ -400,15 +409,20 @@ static bool verify_header(struct elf32_header* header)
         return false;
     }
 
+    if(header->phnum == 0) {
+        KERROR("Elf has no program headers.");
+        return false;
+    }
+
     // All checks passed! Looks good!
     return true;
 }
 
-void elf_run(const char* filename) 
+void elf_info(const char* filename)
 {
     struct fat_dir_entry entry;
     if(!fat_get_dir_entry(fs_get_system_part(), filename, &entry)) {
-        KERROR("That file doesn't exist!");
+        print_file_not_found(filename);
         return;
     }
 
@@ -430,21 +444,36 @@ void elf_run(const char* filename)
         return;
     }
 
-    terminal_write_string("Running elf '");
-    terminal_write_string(filename);
-    terminal_write_string("'\n");
+    // Go through all sections
+    print_section_headers(elf, buffer);
+    print_program_headers(elf, buffer);
 
-    switch (elf->ident.class) {
-        case elf_class_32:
-            terminal_write_string("32-bit ELF.\n");
-            break;
-        case elf_class_64:
-            terminal_write_string("64-bit ELF.\n");
-            break;
+    mem_page_free((void*)buffer);
+}
+
+void elf_run(const char* filename)
+{
+    struct fat_dir_entry entry;
+    if(!fat_get_dir_entry(fs_get_system_part(), filename, &entry)) {
+        print_file_not_found(filename);
+        return;
     }
 
-    if(elf->phoff == 0) {
-        KINFO("Elf has no program headers.");
+    size_t pages_req = entry.size / PAGE_SIZE;
+    if(entry.size % PAGE_SIZE)
+        pages_req++;
+
+    intptr_t buffer = (intptr_t)mem_page_get_many(pages_req);
+
+    if(!fat_read_file(fs_get_system_part(), &entry, buffer, pages_req * PAGE_SIZE)) {
+        KERROR("Failed to read file");
+        return;
+    }
+
+    // We have a buffer, yay!
+    struct elf32_header* elf = (struct elf32_header*)buffer;
+
+    if(!verify_header(elf)) {
         return;
     }
 
@@ -458,23 +487,17 @@ void elf_run(const char* filename)
         if(ph->type != elf_ph_type_load)
             continue;
 
-        SHOWVAL_x("Loading segment to: ", ph->vaddr);
-        SHOWVAL("Loading this many bytes: ", ph->file_size);
-
         // Load all loadable program headers into memory
         kstrcpy_n((char*)(intptr_t)ph->vaddr, ph->file_size, file_buf + ph->offset);
     }
+
     userland_entry user_entry = (userland_entry)(intptr_t)(elf->entry);
 
-    KINFO("Running userland");
     int result = user_entry();
     terminal_write_string("Program exit (");
     terminal_write_uint32(result);
     terminal_write_string(")\n");
 
-    if(1 == 2) {
-        print_section_headers(elf, buffer);
-        print_program_headers(elf, buffer);
-    }
+    mem_page_free((void*)buffer);
 }
 

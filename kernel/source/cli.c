@@ -183,6 +183,13 @@ static void dispatch_command(char* args[], size_t arg_count)
         }
         fs_cat(args[1]);
     }
+    else if(kstrcmp(args[0], "elf")) {
+        if(arg_count < 2) {
+            KERROR("Expected at least one argument");
+            return;
+        }
+        elf_info(args[1]);
+    }
     else if(kstrcmp(args[0], "run")) {
         if(kstrcmp(args[1], "KERNEL  ELF")) {
             KWARN("That is a SERIOUSLY bad idea!");
