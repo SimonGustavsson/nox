@@ -8,6 +8,8 @@
 #include <kernel.h>
 #include <interrupt.h>
 
+//#define USB_DEBUG
+
 // -------------------------------------------------------------------------
 // Documentation
 // -------------------------------------------------------------------------
@@ -45,7 +47,9 @@ static bool init_memory_mapped(pci_device* dev, uint32_t base_addr, uint8_t irq)
 static bool init_memory_mapped32(uint32_t base_addr, uint8_t irq, bool below_1mb);
 static bool init_memory_mapped64(uint64_t base_addr, uint8_t irq);
 static void wait(uint16_t ms);
+#ifdef USB_DEBUG
 static void print_init_info(struct pci_address* addr, uint32_t base_addr);
+#endif
 static int32_t detect_root(uint16_t base_addr, bool memory_mapped);
 static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped);
 static void uhci_irq(uint8_t irq, struct irq_regs* regs);
@@ -58,7 +62,9 @@ void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, ui
     terminal_write_string("Initializing UHCI Host controller\n");
     terminal_indentation_increase();
 
+#ifdef USB_DEBUG
     print_init_info(addr, base_addr);
+#endif
 
     bool result = false;
     if((base_addr | 0x1) == 0) {
@@ -86,16 +92,16 @@ static bool init_port_io(uint32_t base_addr, uint8_t irq)
     // Scrap bit 1:0 as it's not a part of the address
     uint32_t io_addr = (base_addr & ~(1));
 
+#ifdef USB_DEBUG
     terminal_write_string("I/O port: ");
     terminal_write_uint32_x(io_addr);
     terminal_write_string("\n");
+#endif
 
     if(0 != detect_root(io_addr, false)) {
         KERROR("Failed to detect root device");
         return false;
     }
-
-    terminal_write_string("UHCI root device successfully located.\n");
 
     setup(io_addr, irq, false);
 
@@ -141,9 +147,11 @@ static bool init_memory_mapped64(uint64_t base_addr, uint8_t irq)
 
 static int32_t detect_root(uint16_t base_addr, bool memory_mapped)
 {
+#ifdef USB_DEBUG
     terminal_write_string("Searching for root device @ ");
     terminal_write_uint32_x(base_addr);
     terminal_write_string("\n");
+#endif
 
     if(memory_mapped)
     {
@@ -220,7 +228,9 @@ static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped)
     // Clear the entire status register (it's WC)
     OUTW(base_addr + UHCI_STATUS_OFFSET, 0xFFFF);
 
+#ifdef USB_DEBUG
     terminal_write_string("UHCI set up for use\n");
+#endif
 
     // Before we start the controllers schedule, enable interrupts
     interrupt_receive_trap(irq, uhci_irq);
@@ -260,6 +270,7 @@ static void wait(uint16_t ms)
     }
 }
 
+#ifdef USB_DEBUG
 static void print_init_info(struct pci_address* addr, uint32_t base_addr)
 {
     terminal_write_string("PCI Address [Bus: ");
@@ -272,4 +283,4 @@ static void print_init_info(struct pci_address* addr, uint32_t base_addr)
     terminal_write_uint32_x(base_addr);
     terminal_write_string("]\n");
 }
-
+#endif
