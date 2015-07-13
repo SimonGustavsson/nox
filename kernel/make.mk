@@ -13,8 +13,8 @@ ASOURCE := $(shell find $(ASOURCE_DIR) -name '*.asm')
 CSOURCE := $(shell find $(CSOURCE_DIR) -name '*.c')
 
 # Remove kloader from standard Nox
-ASOURCE := $(filter-out $(ASOURCE_DIR)/kloader_start.asm, $(ASOURCE))
-CSOURCE := $(filter-out $(CSOURCE_DIR)/kloader_main.c, $(CSOURCE))
+ASOURCE := $(filter-out $(ASOURCE_DIR)/kloader/kloader_start.asm, $(ASOURCE))
+CSOURCE := $(filter-out $(CSOURCE_DIR)/kloader/kloader_main.c, $(CSOURCE))
 
 # Construct a list of all object files
 COBJECTS := $(CSOURCE:.c=.o)
@@ -88,8 +88,8 @@ $(OBJ_DIR)/%.o : $(ASOURCE_DIR)/%.asm
 # Kloader
 #
 ################################################################################
-KLOADER_CSOURCES := $(CSOURCE_DIR)/ata.c $(CSOURCE_DIR)/fat.c $(CSOURCE_DIR)/fs.c $(CSOURCE_DIR)/kloader_main.c $(CSOURCE_DIR)/mem_mgr.c $(CSOURCE_DIR)/pio.c $(CSOURCE_DIR)/screen.c $(CSOURCE_DIR)/terminal.c $(CSOURCE_DIR)/string.c $(CSOURCE_DIR)/kloader_main.c $(CSOURCE_DIR)/elf.c
-KLOADER_ASOURCES := $(CSOURCE_DIR)/kloader_start.asm
+KLOADER_CSOURCES := $(CSOURCE_DIR)/ata.c $(CSOURCE_DIR)/fat.c $(CSOURCE_DIR)/fs.c $(CSOURCE_DIR)/kloader/kloader_main.c $(CSOURCE_DIR)/mem_mgr.c $(CSOURCE_DIR)/pio.c $(CSOURCE_DIR)/screen.c $(CSOURCE_DIR)/terminal.c $(CSOURCE_DIR)/string.c $(CSOURCE_DIR)/elf.c
+KLOADER_ASOURCES := $(CSOURCE_DIR)/kloader/kloader_start.asm
 
 KLOADER_OBJECTS := $(KLOADER_CSOURCES:.c=.o)
 KLOADER_OBJECTS += $(KLOADER_ASOURCES:.asm=.o)

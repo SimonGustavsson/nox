@@ -12,16 +12,16 @@ IMAGE_ASSETS += $(BUILD)/USERLAND.ELF
 C_HEADERS := $(patsubst %,-I%, $(shell find $(INCLUDE_DIR) -type d))
 -include $(addprefix $(DEP_DIR)/, $(notdir $(COBJECTS:.o=.d)))
 
-$(BUILD)/USERLAND.ELF: user_directories $(OBJ_DIR)/userland.o
-	@echo "LD $<"
+$(BUILD)/USERLAND.ELF: $(OBJ_DIR)/userland.o user_directories
+	@echo "LD      $<"
 
 	@$(TOOL)-ld -T $(MODULE)userland.ld $(filter-out user_directories, $^) -o $@
 
 $(OBJ_DIR)/%.o : $(SOURCE_DIR)/%.c
 
-	mkdir -p $(dir $@)
-	mkdir -p $(DEP_DIR)/$(dir $*)
-	@echo "CC $<"
+	@mkdir -p $(dir $@)
+	@mkdir -p $(DEP_DIR)/$(dir $*)
+	@echo "CC      $<"
 
 	@$(TOOL)-gcc $< -o $@ $(C_HEADERS) $(CFLAGS) -MD -MF $(DEP_DIR)/$*.d
 
