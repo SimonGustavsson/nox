@@ -60,6 +60,13 @@ static void                         idt_entry_setup(struct idt_entry* entry, uin
 static enum kresult                 idt_entry_verify(struct idt_entry const * const entry, uint8_t const irq, gate_type const type, uint8_t const priv_level);
 static void                         irq_dispatcher(uint8_t irq, struct irq_regs* regs);
 
+static void                         double_fault(uint8_t irq, struct irq_regs* regs);
+static void                         gpf(uint8_t irq, struct irq_regs* regs);
+static void                         page_fault(uint8_t irq, struct irq_regs* regs);
+static void                         stack_segment_fault(uint8_t irq, struct irq_regs* regs);
+static void                         invalid_tss(uint8_t irq, struct irq_regs* regs);
+static void                         segment_not_present(uint8_t irq, struct irq_regs* regs);
+
 // -------------------------------------------------------------------------
 // Globals
 // -------------------------------------------------------------------------
@@ -77,6 +84,13 @@ void interrupt_init_system()
     g_idt_descriptor.limit = sizeof(g_idt_entries) - 1;
     g_idt_descriptor.base = &g_idt_entries;
     idt_install(&g_idt_descriptor);
+
+    interrupt_receive_trap(0x08, double_fault);
+    interrupt_receive_trap(0x0A, invalid_tss);
+    interrupt_receive_trap(0x0B, segment_not_present);
+    interrupt_receive_trap(0x0C, stack_segment_fault);
+    interrupt_receive_trap(0x0D, gpf);
+    interrupt_receive_trap(0x0E, page_fault);
 }
 
 void interrupt_disable_all()
@@ -235,3 +249,40 @@ static enum kresult idt_entry_verify(struct idt_entry const * const entry, uint8
 
     return is_valid ? kresult_ok : kresult_invalid;
 }
+
+static void gpf(uint8_t irq, struct irq_regs* regs)
+{
+    KERROR("FAULT: Generation Protection Fault!");
+    BREAK();
+}
+
+static void page_fault(uint8_t irq, struct irq_regs* regs)
+{
+    KERROR("FAULT: Page fault!");
+    BREAK();
+}
+
+static void stack_segment_fault(uint8_t irq, struct irq_regs* regs)
+{
+    KERROR("FAULT: Stack segment fault!");
+    BREAK();
+}
+
+static void invalid_tss(uint8_t irq, struct irq_regs* regs)
+{
+    KERROR("FAULT: Invalid-TSS!");
+    BREAK();
+}
+
+static void segment_not_present(uint8_t irq, struct irq_regs* regs)
+{
+    KERROR("FAULT: Segment not present");
+    BREAK();
+}
+
+static void double_fault(uint8_t irq, struct irq_regs* regs)
+{
+    KERROR("Double fault!");
+    BREAK();
+}
+
