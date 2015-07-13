@@ -28,8 +28,8 @@ After building, just hit `make run` to test in Bochs.
 Yes, it's that simple! Make creates a harddrive image file with the following:
 * Custom MBR
 * FAT16 Filesystem with a custom VBR
-* A kernel bootloader (BOOT.SYS) on the FAT16 partition
-* A 32-bit flat binary kernel (KERNEL.BIN)
+* A slimmed down version of the kernel acting as bootloader (BOOT.SYS)
+* A 32-bit elf kernel (kernel.elf)
 
 # Build requirements:
 
