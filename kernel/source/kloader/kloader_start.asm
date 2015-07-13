@@ -27,7 +27,7 @@ _start:
 ;
 ;*******************************************************************************
 variables:
-    .memMapEntries          dd     0
+    .mem_map_entries          dd     0
 .endvariables:
 
 msg_a20_interrupt_failed    db "A20 via Int 0x15 failed. Halting.", 0x0D, 0x0A, 0
@@ -51,7 +51,7 @@ gdt:
 		db 				0 			; base 24:31
 .end:
 
-gdtDescriptor:
+gdt_descriptor:
 		dw 				gdt.end - gdt - 1
 		dd              gdt
 .end:
@@ -91,14 +91,14 @@ main:
 	call enableA20
 
 	; setup GDT
-	lgdt [gdtDescriptor]
+	lgdt [gdt_descriptor]
 
 	; Enable protected mode
 	mov eax, cr0
 	or eax, 0x01
 	mov cr0, eax
 
-    jmp 0x08:enterProtectedMode
+    jmp 0x08:enter_protected_mode
 
 halt:
     cli
@@ -146,9 +146,9 @@ detect_memory:
         mov dword [ds:edi + 16], 1
         .twenty_four_byte_entry:
 
-        mov eax, [variables.memMapEntries]
+        mov eax, [variables.mem_map_entries]
         inc eax
-        mov [variables.memMapEntries], eax
+        mov [variables.mem_map_entries], eax
 
         ; Some BIOSes, set ebx to 0, /on/
         ; the last entry, in which case we
@@ -220,7 +220,7 @@ reset_disk:
 
 ; THIS MUST GO LAST IN THE FILE BECAUSE IT CHANGES
 ; CODE GENERATION TO USE 32-bit INSTRUCTIONS
-enterProtectedMode:
+enter_protected_mode:
 
     ; We're in protected mode now, make sure nasm spits
     ; out 32-bit wide instructions, or very, very, VERY bad things happen!
@@ -240,7 +240,7 @@ enterProtectedMode:
     ; re-enable them when it thinks it is ready for them
 
     ; Tell the kernel how many entries there are
-    push dword [variables.memMapEntries]
+    push dword [variables.mem_map_entries]
     push dword MEM_MAP_ADDR
 
     ; Push a dummy return address on to the stack
