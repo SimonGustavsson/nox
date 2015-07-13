@@ -215,7 +215,161 @@ struct elf32_phdr {
     uint32_t align;
 } PACKED;
 
-void print_file_not_found(const char* file)
+//=============================================================
+// Forward Declarations
+//=============================================================
+static void print_file_not_found(const char* file);
+static void print_ph_flags(uint32_t flags);
+static void print_sh_flags(uint32_t flags);
+static void print_program_headers(struct elf32_header* elf, intptr_t buffer);
+static void print_section_headers(struct elf32_header* elf, intptr_t buffer);
+static void print_ph_type(enum elf_ph_type type, size_t total_len);
+static void print_sh_type(enum elf_sh_type type, size_t total_len);
+static bool verify_header(struct elf32_header* header);
+
+//=============================================================
+// Public Interface
+//=============================================================
+
+// Finds the given elf on the drive, and loads it wherever it wants to be loaded
+bool elf_load_trusted(const char* filename, intptr_t* res_entry)
+{
+    struct fat_dir_entry entry;
+    if(!fat_get_dir_entry(fs_get_system_part(), filename, &entry)) {
+        KERROR("That file doesn't exist!");
+        return false;
+    }
+
+    // first off, allocate a buffer where we'll temporararily load the file
+    size_t pages_req = entry.size / PAGE_SIZE;
+    if(entry.size % PAGE_SIZE)
+        pages_req++;
+
+    intptr_t buffer = (intptr_t)mem_page_get_many(pages_req);
+    if(!fat_read_file(fs_get_system_part(), &entry, buffer, pages_req * PAGE_SIZE)) {
+        KERROR("Failed to read file");
+        return false;
+    }
+
+    struct elf32_header* elf = (struct elf32_header*)buffer;
+    if(!verify_header(elf)) {
+        mem_page_free((void*)buffer);
+        return false;
+    }
+
+    struct elf32_phdr* phdrs = (struct elf32_phdr*)(buffer + elf->phoff);
+
+    char* file_buf = (char*)(buffer);
+    for(size_t i = 0; i < elf->phnum; i++) {
+        struct elf32_phdr* ph = &phdrs[i];
+
+        if(ph->type != elf_ph_type_load)
+            continue;
+
+        // Load all loadable program headers into memory
+        kstrcpy_n((char*)(intptr_t)ph->vaddr, ph->file_size, file_buf + ph->offset);
+
+        if(ph->file_size < ph->mem_size) {
+
+            char* start = (char*)(intptr_t)(ph->vaddr + ph->file_size + 1);
+            size_t len = ph->mem_size - ph->file_size;
+            for(size_t i = 0; i < len; i++) {
+                *start++ = 0;
+            }
+        }
+    }
+
+    *res_entry = (intptr_t)elf->entry;
+    return true;
+}
+
+void elf_info(const char* filename)
+{
+    struct fat_dir_entry entry;
+    if(!fat_get_dir_entry(fs_get_system_part(), filename, &entry)) {
+        print_file_not_found(filename);
+        return;
+    }
+
+    size_t pages_req = entry.size / PAGE_SIZE;
+    if(entry.size % PAGE_SIZE)
+        pages_req++;
+
+    intptr_t buffer = (intptr_t)mem_page_get_many(pages_req);
+
+    if(!fat_read_file(fs_get_system_part(), &entry, buffer, pages_req * PAGE_SIZE)) {
+        KERROR("Failed to read file");
+        return;
+    }
+
+    // We have a buffer, yay!
+    struct elf32_header* elf = (struct elf32_header*)buffer;
+
+    if(!verify_header(elf)) {
+        return;
+    }
+
+    // Go through all sections
+    print_section_headers(elf, buffer);
+    print_program_headers(elf, buffer);
+
+    mem_page_free((void*)buffer);
+}
+
+void elf_run(const char* filename)
+{
+    struct fat_dir_entry entry;
+    if(!fat_get_dir_entry(fs_get_system_part(), filename, &entry)) {
+        print_file_not_found(filename);
+        return;
+    }
+
+    size_t pages_req = entry.size / PAGE_SIZE;
+    if(entry.size % PAGE_SIZE)
+        pages_req++;
+
+    intptr_t buffer = (intptr_t)mem_page_get_many(pages_req);
+
+    if(!fat_read_file(fs_get_system_part(), &entry, buffer, pages_req * PAGE_SIZE)) {
+        KERROR("Failed to read file");
+        return;
+    }
+
+    // We have a buffer, yay!
+    struct elf32_header* elf = (struct elf32_header*)buffer;
+
+    if(!verify_header(elf)) {
+        return;
+    }
+
+    // Go through all sections
+    char* file_buf = (char*)(buffer);
+    struct elf32_phdr* phdrs = (struct elf32_phdr*)(file_buf + elf->phoff);
+
+    for(size_t i = 0; i < elf->phnum; i++) {
+        struct elf32_phdr* ph = &phdrs[i];
+
+        if(ph->type != elf_ph_type_load)
+            continue;
+
+        // Load all loadable program headers into memory
+        kstrcpy_n((char*)(intptr_t)ph->vaddr, ph->file_size, file_buf + ph->offset);
+    }
+
+    userland_entry user_entry = (userland_entry)(intptr_t)(elf->entry);
+
+    int result = user_entry();
+    terminal_write_string("Program exit (");
+    terminal_write_uint32(result);
+    terminal_write_string(")\n");
+
+    mem_page_free((void*)buffer);
+}
+
+//=============================================================
+// Static Helpers
+//=============================================================
+static void print_file_not_found(const char* file)
 {
     terminal_set_color(vga_color_red, vga_color_black);
     terminal_write_string("The file '");
@@ -416,141 +570,5 @@ static bool verify_header(struct elf32_header* header)
 
     // All checks passed! Looks good!
     return true;
-}
-
-// Finds the given elf on the drive, and loads it wherever it wants
-// to be loaded
-bool elf_load_trusted(const char* filename, intptr_t* res_entry)
-{
-    struct fat_dir_entry entry;
-    if(!fat_get_dir_entry(fs_get_system_part(), filename, &entry)) {
-        KERROR("That file doesn't exist!");
-        return false;
-    }
-
-    // first off, allocate a buffer where we'll temporararily load the file
-    size_t pages_req = entry.size / PAGE_SIZE;
-    if(entry.size % PAGE_SIZE)
-        pages_req++;
-
-    intptr_t buffer = (intptr_t)mem_page_get_many(pages_req);
-    if(!fat_read_file(fs_get_system_part(), &entry, buffer, pages_req * PAGE_SIZE)) {
-        KERROR("Failed to read file");
-        return false;
-    }
-
-    struct elf32_header* elf = (struct elf32_header*)buffer;
-    if(!verify_header(elf)) {
-        mem_page_free((void*)buffer);
-        return false;
-    }
-
-    struct elf32_phdr* phdrs = (struct elf32_phdr*)(buffer + elf->phoff);
-
-    char* file_buf = (char*)(buffer);
-    for(size_t i = 0; i < elf->phnum; i++) {
-        struct elf32_phdr* ph = &phdrs[i];
-
-        if(ph->type != elf_ph_type_load)
-            continue;
-
-        // Load all loadable program headers into memory
-        kstrcpy_n((char*)(intptr_t)ph->vaddr, ph->file_size, file_buf + ph->offset);
-
-        if(ph->file_size < ph->mem_size) {
-
-            char* start = (char*)(intptr_t)(ph->vaddr + ph->file_size + 1);
-            size_t len = ph->mem_size - ph->file_size;
-            for(size_t i = 0; i < len; i++) {
-                *start++ = 0;
-            }
-        }
-    }
-
-    *res_entry = (intptr_t)elf->entry;
-    return true;
-}
-
-void elf_info(const char* filename)
-{
-    struct fat_dir_entry entry;
-    if(!fat_get_dir_entry(fs_get_system_part(), filename, &entry)) {
-        print_file_not_found(filename);
-        return;
-    }
-
-    size_t pages_req = entry.size / PAGE_SIZE;
-    if(entry.size % PAGE_SIZE)
-        pages_req++;
-
-    intptr_t buffer = (intptr_t)mem_page_get_many(pages_req);
-
-    if(!fat_read_file(fs_get_system_part(), &entry, buffer, pages_req * PAGE_SIZE)) {
-        KERROR("Failed to read file");
-        return;
-    }
-
-    // We have a buffer, yay!
-    struct elf32_header* elf = (struct elf32_header*)buffer;
-
-    if(!verify_header(elf)) {
-        return;
-    }
-
-    // Go through all sections
-    print_section_headers(elf, buffer);
-    print_program_headers(elf, buffer);
-
-    mem_page_free((void*)buffer);
-}
-
-void elf_run(const char* filename)
-{
-    struct fat_dir_entry entry;
-    if(!fat_get_dir_entry(fs_get_system_part(), filename, &entry)) {
-        print_file_not_found(filename);
-        return;
-    }
-
-    size_t pages_req = entry.size / PAGE_SIZE;
-    if(entry.size % PAGE_SIZE)
-        pages_req++;
-
-    intptr_t buffer = (intptr_t)mem_page_get_many(pages_req);
-
-    if(!fat_read_file(fs_get_system_part(), &entry, buffer, pages_req * PAGE_SIZE)) {
-        KERROR("Failed to read file");
-        return;
-    }
-
-    // We have a buffer, yay!
-    struct elf32_header* elf = (struct elf32_header*)buffer;
-
-    if(!verify_header(elf)) {
-        return;
-    }
-
-    // Go through all sections
-    char* file_buf = (char*)(buffer);
-    struct elf32_phdr* phdrs = (struct elf32_phdr*)(file_buf + elf->phoff);
-
-    for(size_t i = 0; i < elf->phnum; i++) {
-        struct elf32_phdr* ph = &phdrs[i];
-
-        if(ph->type != elf_ph_type_load)
-            continue;
-
-        // Load all loadable program headers into memory
-        kstrcpy_n((char*)(intptr_t)ph->vaddr, ph->file_size, file_buf + ph->offset);
-    }
-
-    userland_entry user_entry = (userland_entry)(intptr_t)(elf->entry);
-
-    int result = user_entry();
-    terminal_write_string("Program exit (");
-    terminal_write_uint32(result);
-    terminal_write_string(")\n");
-
-    mem_page_free((void*)buffer);
 }
 
