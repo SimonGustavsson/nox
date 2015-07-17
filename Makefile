@@ -1,77 +1,61 @@
+.DEFAULT_GOAL = nox
 DISK_SECTOR_COUNT := $(shell echo $$((32 * 1024)))
 PART_SECTOR_COUNT := $(shell echo $$((16 * 1024)))
 PART_MKDOSFS_SIZE := $(shell echo $$((($(PART_SECTOR_COUNT) / 2) * 2)))
 PART_OFFSET_SECTORS :=2048
+PART_OFFSET_BYTES := $(shell echo $$(($(PART_OFFSET_SECTORS) * 512)))
 
 TOOL := i686-elf
-BUILD := build
 
-MODULES := kernel bootloader userland
+# This is the name of the final (complete) disk image
+IMAGE_NAME := nox-disk
 
-# These variables are populated by modules
-IMAGE_ASSETS :=
-CLEAN_DIRS := $(BUILD)
+# Directories
+BUILD_DIR := build
+CLEAN_DIRS := $(BUILD_DIR)
+IMAGE_PATH := $(BUILD_DIR)/$(IMAGE_NAME).img
+FS_DIR := $(BUILD_DIR)/fs
+FS_FILES :=
+TAG_FILES := $(shell find . '(' -name *.c -o -name *.h -o -name *.asm ')')
 
-nox: directories tags $(BUILD)/nox-disk.img
+# Modules are folders that exist in the repo root
+IGNORED_DIRS := . ./.git ./$(BUILD_DIR)
+_DIRS := $(shell find . -maxdepth 1 -type d)
+MODULES := $(notdir $(filter-out $(IGNORED_DIRS),$(_DIRS)))
 
+# Include their make files
 include $(patsubst %, %/make.mk, $(MODULES))
 
-$(BUILD)/nox-disk.img: $(BUILD)/nox-fs.img
+nox: directories tags $(IMAGE_PATH) $(MODULES) $(FS_FILES)
+
+$(FS_FILES) : $(FS_DIR)/%: $(BUILD_DIR)/%
+	@echo "CP     $(BUILD_DIR)/$(notdir $@) -> $@"
+	@cp $(BUILD_DIR)/$(notdir $@) $@
+	@echo "MCOPY: $(IMAGE_PATH) ----->  $@ ----> $(shell echo $(notdir $@) | tr a-z A-Z)"
+
+# NOTE: HACK: TODO: WARNING: "1M" After the image name,
+#       We assume the partition starts at this offset.
+	@mcopy -o -i $(BUILD_DIR)/nox-disk.img@@1M $@ ::$(shell echo $(notdir $@) | tr a-z A-Z)
+
+$(BUILD_DIR)/$(IMAGE_NAME).img: $(BUILD_DIR)/nox-fs.img $(BUILD_DIR)/mbr.bin
 	@echo "MKFSFAT $<"
-
-# Empty file for the disk image
 	@dd if=/dev/zero of=$@ count=$(DISK_SECTOR_COUNT) > /dev/null 2>&1
-
-# Initialize file system (not necessary, but stops some warnings from fdisk)
 	@mkfs.fat $@ > /dev/null
-
-# Partition it with a single 8MiB FAT16 Partition
-# o = Create empty DOS partiton table
-# n = Add new partition
-# p = Primary partition
-# 1 = Partition number
-# _ = First sector (2048, default)
-# _ = Last sector (size) 16384
-# a = Toggle bootable flag
-# 1 = Partition number
-# t = Change partition system id
-# 1 = (Fs Type, 1 = FAT12, 4 = FAT16 (<32MB), 6 = FAT16, B = Fat32, C = Fat32 (LBA)
-# w = Write table and exit
 	@echo "o\nn\np\n1\n$(PART_OFFSET_SECTORS)\n+$(PART_SECTOR_COUNT)\na\n1\nt\n4\nw" | fdisk $@ > /dev/null
+	@dd if=$(BUILD_DIR)/nox-fs.img of=$@ seek=$(PART_OFFSET_SECTORS) count=$(PART_SECTOR_COUNT) conv=notrunc > /dev/null 2>&1
+	@dd if=$(BUILD_DIR)/mbr.bin of=$@ bs=1 count=446 conv=notrunc > /dev/null 2>&1
 
-# Blit in a FAT16 file system
-	@dd if=$(BUILD)/nox-fs.img of=$@ seek=$(PART_OFFSET_SECTORS) count=$(PART_SECTOR_COUNT) conv=notrunc > /dev/null 2>&1
-
-# Blit in the MBR
-	@dd if=$(BUILD)/mbr.bin of=$@ bs=1 count=446 conv=notrunc > /dev/null 2>&1
-
-$(BUILD)/nox-fs.img: $(IMAGE_ASSETS)
-	@echo "MKDOSFS $<"
-
-# Remove if it already exists to prevent error from mkdosfs
+$(BUILD_DIR)/nox-fs.img: $(BUILD_DIR)/vbr.bin
+	@echo "RM      $@"
 	@rm -f $@
 
 	@mkdosfs -h $(PART_OFFSET_SECTORS) -C -n "NOX" -F 16 $@ $(PART_MKDOSFS_SIZE) > /dev/null
-
-# Blit in our VBR
-# First, blit in the JMP instruction (3 bytes)
-	@dd if=$(BUILD)/vbr.bin of=$@ bs=1 count=3 conv=notrunc > /dev/null 2>&1
-# Secondly, blit in the code section, skipping past the BPB
-	@dd if=$(BUILD)/vbr.bin of=$@ bs=1 count=448 skip=62 seek=62 conv=notrunc > /dev/null 2>&1
-
-	@echo "MCOPY   $(BUILD)/BOOT.SYS $@"
-	@mcopy -i $@ $(BUILD)/BOOT.SYS ::BOOT.SYS
-
-	@echo "MCOPY   $(BUILD)/KERNEL.ELF -> $@"
-	@mcopy -i $@ kernel/obj/kernel.elf ::KERNEL.ELF
-
-	@echo "MCOPY   $(BUILD)/USERLAND.ELF -> $@"
-	@mcopy -i $@ $(BUILD)/USERLAND.ELF ::USERLAND.ELF
+	@dd if=$(BUILD_DIR)/vbr.bin of=$@ bs=1 count=3 conv=notrunc > /dev/null 2>&1
+	@dd if=$(BUILD_DIR)/vbr.bin of=$@ bs=1 count=448 skip=62 seek=62 conv=notrunc > /dev/null 2>&1
 
 directories:
-	@mkdir -p $(BUILD)
-
-TAG_FILES := $(shell find . '(' -name *.c -o -name *.h -o -name *.asm ')')
+	@mkdir -p $(BUILD_DIR)
+	@mkdir -p $(FS_DIR)
 
 tags: $(TAG_FILES)
 	@ctags $^
@@ -85,4 +69,5 @@ fire:
 clean:
 	rm -f -r $(CLEAN_DIRS)
 
-.PHONY: clean directories run fire
+.PHONY: nox directories clean
+

@@ -7,13 +7,15 @@ DEP_DIR := $(MODULE)deps
 
 CLEAN_DIRS += $(OBJ_DIR) $(DEP_DIR)
 
-IMAGE_ASSETS += $(BUILD)/USERLAND.ELF
+FS_FILES += $(FS_DIR)/USERLAND.ELF
 
 C_HEADERS := $(patsubst %,-I%, $(shell find $(INCLUDE_DIR) -type d))
 -include $(addprefix $(DEP_DIR)/, $(notdir $(COBJECTS:.o=.d)))
 
-$(BUILD)/USERLAND.ELF: $(OBJ_DIR)/userland.o user_directories
-	@echo "LD      $<"
+userland: $(BUILD_DIR)/USERLAND.ELF user_directories
+
+$(BUILD_DIR)/USERLAND.ELF: $(OBJ_DIR)/userland.o
+	@echo "LD      $@"
 
 	@$(TOOL)-ld -T $(MODULE)userland.ld $(filter-out user_directories, $^) -o $@
 
@@ -29,4 +31,4 @@ user_directories:
 	@mkdir -p $(DEP_DIR)
 	@mkdir -p $(OBJ_DIR)
 
-.PHONY: user_directories
+.PHONY: user_directories userland

@@ -40,7 +40,7 @@ CFLAGS=-std=c11 \
 CINCLUDE := $(patsubst %,-I%, $(shell find $(INCLUDE_DIR) -type d))
 
 # Add prerequisites for full build
-IMAGE_ASSETS += $(BUILD)/KERNEL.BIN $(BUILD)/BOOT.SYS
+FS_FILES += $(FS_DIR)/kernel.elf $(FS_DIR)/BOOT.SYS
 
 # Tell the main makefile to remove our object dir on clean
 CLEAN_DIRS += $(OBJ_DIR) $(DEP_DIR)
@@ -53,19 +53,14 @@ CLEAN_DIRS += $(OBJ_DIR) $(DEP_DIR)
 #
 # Actually building stuff
 #
-
-# Note: Upper case because we use FAT12 and this makes it easy for now
-$(BUILD)/KERNEL.BIN: $(OBJ_DIR)/kernel.elf 
-	@echo "OBJCOPY $<"
-
-	@$(TOOL)-objcopy $^ -O binary --set-section-flags .bss=alloc,load,contents $@
+kernel: kernel_directories $(BUILD_DIR)/kernel.elf
 
 # Note: Build into root build directory
-$(OBJ_DIR)/kernel.elf: kernel_directories $(COBJECTS) $(AOBJECTS)
+$(BUILD_DIR)/kernel.elf: $(COBJECTS) $(AOBJECTS)
 
 	@echo "LD      $@"
 
-	@$(TOOL)-ld -T kernel.ld -Map=$(BUILD)/kernel.map $(filter-out kernel_directories, $^) -o $@
+	@$(TOOL)-ld -T kernel.ld -Map=$(BUILD_DIR)/kernel.map $(filter-out kernel_directories, $^) -o $@
 
 $(OBJ_DIR)/%.o : $(CSOURCE_DIR)/%.c
 
@@ -96,11 +91,11 @@ KLOADER_OBJECTS += $(KLOADER_ASOURCES:.asm=.o)
 KLOADER_OBJECTS := $(subst $(CSOURCE_DIR), $(OBJ_DIR), $(KLOADER_OBJECTS))
 KLOADER_OBJECTS := $(subst $(ASOURCE_DIR), $(OBJ_DIR), $(KLOADER_OBJECTS))
 
-$(BUILD)/BOOT.SYS: $(BUILD)/boot.elf
+$(BUILD_DIR)/BOOT.SYS: $(BUILD_DIR)/boot.elf
 	@echo "OBJCOPY $<"
 	@@$(TOOL)-objcopy $^ -O binary --set-section-flags .bss=alloc,load,contents $@
 
-$(BUILD)/boot.elf: kernel_directories $(KLOADER_OBJECTS)
+$(BUILD_DIR)/boot.elf: $(KLOADER_OBJECTS)
 	@echo "LD      $@" 
 	@$(TOOL)-ld -T kloader.ld $(filter-out kernel_directories, $^) -o $@
 
