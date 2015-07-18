@@ -41,7 +41,7 @@ $(BUILD_DIR)/$(IMAGE_NAME).img: $(BUILD_DIR)/nox-fs.img $(BUILD_DIR)/mbr.bin
 	@echo "MKFSFAT $<"
 	@dd if=/dev/zero of=$@ count=$(DISK_SECTOR_COUNT) > /dev/null 2>&1
 	@mkfs.fat $@ > /dev/null
-	@echo "o\nn\np\n1\n$(PART_OFFSET_SECTORS)\n+$(PART_SECTOR_COUNT)\na\n1\nt\n4\nw" | fdisk $@ > /dev/null
+	@echo "o\nn\np\n1\n$(PART_OFFSET_SECTORS)\n+$(PART_SECTOR_COUNT)\na\n1\nt\n4\nw" | fdisk $@ > /dev/null 2>&1
 	@dd if=$(BUILD_DIR)/nox-fs.img of=$@ seek=$(PART_OFFSET_SECTORS) count=$(PART_SECTOR_COUNT) conv=notrunc > /dev/null 2>&1
 	@dd if=$(BUILD_DIR)/mbr.bin of=$@ bs=1 count=446 conv=notrunc > /dev/null 2>&1
 
@@ -49,6 +49,7 @@ $(BUILD_DIR)/nox-fs.img: $(BUILD_DIR)/vbr.bin
 	@echo "RM      $@"
 	@rm -f $@
 
+	@echo "MKDOSFS $@"
 	@mkdosfs -h $(PART_OFFSET_SECTORS) -C -n "NOX" -F 16 $@ $(PART_MKDOSFS_SIZE) > /dev/null
 	@dd if=$(BUILD_DIR)/vbr.bin of=$@ bs=1 count=3 conv=notrunc > /dev/null 2>&1
 	@dd if=$(BUILD_DIR)/vbr.bin of=$@ bs=1 count=448 skip=62 seek=62 conv=notrunc > /dev/null 2>&1
