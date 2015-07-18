@@ -8,6 +8,9 @@ OBJ_DIR := $(MODULE)obj
 INCLUDE_DIR := $(MODULE)include
 DEP_DIR := $(MODULE)deps
 
+KERNEL_LINKER_SCRIPT := $(MODULE)kernel.ld
+KLOADER_LINKER_SCRIPT := $(MODULE)kloader.ld
+
 # Find all candidates for compiling
 ASOURCE := $(shell find $(ASOURCE_DIR) -name '*.asm')
 CSOURCE := $(shell find $(CSOURCE_DIR) -name '*.c')
@@ -56,11 +59,11 @@ CLEAN_DIRS += $(OBJ_DIR) $(DEP_DIR)
 kernel: kernel_directories $(BUILD_DIR)/kernel.elf
 
 # Note: Build into root build directory
-$(BUILD_DIR)/kernel.elf: $(COBJECTS) $(AOBJECTS)
+$(BUILD_DIR)/kernel.elf: $(COBJECTS) $(AOBJECTS) $(KERNEL_LINKER_SCRIPT)
 
 	@echo "LD      $@"
 
-	@$(TOOL)-ld -T kernel.ld -Map=$(BUILD_DIR)/kernel.map $(filter-out kernel_directories, $^) -o $@
+	@$(TOOL)-ld -T $(KERNEL_LINKER_SCRIPT) -Map=$(BUILD_DIR)/kernel.map $(filter-out kernel_directories, $^) -o $@
 
 $(OBJ_DIR)/%.o : $(CSOURCE_DIR)/%.c
 
@@ -95,9 +98,9 @@ $(BUILD_DIR)/BOOT.SYS: $(BUILD_DIR)/boot.elf
 	@echo "OBJCOPY $<"
 	@@$(TOOL)-objcopy $^ -O binary --set-section-flags .bss=alloc,load,contents $@
 
-$(BUILD_DIR)/boot.elf: $(KLOADER_OBJECTS)
+$(BUILD_DIR)/boot.elf: $(KLOADER_OBJECTS) $(KLOADER_LINKER_SCRIPT)
 	@echo "LD      $@" 
-	@$(TOOL)-ld -T kloader.ld $(filter-out kernel_directories, $^) -o $@
+	@$(TOOL)-ld -T $(KLOADER_LINKER_SCRIPT) $(filter-out kernel_directories, $^) -o $@
 
 kernel_directories:
 	@mkdir -p $(DEP_DIR)

@@ -8,20 +8,20 @@ SECTIONS
     LD_KERNEL_START = .;
 
     /* Code */
-	.text : 
+	.text :
 	{
         *(.text.boot)
 		*(.text)
 	}
 
 	/* Read-only data. */
-	.rodata : 
+	.rodata :
 	{
 		*(.rodata)
 	}
 
 	/* Read-write data (initialized) */
-	.data : 
+	.data :
 	{
 		*(.data)
 	}
@@ -29,7 +29,7 @@ SECTIONS
     LD_KERNEL_DATA_END = .;
 
 	/* Read-write data (uninitialized) and stack */
-	.bss : 
+	.bss :
 	{
 		*(COMMON)
 		*(.bss)
