@@ -58,19 +58,19 @@ kernel: kernel_directories $(BUILD_DIR)/kernel.elf
 
 # Note: Build into root build directory
 $(BUILD_DIR)/kernel.elf: $(COBJECTS) $(AOBJECTS) $(KERNEL_LINKER_SCRIPT)
-	@echo "LD      $@"
+	@echo "$(TIME) LD       $@"
 	@$(TOOL)-ld -T $(KERNEL_LINKER_SCRIPT) -Map=$(BUILD_DIR)/kernel.map $(filter-out $(KERNEL_LINKER_SCRIPT), $^) -o $@
 
 $(OBJ_DIR)/%.o : $(CSOURCE_DIR)/%.c
 	@mkdir -p $(dir $@)
 	@mkdir -p $(DEP_DIR)/$(dir $*)
-	@echo "CC      $<"
+	@echo "$(TIME) CC       $<"
 	@$(TOOL)-gcc $< -o $@ $(CINCLUDE) $(CFLAGS) -MD -MF $(DEP_DIR)/$*.d
 
 $(OBJ_DIR)/%.o : $(ASOURCE_DIR)/%.asm
 
 	@mkdir -p $(dir $@)
-	@echo "AS      $<"
+	@echo "$(TIME) AS       $<"
 	@nasm $< -o $@ -f elf32 -i $(INCLUDE_DIR)
 
 #################################################################################
@@ -87,11 +87,11 @@ KLOADER_OBJECTS := $(subst $(CSOURCE_DIR), $(OBJ_DIR), $(KLOADER_OBJECTS))
 KLOADER_OBJECTS := $(subst $(ASOURCE_DIR), $(OBJ_DIR), $(KLOADER_OBJECTS))
 
 $(BUILD_DIR)/BOOT.SYS: $(BUILD_DIR)/boot.elf
-	@echo "OBJCOPY $<"
+	@echo "$(TIME) OBJCOPY  $<"
 	@$(TOOL)-objcopy $^ -O binary --set-section-flags .bss=alloc,load,contents $@
 
 $(BUILD_DIR)/boot.elf: $(KLOADER_OBJECTS) $(KLOADER_LINKER_SCRIPT)
-	@echo "LD      $@" 
+	@echo "$(TIME) LD       $@" 
 	@$(TOOL)-ld -T $(KLOADER_LINKER_SCRIPT) $(filter-out $(KLOADER_LINKER_SCRIPT),$^) -o $@
 
 kernel_directories:

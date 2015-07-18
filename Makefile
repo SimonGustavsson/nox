@@ -18,6 +18,8 @@ FS_DIR := $(BUILD_DIR)/fs
 FS_FILES :=
 TAG_FILES := $(shell find . '(' -name *.c -o -name *.h -o -name *.asm ')')
 
+TIME = [$(shell date +%H:%M:%S)]
+
 # Modules are folders that exist in the repo root
 IGNORED_DIRS := . ./.git ./$(BUILD_DIR)
 _DIRS := $(shell find . -maxdepth 1 -type d)
@@ -29,27 +31,29 @@ include $(patsubst %, %/make.mk, $(MODULES))
 nox: directories tags $(IMAGE_PATH) $(MODULES) $(FS_FILES)
 
 $(FS_FILES) : $(FS_DIR)/%: $(BUILD_DIR)/%
-	@echo "CP      $(BUILD_DIR)/$(notdir $@) -> $@"
+	@echo "$(TIME) CP       $(BUILD_DIR)/$(notdir $@) -> $@"
 	@cp $(BUILD_DIR)/$(notdir $@) $@
-	@echo "MCOPY:  $@ :: $(shell echo $(notdir $@) | tr a-z A-Z)"
+	@echo "$(TIME) MCOPY:   $@ :: $(shell echo $(notdir $@) | tr a-z A-Z)"
 
 # NOTE: HACK: TODO: WARNING: "1M" After the image name,
 #       We assume the partition starts at this offset.
 	@mcopy -o -i $(BUILD_DIR)/nox-disk.img@@1M $@ ::$(shell echo $(notdir $@) | tr a-z A-Z)
 
 $(BUILD_DIR)/$(IMAGE_NAME).img: $(BUILD_DIR)/nox-fs.img $(BUILD_DIR)/mbr.bin
-	@echo "MKFSFAT $<"
+	@echo "$(TIME) MKFS.FAT $<"
 	@dd if=/dev/zero of=$@ count=$(DISK_SECTOR_COUNT) > /dev/null 2>&1
 	@mkfs.fat $@ > /dev/null
+
+	@echo "$(TIME) FDISK    $@"
 	@echo "o\nn\np\n1\n$(PART_OFFSET_SECTORS)\n+$(PART_SECTOR_COUNT)\na\n1\nt\n4\nw" | fdisk $@ > /dev/null 2>&1
 	@dd if=$(BUILD_DIR)/nox-fs.img of=$@ seek=$(PART_OFFSET_SECTORS) count=$(PART_SECTOR_COUNT) conv=notrunc > /dev/null 2>&1
 	@dd if=$(BUILD_DIR)/mbr.bin of=$@ bs=1 count=446 conv=notrunc > /dev/null 2>&1
 
 $(BUILD_DIR)/nox-fs.img: $(BUILD_DIR)/vbr.bin
-	@echo "RM      $@"
+	@echo "$(TIME) RM       $@"
 	@rm -f $@
 
-	@echo "MKDOSFS $@"
+	@echo "$(TIME) MKDOSFS  $@"
 	@mkdosfs -h $(PART_OFFSET_SECTORS) -C -n "NOX" -F 16 $@ $(PART_MKDOSFS_SIZE) > /dev/null
 	@dd if=$(BUILD_DIR)/vbr.bin of=$@ bs=1 count=3 conv=notrunc > /dev/null 2>&1
 	@dd if=$(BUILD_DIR)/vbr.bin of=$@ bs=1 count=448 skip=62 seek=62 conv=notrunc > /dev/null 2>&1

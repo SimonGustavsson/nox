@@ -17,14 +17,14 @@ C_HEADERS := $(patsubst %,-I%, $(shell find $(INCLUDE_DIR) -type d))
 userland: $(BUILD_DIR)/USERLAND.ELF user_directories
 
 $(BUILD_DIR)/USERLAND.ELF: $(OBJ_DIR)/userland.o $(MODULE)userland.ld
-	@echo "LD      $@"
+	@echo "$(TIME) LD       $@"
 	@$(TOOL)-ld -T $(MODULE)userland.ld $(filter-out $(MODULE)userland.ld,$<) -o $@
 
 $(OBJ_DIR)/%.o : $(SOURCE_DIR)/%.c
 	@mkdir -p $(dir $@)
 	@mkdir -p $(DEP_DIR)/$(dir $*)
 
-	@echo "CC      $<"
+	@echo "$(TIME) CC       $<"
 	@$(TOOL)-gcc $< -o $@ $(C_HEADERS) $(CFLAGS) -MD -MF $(DEP_DIR)/$*.d
 
 user_directories:
