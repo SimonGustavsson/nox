@@ -3,8 +3,6 @@ AS := nasm
 # Get the name of the module directory we're in
 MODULE := $(dir $(lastword $(MAKEFILE_LIST)))
 
-IMAGE_ASSETS += $(BUILD)/mbr.bin $(BUILD)/vbr.bin
-
 ASM_INCLUDE := $(MODULE)include/
 SOURCE := $(MODULE)source
 
