@@ -59,7 +59,7 @@ kernel: kernel_directories $(BUILD_DIR)/kernel.elf
 # Note: Build into root build directory
 $(BUILD_DIR)/kernel.elf: $(COBJECTS) $(AOBJECTS) $(KERNEL_LINKER_SCRIPT)
 	@echo "LD      $@"
-	@$(TOOL)-ld -T $(KERNEL_LINKER_SCRIPT) -Map=$(BUILD_DIR)/kernel.map $(filter-out kernel_directories, $^) -o $@
+	$(TOOL)-ld -T $(KERNEL_LINKER_SCRIPT) -Map=$(BUILD_DIR)/kernel.map $(filter-out $(KERNEL_LINKER_SCRIPT), $^) -o $@
 
 $(OBJ_DIR)/%.o : $(CSOURCE_DIR)/%.c
 	@mkdir -p $(dir $@)
@@ -93,7 +93,7 @@ $(BUILD_DIR)/BOOT.SYS: $(BUILD_DIR)/boot.elf
 $(BUILD_DIR)/boot.elf: $(KLOADER_OBJECTS) $(KLOADER_LINKER_SCRIPT)
 	@echo "Deps: $^"
 	@echo "LD      $@" 
-	@$(TOOL)-ld -T $(KLOADER_LINKER_SCRIPT) $^ -o $@
+	$(TOOL)-ld -T $(KLOADER_LINKER_SCRIPT) $(filter-out $(KLOADER_LINKER_SCRIPT),$^) -o $@
 
 kernel_directories:
 	@mkdir -p $(DEP_DIR)

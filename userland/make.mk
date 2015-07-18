@@ -18,7 +18,7 @@ userland: $(BUILD_DIR)/USERLAND.ELF user_directories
 
 $(BUILD_DIR)/USERLAND.ELF: $(OBJ_DIR)/userland.o $(MODULE)userland.ld
 	@echo "LD      $@"
-	@$(TOOL)-ld -T $(MODULE)userland.ld $< -o $@
+	@$(TOOL)-ld -T $(MODULE)userland.ld $(filter-out $(MODULE)userland.ld,$<) -o $@
 
 $(OBJ_DIR)/%.o : $(SOURCE_DIR)/%.c
 	@mkdir -p $(dir $@)
