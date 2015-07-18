@@ -29,9 +29,9 @@ include $(patsubst %, %/make.mk, $(MODULES))
 nox: directories tags $(IMAGE_PATH) $(MODULES) $(FS_FILES)
 
 $(FS_FILES) : $(FS_DIR)/%: $(BUILD_DIR)/%
-	@echo "CP     $(BUILD_DIR)/$(notdir $@) -> $@"
+	@echo "CP      $(BUILD_DIR)/$(notdir $@) -> $@"
 	@cp $(BUILD_DIR)/$(notdir $@) $@
-	@echo "MCOPY: $(IMAGE_PATH) ----->  $@ ----> $(shell echo $(notdir $@) | tr a-z A-Z)"
+	@echo "MCOPY:  $@ :: $(shell echo $(notdir $@) | tr a-z A-Z)"
 
 # NOTE: HACK: TODO: WARNING: "1M" After the image name,
 #       We assume the partition starts at this offset.
