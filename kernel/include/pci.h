@@ -20,7 +20,10 @@
 #define MAX_PCI_BUS_DEV_NR 32
 #define MAX_FUNC_PER_PCI_BUS_DEV 8
 
+#define MASS_STORAGE_CLASS_CODE (0x1)
 #define USB_CLASS_CODE (0xC)
+
+#define MASS_STORAGE_SUBCLASS_CODE (0x1)
 #define USB_SUBCLASS_CODE (0x03)
 
 // Offset of standard PCI Configuration space registers
@@ -141,6 +144,7 @@ void pci_write_dword(struct pci_address* addr, uint8_t reg_offset, uint32_t valu
 void pci_write_word(struct pci_address* addr, uint8_t reg_offset, uint16_t value);
 void pci_write_byte(struct pci_address* addr, uint8_t reg_offset, uint8_t value);
 
+bool pci_address_advance(struct pci_address* address);
 bool pci_device_get_next(struct pci_address* addr, int16_t class_id, int16_t sub_class, pci_device* result);
 uint32_t pci_device_get_memory_size(struct pci_address* addr, uint32_t bar_offset);
 

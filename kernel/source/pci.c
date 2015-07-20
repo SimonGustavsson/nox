@@ -11,6 +11,22 @@ static void pci_write(uint8_t bus, uint8_t dev, uint8_t func, uint8_t port, uint
 // -------------------------------------------------------------------------
 // Exports
 // -------------------------------------------------------------------------
+bool pci_address_advance(struct pci_address* address)
+{
+    if(++address->func > MAX_FUNC_PER_PCI_BUS_DEV - 1) {
+        address->func = 0;
+        if(++address->device > MAX_PCI_BUS_DEV_NR - 1) {
+            address->device = 0;
+            if(++address->bus > MAX_PCI_BUS_NR - 1) {
+                address->bus = 0;
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 uint32_t pci_read_dword(struct pci_address* addr, uint8_t reg_offset)
 {
     return pci_read(addr->bus, addr->device, addr->func, reg_offset, sizeof(uint32_t));

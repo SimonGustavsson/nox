@@ -15,7 +15,6 @@
 // Forward Declarations
 // -------------------------------------------------------------------------
 static void usb_process_device(struct pci_address* addr, pci_device* dev);
-static bool advance_to_next_address(struct pci_address* address);
 static void process_uhci(struct pci_address* addr, pci_device* dev);
 
 // -------------------------------------------------------------------------
@@ -35,7 +34,7 @@ void usb_init()
         //       as they're used for enumerating all devices
        usb_process_device(&addr, &dev);
 
-       if(!advance_to_next_address(&addr)) {
+       if(!pci_address_advance(&addr)) {
            break;
        }
     } 
@@ -108,20 +107,4 @@ static void process_uhci(struct pci_address* addr, pci_device* dev)
 // -------------------------------------------------------------------------
 // Static utilities
 // -------------------------------------------------------------------------
-static bool advance_to_next_address(struct pci_address* address)
-{
-   if(++address->func >= MAX_FUNC_PER_PCI_BUS_DEV) {
-        address->func = 0;
-        
-        if(++address->device >= MAX_PCI_BUS_DEV_NR) {
-            address->device = 0;
-
-            if(++address->bus >= MAX_PCI_BUS_NR) {
-                return false; // Reached the end
-            }
-        }
-   } 
-
-   return true;
-}
 

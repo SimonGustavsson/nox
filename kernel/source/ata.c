@@ -4,10 +4,61 @@
 #include <debug.h>
 #include <ata.h>
 #include <terminal.h>
+#include <pci.h>
 
-//static enum ata_drive primary_drive = ata_drive_unknown;
-//static enum ata_drive secondary_drive = ata_drive_unknown;
+// -------------------------------------------------------------------------
+// Static Types
+// -------------------------------------------------------------------------
+struct ata_channel {
+    uint16_t base;
+    uint16_t control;
+    uint16_t bus_master;
+    uint8_t nIEN;
+};
+
+enum ready_result {
+    ready_result_ready,
+    ready_result_df,
+    ready_result_err,
+};
+
+// -------------------------------------------------------------------------
+// Globals
+// -------------------------------------------------------------------------
+struct ata_channel g_channels[2];
+
+// -------------------------------------------------------------------------
+// Forward Declarations
+// -------------------------------------------------------------------------
 void select_drive(enum ata_controller controller, enum ata_drive drive);
+static void wait_400ns(enum ata_controller controller);
+static enum ready_result wait_until_ready(enum ata_controller controller);
+
+// -------------------------------------------------------------------------
+// Externs
+// -------------------------------------------------------------------------
+void ata_init()
+{
+    // We only support one IDE device right meow
+    struct pci_address addr = {};
+    pci_device dev;
+    if(!pci_device_get_next(&addr, MASS_STORAGE_CLASS_CODE, MASS_STORAGE_SUBCLASS_CODE, &dev)) {
+        KERROR("No IDE drive found!");
+        return;
+    }
+
+    g_channels[0].base = dev.base_addr0 > 2 ? dev.base_addr0 : 0x1F0;
+    g_channels[0].control = dev.base_addr1 > 2 ? dev.base_addr1 : 0x3F4;
+    g_channels[0].bus_master = dev.base_addr4;
+
+    g_channels[1].base = dev.base_addr2 > 2 ? dev.base_addr2 : 0x170;
+    g_channels[1].control = dev.base_addr3 > 2 ? dev.base_addr3 : 0x374;
+    g_channels[1].bus_master = dev.base_addr4 + 8;
+
+    // TODO: Finish setup using values discovered via PCI
+
+    select_drive(ata_controller_primary, ata_drive_master);
+}
 
 uint8_t ata_read(enum ata_controller controller, enum ata_register port)
 {
@@ -22,53 +73,6 @@ uint16_t ata_read_data(enum ata_controller controller)
 void ata_write(enum ata_controller controller, enum ata_register port, uint8_t value)
 {
     OUTB(controller + port, value);
-}
-
-enum ready_result {
-    ready_result_ready,
-    ready_result_df,
-    ready_result_err,
-};
-
-static void wait_400ns(enum ata_controller controller)
-{
-    // Each IO port read takes 100ns, so to get a 400ns
-    // delay (needed by the ATA hardware at various points)
-    // - just read the status port 4 times.
-    ata_read(controller, ata_register_cmd_status);
-    ata_read(controller, ata_register_cmd_status);
-    ata_read(controller, ata_register_cmd_status);
-    ata_read(controller, ata_register_cmd_status);
-}
-
-static enum ready_result wait_until_ready(enum ata_controller controller)
-{
-    uint8_t status;
-
-    for (;;) {
-        status = ata_read(controller, ata_register_cmd_status);
-
-        // We're not really sure about this yet, the info we've read so
-        // far is ambiguous about whether the busy flag is cleared when
-        // there is an error, so just check the error conditions.
-        if ((status & ata_status_error) == ata_status_error) {
-            return ready_result_err;
-        }
-
-        if ((status & ata_status_df) == ata_status_df) {
-            return ready_result_df;
-        }
-
-        if ((status & ata_status_busy) == ata_status_busy) {
-            continue;
-        }
-
-        if ((status & ata_status_drq) != ata_status_drq) {
-            continue;
-        }
-
-        return ready_result_ready;
-    }
 }
 
 // sector_count of 0 means 256 sectors, 1-255 mean what they say
@@ -110,10 +114,6 @@ bool ata_read_sectors(uint32_t lba, uint8_t sector_count, uintptr_t buffer)
     wait_400ns(ata_controller_primary);
 
     return true;
-}
-
-void ata_init() {
-    select_drive(ata_controller_primary, ata_drive_master);
 }
 
 void select_drive(enum ata_controller controller, enum ata_drive drive)
@@ -175,6 +175,50 @@ void select_drive(enum ata_controller controller, enum ata_drive drive)
         terminal_write_string("ATA Done using LBA28. Sector Count is ");
         terminal_write_uint32(*number_of_sectors_lba28);
         terminal_write_string("\n");
+    }
+}
+
+// -------------------------------------------------------------------------
+// Static Functions
+// -------------------------------------------------------------------------
+static void wait_400ns(enum ata_controller controller)
+{
+    // Each IO port read takes 100ns, so to get a 400ns
+    // delay (needed by the ATA hardware at various points)
+    // - just read the status port 4 times.
+    ata_read(controller, ata_register_cmd_status);
+    ata_read(controller, ata_register_cmd_status);
+    ata_read(controller, ata_register_cmd_status);
+    ata_read(controller, ata_register_cmd_status);
+}
+
+static enum ready_result wait_until_ready(enum ata_controller controller)
+{
+    uint8_t status;
+
+    for (;;) {
+        status = ata_read(controller, ata_register_cmd_status);
+
+        // We're not really sure about this yet, the info we've read so
+        // far is ambiguous about whether the busy flag is cleared when
+        // there is an error, so just check the error conditions.
+        if ((status & ata_status_error) == ata_status_error) {
+            return ready_result_err;
+        }
+
+        if ((status & ata_status_df) == ata_status_df) {
+            return ready_result_df;
+        }
+
+        if ((status & ata_status_busy) == ata_status_busy) {
+            continue;
+        }
+
+        if ((status & ata_status_drq) != ata_status_drq) {
+            continue;
+        }
+
+        return ready_result_ready;
     }
 }
 
