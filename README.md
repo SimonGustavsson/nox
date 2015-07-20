@@ -11,13 +11,14 @@ for any sort of real world use.
 * PIT support for timing
 * PS/2 keyboard
 * Scan code Set 1 interpreter
+* PATA read
 
 # What we're planning on doing
 * Terminals (multiple, text and visual)
 * Threads
 * User mode
 * USB stack
-* PATA support
+* PATA Write support
 * Networking
 
 # Running it
