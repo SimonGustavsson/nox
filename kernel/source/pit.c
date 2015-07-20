@@ -15,6 +15,7 @@
 // Forward Declarations
 // -------------------------------------------------------------------------
 static void isr_timer(uint8_t irq, struct irq_regs* irq_regs);
+static void start_pit();
 
 // -------------------------------------------------------------------------
 // Local types
@@ -48,12 +49,13 @@ enum pit_channel {
 // -------------------------------------------------------------------------
 // Global variables
 // -------------------------------------------------------------------------
-static int g_pit_counter = 0;
+static volatile uint64_t g_pit_ticks = 0;
+static uint32_t g_default_pit_divisor = (1193180 / 1000); // Once per millisecond
 
 // -------------------------------------------------------------------------
 // Exports
 // -------------------------------------------------------------------------
-void pit_set(uint16_t frequency_divisor)
+void pit_init()
 {
 
     // Not gonna get any timer interrupts if we don't
@@ -66,34 +68,37 @@ void pit_set(uint16_t frequency_divisor)
             pit_channel_0 |
             pit_access_both);
 
-    uint16_t reload_value = frequency_divisor; // this correct?
-
-    OUTB(PIT_IO_PORT_CHANNEL_0, (uint8_t)(reload_value & 0xFF));
-    OUTB(PIT_IO_PORT_CHANNEL_0, (uint8_t)((reload_value >> 8) & 0xFF));
+    start_pit();
 }
 
-uint32_t g_num_timer_hits = 0;
+void pit_wait(size_t ms)
+{
+    // The PIT ticks once every millisecond
+    uint32_t now = g_pit_ticks;
+    uint32_t end = now + ms;
+
+    while(g_pit_ticks < end) {
+        __asm("HLT");
+    }
+}
+
+// -------------------------------------------------------------------------
+// Static Functions
+// -------------------------------------------------------------------------
+static void start_pit()
+{
+    OUTB(PIT_IO_PORT_CHANNEL_0, (uint8_t)(g_default_pit_divisor & 0xFF));
+    OUTB(PIT_IO_PORT_CHANNEL_0, (uint8_t)((g_default_pit_divisor >> 8) & 0xFF));
+}
 
 static void isr_timer(uint8_t irq, struct irq_regs* regs)
 {
     // The amount of time we set to wait has now passed
-    g_pit_counter++;
-
-    // Show a message roughly once every couple of seconds
-    if(g_pit_counter == 36) {
-        g_num_timer_hits++;
-        terminal_write_string("Timer hit!");
-        terminal_write_uint32_x(g_num_timer_hits);
-        terminal_write_string("\n");
-        g_pit_counter = 0;
-    }
+    g_pit_ticks++;
 
     // To keep track of time in the kernel -
     // we set the interrupt to fire again
-    //
-    // 0 gives a divisor of 65,536, which yields an interval
-    // of ~18Hz
-    //pit_set(0);
+    start_pit();
 
     // Tell the PIC we have handled the interrupt
     pic_send_eoi(pic_irq_timer);
