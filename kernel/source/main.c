@@ -69,7 +69,7 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
 
     fs_init();
 
-    pit_set(1000);
+    pit_init();
 
     usb_init();
 
