@@ -31,6 +31,9 @@
             NYBL(uint64_t, Flags,  0)   << 52 |  \
             BYTE(uint64_t, Base,   24)  << 56 )
 
+#define GDT_SELECTOR(Index, PrivLevel) ((uint16_t)((Index << 3) + (0 << 2) + PrivLevel))
+#define LDT_SELECTOR(Index, PrivLevel) ((uint16_t)((Index << 3) + (1 << 2) + PrivLevel))
+
 // -------------------------------------------------------------------------
 // Static Types
 // -------------------------------------------------------------------------
@@ -62,33 +65,54 @@ enum gdt_access {
     gdt_access_accessed       = 1,
 };
 
+// Stores data for a task, in our case
+// we only have one task which we use
+// for all user-mode code. Its only
+// utility is so that INT can determine
+// what stack to setup when switching
+// back into kernel mode
 struct tss {
-    uint32_t link;       // High 16-bits reserved
+
+    // This field is only useful for
+    // hardware task switching, where
+    // it's a link to the previous task
+    struct {
+        uint32_t link;
+    } PACKED unused0;
+
+    // The stack pointer and stack segment to load when switching
+    // to ring 0 from the current task
     uint32_t esp0;
-    uint32_t ss0;        // High 16-bits reserved
-    uint32_t esp1;
-    uint32_t ss1;        // High 16-bits reserved
-    uint32_t esp2;
-    uint32_t ss2;        // High 16-bits reserved
-    uint32_t cr3;
-    uint32_t eip;
-    uint32_t eflags;
-    uint32_t eax;
-    uint32_t ecx;
-    uint32_t edx;
-    uint32_t ebx;
-    uint32_t esp;
-    uint32_t ebp;
-    uint32_t esi;
-    uint32_t edi;
-    uint32_t es;          // High 16-bits reserved
-    uint32_t cs;          // High 16-bits reserved
-    uint32_t ss;          // High 16-bits reserved
-    uint32_t ds;          // High 16-bits reserved
-    uint32_t fs;          // High 16-bits reserved
-    uint32_t gs;          // High 16-bits reserved
-    uint32_t ldtr;        // High 16-bits reserved
-    uint16_t reserved;
+    uint32_t ss0;
+
+    // The following fields are only relevant for
+    // hardware task switching
+    struct {
+        uint32_t esp1;
+        uint32_t ss1;
+        uint32_t esp2;
+        uint32_t ss2;
+        uint32_t cr3;
+        uint32_t eip;
+        uint32_t eflags;
+        uint32_t eax;
+        uint32_t ecx;
+        uint32_t edx;
+        uint32_t ebx;
+        uint32_t esp;
+        uint32_t ebp;
+        uint32_t esi;
+        uint32_t edi;
+        uint32_t es;
+        uint32_t cs;
+        uint32_t ss;
+        uint32_t ds;
+        uint32_t fs;
+        uint32_t gs;
+        uint32_t ldtr;
+        uint16_t reserved;
+    } PACKED unused1;
+
     uint16_t iopb;
 } PACKED;
 
@@ -231,7 +255,15 @@ void mem_mgr_gdt_setup()
 
     // ISR stack is one page, might want to make bigger?
     g_tss.esp0 = (uint32_t)(intptr_t)(mem_page_get() + PAGE_SIZE);
+
+    // This is the index from the start of the TSS of the IO
+    // Port Bitmap - our limit for the TSS in the GDT
+    // is the end of the TSS so that basically means there is
+    // no IO Port Bitmap at all. Chapter 16, Volume 1 of the
+    // x86 Developer Guide says that the bitmap may be partial,
+    // so this is entirely okay.
     g_tss.iopb = sizeof(struct tss);
+
     uint32_t tss_base = (uint32_t)(intptr_t)(&g_tss);
     uint32_t tss_size = sizeof(struct tss);
 
@@ -543,7 +575,20 @@ static void gdt_install()
     SHOWVAL_x("GTD address: ", g_gtdd.offset);
 #endif
 
-    __asm ("lgdt (%0)" :: "m" (g_gtdd));
+    __asm ("mov %0  ,  %%ax;    \
+            mov %%ax,  %%ds;    \
+            mov %%ax,  %%es;    \
+            mov %%ax,  %%fs;    \
+            mov %%ax,  %%gs;    \
+            mov %%ax,  %%ss;    \
+            lgdt (%1);          \
+            ljmp %2, $_gdt_loaded; \
+            _gdt_loaded:"
+            :
+            : "i" (GDT_SELECTOR(2, 0)),
+              "m" (g_gtdd),
+              "i" (GDT_SELECTOR(1, 0))
+            );
 }
 
 static void tss_install()
