@@ -54,7 +54,7 @@ CLEAN_DIRS += $(OBJ_DIR) $(DEP_DIR)
 #
 # Actually building stuff
 #
-kernel: kernel_directories $(BUILD_DIR)/kernel.elf
+kernel: $(BUILD_DIR)/kernel.elf
 
 # Note: Build into root build directory
 $(BUILD_DIR)/kernel.elf: $(COBJECTS) $(AOBJECTS) $(KERNEL_LINKER_SCRIPT)
@@ -91,11 +91,7 @@ $(BUILD_DIR)/BOOT.SYS: $(BUILD_DIR)/boot.elf
 	@$(TOOL)-objcopy $^ -O binary --set-section-flags .bss=alloc,load,contents $@
 
 $(BUILD_DIR)/boot.elf: $(KLOADER_OBJECTS) $(KLOADER_LINKER_SCRIPT)
-	@echo "$(TIME) LD       $@" 
+	@echo "$(TIME) LD       $@"
 	@$(TOOL)-ld -T $(KLOADER_LINKER_SCRIPT) $(filter-out $(KLOADER_LINKER_SCRIPT),$^) -o $@
 
-kernel_directories:
-	@mkdir -p $(DEP_DIR)
-	@mkdir -p $(OBJ_DIR)
-
-.PHONY: kernel_directories
+.PHONY:

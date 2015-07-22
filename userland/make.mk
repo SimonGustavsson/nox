@@ -14,11 +14,11 @@ FS_FILES += $(FS_DIR)/USERLAND.ELF
 C_HEADERS := $(patsubst %,-I%, $(shell find $(INCLUDE_DIR) -type d))
 -include $(addprefix $(DEP_DIR)/, $(notdir $(COBJECTS:.o=.d)))
 
-userland: $(BUILD_DIR)/USERLAND.ELF user_directories
+userland: $(BUILD_DIR)/USERLAND.ELF
 
-$(BUILD_DIR)/USERLAND.ELF: $(OBJ_DIR)/userland.o $(MODULE)userland.ld
+$(BUILD_DIR)/USERLAND.ELF: $(MODULE)userland.ld $(OBJ_DIR)/userland.o
 	@echo "$(TIME) LD       $@"
-	@$(TOOL)-ld -T $(MODULE)userland.ld $(filter-out $(MODULE)userland.ld,$<) -o $@
+	@$(TOOL)-ld -T $< $(filter-out $<,$^) -o $@
 
 $(OBJ_DIR)/%.o : $(SOURCE_DIR)/%.c
 	@mkdir -p $(dir $@)
@@ -27,8 +27,4 @@ $(OBJ_DIR)/%.o : $(SOURCE_DIR)/%.c
 	@echo "$(TIME) CC       $<"
 	@$(TOOL)-gcc $< -o $@ $(C_HEADERS) $(CFLAGS) -MD -MF $(DEP_DIR)/$*.d
 
-user_directories:
-	@mkdir -p $(DEP_DIR)
-	@mkdir -p $(OBJ_DIR)
-
-.PHONY: user_directories userland
+.PHONY: userland

@@ -22,7 +22,7 @@ TIME = [$(shell date +%H:%M:%S)]
 
 # Modules are folders that exist in the repo root
 IGNORED_DIRS := . ./.git ./$(BUILD_DIR)
-_DIRS := $(shell find . -maxdepth 1 -type d)
+_DIRS := $(shell find . -maxdepth 1 -type d | LC_ALL=c sort)
 MODULES := $(notdir $(filter-out $(IGNORED_DIRS),$(_DIRS)))
 
 # Include their make files
