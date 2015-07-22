@@ -84,12 +84,12 @@ struct tss {
     uint32_t es;          // High 16-bits reserved
     uint32_t cs;          // High 16-bits reserved
     uint32_t ss;          // High 16-bits reserved
-    uint32_t ds;          // High 16-bits reserved 
-    uint32_t fs;          // High 16-bits reserved 
-    uint32_t gs;          // High 16-bits reserved 
-    uint32_t ldtr;        // High 16-bits reserved 
+    uint32_t ds;          // High 16-bits reserved
+    uint32_t fs;          // High 16-bits reserved
+    uint32_t gs;          // High 16-bits reserved
+    uint32_t ldtr;        // High 16-bits reserved
     uint16_t reserved;
-    uint16_t iopb; 
+    uint16_t iopb;
 } PACKED;
 
 // -------------------------------------------------------------------------
@@ -109,15 +109,15 @@ static size_t g_max_pages;
 static size_t g_total_available_memory;
 
 // Global descriptor table
-#define GDT_SIZE 6
-
-static uint64_t g_gdt[GDT_SIZE] ALIGN(8) = {
+static uint64_t g_gdt[] ALIGN(8) = {
     GDT_ENTRY_(0, 0, 0, 0),
     GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present | gdt_access_executable, gdt_flag_4k | gdt_flag_32bit),
     GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present, gdt_flag_4k | gdt_flag_32bit),
     GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present | gdt_access_priv_ring3 | gdt_access_executable, gdt_flag_4k | gdt_flag_32bit),
     GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present | gdt_access_priv_ring3, gdt_flag_4k | gdt_flag_32bit)
 };
+
+static size_t g_gdt_count = sizeof(g_gdt) / sizeof(uint64_t);
 
 static struct gtdd g_gtdd ALIGN(8);
 
@@ -140,7 +140,7 @@ void print_gdt()
 {
     terminal_write_string("Global Descriptor Table: \n");
     terminal_indentation_increase();
-    for (int i = 0; i < GDT_SIZE; i++) {
+    for (int i = 0; i < g_gdt_count; i++) {
         terminal_write_char('[');
         terminal_write_uint32(i);
         terminal_write_string("] ");
@@ -245,7 +245,7 @@ void mem_mgr_gdt_setup()
     // This means the base value is 1~~01001, with '~~' being the priv level
     // (The TSS flag nybble is a bit different as well, but nothing that is relevant to us)
     g_gdt[TSS_GDTD_INDEX] = GDT_ENTRY_(tss_size - 1, tss_base, 0x89, 0);
-    
+
     // This is what it is at runtime: 6700 805A 01E9 0000
     // Base: 015A80
     // Limit: 0067
@@ -256,7 +256,7 @@ void mem_mgr_gdt_setup()
     print_gdt();
 #endif
 
-    g_gtdd.size = (sizeof(uint64_t) * GDT_SIZE) - 1;
+    g_gtdd.size = (sizeof(uint64_t) * g_gdt_count) - 1;
     g_gtdd.offset = (uint32_t)(intptr_t)&g_gdt;
 
     gdt_install();
