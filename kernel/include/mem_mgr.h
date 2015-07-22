@@ -3,6 +3,14 @@
 
 #define PAGE_SIZE (4096)
 
+#define GDT_SELECTOR(Index, PrivLevel) ((uint16_t)((Index << 3) + (0 << 2) + PrivLevel))
+#define LDT_SELECTOR(Index, PrivLevel) ((uint16_t)((Index << 3) + (1 << 2) + PrivLevel))
+
+#define KERNEL_CODE_SEGMENT GDT_SELECTOR(1, 0)
+#define KERNEL_DATA_SEGMENT GDT_SELECTOR(2, 0)
+#define USER_CODE_SEGMENT   GDT_SELECTOR(3, 3)
+#define USER_DATA_SEGMENT   GDT_SELECTOR(4, 3)
+
 enum region_type {
     region_type_normal = 0x01,
     region_type_reserved = 0x02,

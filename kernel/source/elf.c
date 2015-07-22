@@ -175,7 +175,7 @@ struct elf32_header_ident {
 } PACKED;
 
 struct elf32_header {
-    struct elf32_header_ident ident; 
+    struct elf32_header_ident ident;
     uint16_t type;    // see elf_type
     uint16_t machine;
     uint32_t version;
@@ -211,7 +211,7 @@ struct elf32_phdr {
     uint32_t paddr;
     uint32_t file_size;
     uint32_t mem_size;
-    uint32_t flags; // see elf32_ph_flag 
+    uint32_t flags; // see elf32_ph_flag
     uint32_t align;
 } PACKED;
 
@@ -358,12 +358,26 @@ void elf_run(const char* filename)
 
     userland_entry user_entry = (userland_entry)(intptr_t)(elf->entry);
 
-    int result = user_entry();
-    terminal_write_string("Program exit (");
-    terminal_write_uint32(result);
-    terminal_write_string(")\n");
+    // TODO: user-mode stack setup
+    __asm ("xchg %%bx, %%bx;    \
+            mov %0  ,  %%ax;    \
+            mov %%ax,  %%ds;    \
+            mov %%ax,  %%es;    \
+            mov %%ax,  %%fs;    \
+            mov %%ax,  %%gs;    \
+            pushf;              \
+            push %1;            \
+            mov %2, %%eax;      \
+            push %%eax;         \
+            iret"
+            :
+            : "i" (USER_DATA_SEGMENT),
+              "i" (USER_CODE_SEGMENT),
+              "m" (user_entry)
+          );
 
-    mem_page_free((void*)buffer);
+    // We are never going to get here
+    KERROR("Uhm, how the frack?");
 }
 
 //=============================================================

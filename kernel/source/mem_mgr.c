@@ -31,9 +31,6 @@
             NYBL(uint64_t, Flags,  0)   << 52 |  \
             BYTE(uint64_t, Base,   24)  << 56 )
 
-#define GDT_SELECTOR(Index, PrivLevel) ((uint16_t)((Index << 3) + (0 << 2) + PrivLevel))
-#define LDT_SELECTOR(Index, PrivLevel) ((uint16_t)((Index << 3) + (1 << 2) + PrivLevel))
-
 // -------------------------------------------------------------------------
 // Static Types
 // -------------------------------------------------------------------------
@@ -585,9 +582,9 @@ static void gdt_install()
             ljmp %2, $_gdt_loaded; \
             _gdt_loaded:"
             :
-            : "i" (GDT_SELECTOR(2, 0)),
+            : "i" (KERNEL_DATA_SEGMENT),
               "m" (g_gtdd),
-              "i" (GDT_SELECTOR(1, 0))
+              "i" (KERNEL_CODE_SEGMENT)
             );
 }
 
