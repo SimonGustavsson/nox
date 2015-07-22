@@ -114,7 +114,9 @@ static uint64_t g_gdt[] ALIGN(8) = {
     GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present | gdt_access_executable, gdt_flag_4k | gdt_flag_32bit),
     GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present, gdt_flag_4k | gdt_flag_32bit),
     GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present | gdt_access_priv_ring3 | gdt_access_executable, gdt_flag_4k | gdt_flag_32bit),
-    GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present | gdt_access_priv_ring3, gdt_flag_4k | gdt_flag_32bit)
+    GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present | gdt_access_priv_ring3, gdt_flag_4k | gdt_flag_32bit),
+    // Reserved space for TSS
+    GDT_ENTRY_(0, 0, 0, 0)
 };
 
 static size_t g_gdt_count = sizeof(g_gdt) / sizeof(uint64_t);
@@ -122,7 +124,7 @@ static size_t g_gdt_count = sizeof(g_gdt) / sizeof(uint64_t);
 static struct gtdd g_gtdd ALIGN(8);
 
 #define TSS_GTD_TYPE (0x89)
-#define TSS_GDTD_INDEX 5
+#define TSS_GDTD_INDEX (g_gdt_count - 1)
 static struct tss g_tss ALIGN(8);
 
 // -------------------------------------------------------------------------
