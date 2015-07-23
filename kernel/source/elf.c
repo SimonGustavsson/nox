@@ -359,17 +359,19 @@ void elf_run(const char* filename)
     userland_entry user_entry = (userland_entry)(intptr_t)(elf->entry);
 
     // TODO: user-mode stack setup
-    __asm ("xchg %%bx, %%bx;    \
+    __asm ("cli;                \
             mov %0  ,  %%ax;    \
             mov %%ax,  %%ds;    \
             mov %%ax,  %%es;    \
             mov %%ax,  %%fs;    \
             mov %%ax,  %%gs;    \
+            push %0;            \
+            push $0x20000;      \
             pushf;              \
             push %1;            \
-            mov %2, %%eax;      \
-            push %%eax;         \
-            iret"
+            push %2;            \
+            iret;               \
+            "
             :
             : "i" (USER_DATA_SEGMENT),
               "i" (USER_CODE_SEGMENT),
