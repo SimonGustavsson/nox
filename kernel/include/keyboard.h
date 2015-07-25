@@ -130,5 +130,6 @@ void kb_init();
 void kb_unsubscribe(struct kb_subscriber* subscriber);
 char kb_key_to_ascii(enum keys key);
 char* kb_get_special_key_name(enum keys key);
+char kb_get_printable_key(bool shift, enum keys key);
 
 #endif

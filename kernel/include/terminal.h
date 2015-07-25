@@ -23,4 +23,6 @@ void terminal_write_uint64_x(uint64_t val);
 void terminal_write_uint64_bytes(uint64_t val);
 void terminal_write_ptr(void* val);
 
+bool terminal_erase_char_last();
+
 #endif

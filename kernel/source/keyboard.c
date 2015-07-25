@@ -22,6 +22,21 @@ struct sc_map*          g_current_map;
 
 static void kb_handle_interrupt(uint8_t irq, struct irq_regs* regs);
 
+char kb_get_printable_key(bool shift, enum keys key)
+{
+    char c = kb_key_to_ascii(key);
+    if(c >= 0) {
+        if(shift && c >= 'a' && c <= 'z')
+            c -= 0x20;
+        else if(shift && c == '\'')
+            c = '"';
+
+        return c;
+    }
+
+    return -1;
+}
+
 char* kb_get_special_key_name(enum keys key)
 {
     switch(key) {

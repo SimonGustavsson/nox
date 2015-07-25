@@ -25,7 +25,7 @@ static void cli_key_down(enum keys key);
 // Globals
 static size_t g_input_read_index;
 static size_t g_input_write_index;
-static char g_input_buffer[INPUT_BUFFER_SIZE];
+static enum keys g_input_buffer[INPUT_BUFFER_SIZE];
 
 static bool g_shift_pressed;
 
@@ -77,43 +77,40 @@ static void cli_key_up(enum keys key)
         return;
     }
 
-    // Is this key printable?
-    char c = kb_key_to_ascii(key);
-    if(c >= 0) {
-        if(g_shift_pressed && c >= 'a' && c <= 'z') {
-                c -= 0x20;
-        }
-        else if(g_shift_pressed && c == '\'') {
-            c = '"';
-        }
-
-        // Add key to command buffer
-        g_input_buffer[g_input_write_index++] = c;
-        if(g_input_write_index == INPUT_BUFFER_SIZE) {
-            g_input_write_index = 0;
-        }
+    // Add key to input buffer
+    g_input_buffer[g_input_write_index++] = key;
+    if(g_input_write_index == INPUT_BUFFER_SIZE) {
+        g_input_write_index = 0;
     }
 }
 
 static char read_character(bool eat)
 {
     // do do do do do do
-    while (g_input_buffer[g_input_read_index] < 0) {
+    enum keys k;
+    while ((k = g_input_buffer[g_input_read_index]) == -1) {
     }
 
-    char ch = g_input_buffer[g_input_read_index];
+    // Take one from the buffer
+    enum keys key = g_input_buffer[g_input_read_index];
 
-    if (!eat) {
-        terminal_write_char(ch);
-    }
-
-    g_input_buffer[g_input_read_index] = -1;
-
-    if (++g_input_read_index >= INPUT_BUFFER_SIZE) {
+    g_input_buffer[g_input_read_index++] = -1;
+    if (g_input_read_index >= INPUT_BUFFER_SIZE) {
         g_input_read_index = 0;
     }
 
-    return ch;
+    char printable_char = kb_get_printable_key(g_shift_pressed, key);
+
+    if(printable_char >= 0) {
+        if(!eat)
+            terminal_write_char(printable_char);
+    }
+    else {
+        if(key == keys_backspace)
+            printable_char = '\b';
+    }
+
+    return printable_char;
 }
 
 static size_t read_line(char* buffer, size_t buffer_size)
@@ -125,11 +122,19 @@ static size_t read_line(char* buffer, size_t buffer_size)
     while (len < buffer_size) {
         char ch = read_character(false);
 
-        if (ch == '\n') {
-            return len;
-        }
-        else {
-            buffer[len++] = ch;
+        switch(ch) {
+            case '\n':
+                return len;
+            case '\b': {
+                if(len > 1) {
+                    len -= 1;
+                    buffer[len] = 0;
+                    terminal_erase_char_last();
+                }
+                break;
+            }
+            default:
+                buffer[len++] = ch;
         }
     }
 

@@ -79,10 +79,11 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
 
     elf_run("USERLANDELF");
 
+    cli_init();
+
     // Re-enable interrupts, we're ready now!
     interrupt_enable_all();
 
-    cli_init();
     cli_run();
 
     while(1);

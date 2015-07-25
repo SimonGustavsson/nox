@@ -1,4 +1,4 @@
-#include <stdint.h>
+#include <types.h>
 #include <keyboard.h>
 #include <scan_code.h>
 

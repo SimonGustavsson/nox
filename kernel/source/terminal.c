@@ -215,6 +215,27 @@ static void buffer_increase_offset()
     buffer_sync_with_screen();
 }
 
+bool terminal_erase_char_last()
+{
+    if(g_current_column > 0) {
+        // Easy, just step back a column!
+        g_current_column--;
+    }
+    else {
+        if(g_current_row <= 0)
+            return false;
+
+        g_current_row--;
+        g_current_column = BUFFER_MAX_COLUMNS - 1;
+    }
+
+    g_buffer[g_current_row][g_current_column] = ' ';
+
+    buffer_sync_with_screen();
+
+    return true;
+}
+
 void terminal_write_char(const char c)
 {
     if(c == '\t') {
