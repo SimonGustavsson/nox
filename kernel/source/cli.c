@@ -175,6 +175,11 @@ static void dispatch_command(char* args[], size_t arg_count)
         return;
     }
 
+    if(kstrcmp(args[0], "gpf")) {
+        __asm("xchg %bx, %bx; \
+                lgdt -1"); // This REALLY shouldn't work LOL
+        KWARN("HUH!?");
+    }
     if(kstrcmp(args[0], "reset")) {
         cpu_reset();
     }

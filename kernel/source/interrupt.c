@@ -66,6 +66,7 @@ static void                         page_fault(uint8_t irq, struct irq_regs* reg
 static void                         stack_segment_fault(uint8_t irq, struct irq_regs* regs);
 static void                         invalid_tss(uint8_t irq, struct irq_regs* regs);
 static void                         segment_not_present(uint8_t irq, struct irq_regs* regs);
+static void                         invalid_opcode(uint8_t irq, struct irq_regs* regs);
 
 // -------------------------------------------------------------------------
 // Globals
@@ -85,6 +86,7 @@ void interrupt_init_system()
     g_idt_descriptor.base = &g_idt_entries;
     idt_install(&g_idt_descriptor);
 
+    interrupt_receive_trap(0x06, invalid_opcode);
     interrupt_receive_trap(0x08, double_fault);
     interrupt_receive_trap(0x0A, invalid_tss);
     interrupt_receive_trap(0x0B, segment_not_present);
@@ -250,9 +252,71 @@ static enum kresult idt_entry_verify(struct idt_entry const * const entry, uint8
     return is_valid ? kresult_ok : kresult_invalid;
 }
 
+static void print_error_code(uint32_t error_code)
+{
+    if(error_code == 0) {
+        terminal_write_string("Inspecific error code\n");
+    }
+    else {
+        uint16_t selector = ((error_code >> 3) & 0xFFFF);
+        bool external = (error_code & 1) == 1;
+        uint8_t table_type = error_code >> 1 & 3;
+
+        terminal_write_string("Table Index: ");
+        terminal_write_uint32(selector);
+
+        if(external)
+            terminal_write_string(" (External) ");
+
+        switch(table_type) {
+            case 0:
+                terminal_write_string(" GDT.\n");
+                break;
+            case 1:
+                terminal_write_string(" IDT.\n");
+                break;
+            case 2:
+                terminal_write_string(" LDT.\n");
+                break;
+            default:
+                terminal_write_string(" Invalid.\n");
+                break;
+        }
+    }
+}
+
 static void gpf(uint8_t irq, struct irq_regs* regs)
 {
+    // When we enter an ISR, the stack stack looks like this:
+    //  ____________
+    // |EFlags     | +12
+    // |CS         | +8
+    // |EIP        | +4
+    // |Error code | +0   <---- ESP
+
+    // Because we save all registers in this handy dandy irq_regs
+    // struct upon entering an ISR in assembly, we can now extract
+    // those values!
+
+    // Assume 32-bit stack :(
+    uint32_t* esp = (uint32_t*)(intptr_t)(regs->esp);
+
+    uint32_t error_code = esp[0];
+    uint32_t eip =        esp[1];
+    uint32_t cs =         esp[2];
+    uint32_t eflags =     esp[3];
+
     KERROR("FAULT: Generation Protection Fault!");
+    print_error_code(error_code);
+
+    terminal_write_string("EIP: ");
+    terminal_write_uint32_x(eip);
+    terminal_write_string(" CS: ");
+    terminal_write_uint32_x(cs);
+    terminal_write_string(" EFlags: ");
+    terminal_write_uint32_x(eflags);
+    terminal_write_char('\n');
+
     BREAK();
 }
 
@@ -283,6 +347,13 @@ static void segment_not_present(uint8_t irq, struct irq_regs* regs)
 static void double_fault(uint8_t irq, struct irq_regs* regs)
 {
     KERROR("Double fault!");
+    BREAK();
+}
+
+void invalid_opcode(uint8_t irq, struct irq_regs* regs)
+{
+    KERROR("INvalid opcode!");
+
     BREAK();
 }
 
