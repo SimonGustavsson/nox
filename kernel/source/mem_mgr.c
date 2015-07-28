@@ -116,6 +116,18 @@ struct tss {
 // -------------------------------------------------------------------------
 // Global variables
 // -------------------------------------------------------------------------
+struct mem_region g_kernel_regions[3] = {
+    {mem_region_type_code},
+    {mem_region_type_rodata},
+    {mem_region_type_data}
+};
+
+extern uint32_t LD_CODE_START;
+extern uint32_t LD_CODE_END;
+extern uint32_t LD_RODATA_START;
+extern uint32_t LD_RODATA_END;
+extern uint32_t LD_RWDATA_START;
+extern uint32_t LD_RWDATA_END;
 extern uint32_t LD_KERNEL_START;
 extern uint32_t LD_KERNEL_DATA_END;
 extern uint32_t LD_KERNEL_END;
@@ -179,6 +191,22 @@ void print_gdt()
 // -------------------------------------------------------------------------
 void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
 {
+    // Parse some linker variables and put them in an easy-to-use struct
+    g_kernel_regions[mem_region_type_code].start = (intptr_t)(&LD_CODE_START);
+    g_kernel_regions[mem_region_type_code].size = (size_t)(((uint32_t)(intptr_t)&LD_CODE_END)- ((uint32_t)(intptr_t)&LD_CODE_START));
+    g_kernel_regions[mem_region_type_rodata].start = (intptr_t)(&LD_RODATA_START);
+    g_kernel_regions[mem_region_type_rodata].size = (size_t)(((uint32_t)(intptr_t)&LD_RODATA_END)- ((uint32_t)(intptr_t)&LD_RODATA_START));
+    g_kernel_regions[mem_region_type_data].start = (intptr_t)(&LD_RWDATA_START);
+    g_kernel_regions[mem_region_type_data].size = (size_t)(((uint32_t)(intptr_t)&LD_RWDATA_END)- ((uint32_t)(intptr_t)&LD_RWDATA_START));
+
+    SHOWVAL_x("Code Start: ", g_kernel_regions[0].start);
+    SHOWVAL_x("Code size: ", g_kernel_regions[0].size);
+    SHOWVAL_x("RO data Start: ", g_kernel_regions[1].start);
+    SHOWVAL_x("RO data size: ", g_kernel_regions[1].size);
+
+    SHOWVAL_x("Data Start: ", g_kernel_regions[2].start);
+    SHOWVAL_x("Data size: ", g_kernel_regions[2].size);
+
     g_mem_map = &mem_map;
     g_mem_map_entries = mem_entry_count;
 
@@ -243,6 +271,11 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
 
     terminal_write_string("Reserved ");
     mem_print_usage();
+}
+
+struct mem_region* mem_get_kernel_region(enum mem_region_type type)
+{
+   return &g_kernel_regions[(uint32_t)type];
 }
 
 void mem_mgr_gdt_setup()
