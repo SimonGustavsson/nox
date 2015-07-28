@@ -199,14 +199,6 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     g_kernel_regions[mem_region_type_data].start = (intptr_t)(&LD_RWDATA_START);
     g_kernel_regions[mem_region_type_data].size = (size_t)(((uint32_t)(intptr_t)&LD_RWDATA_END)- ((uint32_t)(intptr_t)&LD_RWDATA_START));
 
-    SHOWVAL_x("Code Start: ", g_kernel_regions[0].start);
-    SHOWVAL_x("Code size: ", g_kernel_regions[0].size);
-    SHOWVAL_x("RO data Start: ", g_kernel_regions[1].start);
-    SHOWVAL_x("RO data size: ", g_kernel_regions[1].size);
-
-    SHOWVAL_x("Data Start: ", g_kernel_regions[2].start);
-    SHOWVAL_x("Data size: ", g_kernel_regions[2].size);
-
     g_mem_map = &mem_map;
     g_mem_map_entries = mem_entry_count;
 
