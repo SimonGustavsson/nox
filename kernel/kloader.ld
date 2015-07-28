@@ -6,6 +6,7 @@ SECTIONS
 	. = 0x7C00;
 
     LD_KERNEL_START = .;
+    LD_CODE_START = .;
 
     /* Code */
 	.text :
@@ -14,11 +15,18 @@ SECTIONS
 		*(.text)
 	}
 
+    LD_CODE_END = .;
+
+    LD_RODATA_START = .;
+
 	/* Read-only data. */
 	.rodata :
 	{
 		*(.rodata)
 	}
+
+    LD_RODATA_END = .;
+    LD_RWDATA_START = .;
 
 	/* Read-write data (initialized) */
 	.data :
@@ -36,5 +44,6 @@ SECTIONS
 		*(.bootstrap_stack)
 	}
 
+    LD_RWDATA_END = .;
     LD_KERNEL_END = .;
 }

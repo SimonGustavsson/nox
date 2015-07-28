@@ -8,33 +8,41 @@ SECTIONS
     LD_KERNEL_START = .;
 
     /* Kernel code */
-	.text :
+	.text ALIGN(4K) :
 	{
+        LD_CODE_START = .;
         *(.text.boot)
 		*(.text)
+        LD_CODE_END = .;
 	}
+
+
 
 	/* Read-only data. */
-	.rodata ALIGN(4):
+	.rodata ALIGN(4K):
 	{
+        LD_RODATA_START = .;
 		*(.rodata)
+        LD_RODATA_END = .;
 	}
 
+
 	/* Read-write data (initialized) */
-	.data ALIGN(4):
+	.data ALIGN(4K):
 	{
+        LD_RWDATA_START = .;
 		*(.data)
 	}
 
-    LD_KERNEL_DATA_END = .;
-
 	/* Read-write data (uninitialized) and stack */
-	.bss ALIGN(4):
+	.bss ALIGN(4K):
 	{
 		*(COMMON)
 		*(.bss)
 		*(.bootstrap_stack)
 	}
+
+    LD_RWDATA_END = .;
 
     .checksum ALIGN(4):
     {
