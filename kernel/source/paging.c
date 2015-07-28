@@ -1,5 +1,9 @@
 #include <types.h>
+#include <kernel.h>
 #include <paging.h>
+#include <mem_mgr.h>
+
+#define PDE_32_PT_ADDRESS_MASK (0xFFFFFC00)
 
 // Page Directory Entry
 // 32 <----------> 12  11:8  7   6   5   4    3    2    1   0
@@ -11,7 +15,7 @@ enum pde_32_pt {
     pde_32_pt_write_through = 1 << 3, // pwt
     pde_32_pt_cache_disable = 1 << 4, // pcd
     pde_32_pt_accessed      = 1 << 5, // a
-    pde_32_pt_ign           = 1 << 6, // ign
+    pde_32_pt_ign           = 1 << 6  // ign
 };
 
 // Page Table Entry
@@ -29,38 +33,58 @@ enum pte_32_4k {
     pte_32_4k_global        = 1 << 8  // g
 };
 
-void page_init_table(intptr_t pde_ptr)
+uintptr_t page_directory_create()
 {
-    // A virtual address has 10 bits for the page Directory Entry index (31:22)
-    // there are 1024 PDEs in the root table, covering a total of 4096MiB of memory
-    //
-    // A virtual address has 10 bits for the Table Entry (21:12)
-    // A page table has 1024 PDEs in the root, covering a total of 4MiB of memory
+    // Page Directory fits neatly inside a page, neat!
+    uintptr_t pd = (uintptr_t)mem_page_get();
 
-    // The address for a Page Table has to be aligned to a 1024 boundary, because
-    // we only have 20-bits to store the address to it within the PDE    
+    // Allocate kernel code (Read-Only, Supervisor, cache enabled)
+    struct mem_region* kcode = mem_get_kernel_region(mem_region_type_code);
+    for(size_t i = 0; i < kcode->size / PAGE_SIZE; i++) {
+        uint32_t page_address = kcode->start + (i * PAGE_SIZE);
+        page_allocate(pd, page_address, page_address, pde_32_pt_write_through);
+    }
 
-    // Recap: All entries are 32-bit
-    // There are 1024 PDEs
-    // There are 1024 Page Tables
-    // Each Page Table has 1024 entries
-    // This means there are a total of 1048576 PTEs
-    // = Each Page Table is 4MiB
+    // Allocate kernel Read-Only data (Read-Only, Supervisor, cache enabled)
+    struct mem_region* krodata = mem_get_kernel_region(mem_region_type_rodata);
+    for(size_t i = 0; i < krodata->size / PAGE_SIZE; i++) {
+        uint32_t page_address = krodata->start + (i * PAGE_SIZE);
+        page_allocate(pd, page_address, page_address, pde_32_pt_write_through);
+    }
+
+    // Allocate kernel Read-Only data (Read-Only, Supervisor, cache enabled)
+    struct mem_region* krwdata = mem_get_kernel_region(mem_region_type_data);
+    for(size_t i = 0; i < krwdata->size / PAGE_SIZE; i++) {
+        uint32_t page_address = krwdata->start + (i * PAGE_SIZE);
+        page_allocate(pd, page_address, page_address, pde_32_pt_write_through | pde_32_pt_read_write);
+    }
+
+    return pd;
 }
 
-void page_allocate(intptr_t pde_ptr, intptr_t physical_addr, intptr_t virtual_addr, uint32_t attr)
+void page_allocate(intptr_t pd_ptr, intptr_t physical_addr, intptr_t virtual_addr, uint32_t attr)
 {
     // Virtual address breakdown:
     // 31:22 - Directory in pde_ptr
     // 21:12 - Table entry in Directory found in prev step
     // 11:0  - Offset within table enter (we don't touch this)
-    uint16_t dir = (virtual_addr >> 22) & 0xFFFF;
-    uint16_t table_index = (virtual_addr >> 12) & 0xFFF;
+    uint16_t pde_index = (virtual_addr >> 22) & 0xFFFF;
 
-    uint32_t dir_entry = (uint32_t)(pde_ptr + dir);
-    if((dir_entry & pde_32_pt_present) == 0) {
+    uint32_t* pde_ptr = (uint32_t*)(pd_ptr + pde_index);
+    if((*pde_ptr & pde_32_pt_present) == 0) {
 
-        // PDE has not been initialized yet
+        // Initialize PDE with a brand new page for the PT
+        uint32_t pt = (uint32_t)(intptr_t)mem_page_get();
+        *pde_ptr = (pt & PDE_32_PT_ADDRESS_MASK) | pde_32_pt_present | attr;
+    }
+
+    uint32_t* pt = (uint32_t*)(uintptr_t)(*pde_ptr & PDE_32_PT_ADDRESS_MASK);
+    uint32_t* pte = (pt + pde_index);
+
+    if((*pte & pte_32_4k_present) != pte_32_4k_present) {
+        
+        // Page table entry not initialized, do it
+        *pte = 0/*Address here... */ | pte_32_4k_present | attr;
     }
 }
 
