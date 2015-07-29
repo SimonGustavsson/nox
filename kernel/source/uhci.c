@@ -8,6 +8,7 @@
 #include <kernel.h>
 #include <interrupt.h>
 #include <pit.h>
+#include <mem_mgr.h>
 
 //#define USB_DEBUG
 
@@ -32,11 +33,6 @@
 // -------------------------------------------------------------------------
 // Static Defines
 // -------------------------------------------------------------------------
-#define IRPT_SHORT_PACKET_ENABLE (1 << 3)
-#define IRPT_ON_COMPLETE_ENABLE  (1 << 2)
-#define IRPT_RESUME_ENABLE       (1 << 1)
-#define IRPT_TIMEOUT_ENABLE      (1 << 0)
-
 // TODO: Allocate mem for frame stack
 #define UHCI_FRAME_STACK_ADDRESS (0x12345678)
 
@@ -66,6 +62,13 @@ enum uhci_cmd {
     uhci_cmd_config_flag    = 1 << 6,
     uhci_cmd_max_packet     = 1 << 7,
     uhci_cmd_loopback_test  = 1 << 8
+};
+
+enum uhci_irpt {
+    uhci_irpt_timeout_enable      = 1 << 0,
+    uhci_irpt_resume_irpt_enable  = 1 << 1,
+    uhci_irpt_oncomplete_enable   = 1 << 2,
+    uhci_irpt_short_packet_enable = 1 << 3
 };
 
 // -------------------------------------------------------------------------
@@ -226,16 +229,20 @@ static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped)
 
     // Enable interrupts
     OUTW(base_addr + UHCI_INTERRUPT_OFFSET,
-            IRPT_SHORT_PACKET_ENABLE |
-            IRPT_ON_COMPLETE_ENABLE |
-            IRPT_RESUME_ENABLE |
-            IRPT_TIMEOUT_ENABLE);
+            uhci_irpt_short_packet_enable |
+            uhci_irpt_oncomplete_enable |
+            uhci_irpt_resume_irpt_enable |
+            uhci_irpt_timeout_enable);
 
-    // Zero out the frame number register
+    // Start on frame 0
     OUTW(base_addr + UHCI_FRAME_NUM_OFFSET, 0x0000);
 
-    OUTD(base_addr + UHCI_FRAME_BASEADDR_OFFSET, UHCI_FRAME_STACK_ADDRESS); 
+    // Allocate a stack for use by the driver
+    uint32_t stack_frame = (uint32_t)(uintptr_t)mem_page_get();
+    OUTD(base_addr + UHCI_FRAME_BASEADDR_OFFSET, stack_frame);
 
+    // The sofmod regisster *should* already be set to 0x40
+    // as it's its default value after we reset, but just to be sure...
     OUTB(base_addr + UHCI_SOFMOD_OFFSET, 0x40);
 
     // Clear the entire status register (it's WC)
@@ -245,19 +252,19 @@ static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped)
     terminal_write_string("UHCI set up for use\n");
 #endif
 
-    // Before we start the controllers schedule, enable interrupts
+    // Install the interrupt handler before we enable the schedule
+    // So we don't miss any interrupts!
     interrupt_receive_trap(irq, uhci_irq);
 
-
-    // Bit 7 and 0 in the command register
     uint16_t cmd = INW(base_addr + UHCI_CMD_OFFSET);
-    //
+
     // We don't yet know if this HC supports 64-byte packets,
     // so just to be sure, set it to 32-byte packets
-    cmd &= ~(1 << 7);
+    cmd &= ~uhci_cmd_max_packet;
 
-    // Set it to run!
-    cmd &= (1 << 0);
+    // Go go go!
+    cmd &= uhci_cmd_runstop;
+
     OUTW(base_addr + UHCI_CMD_OFFSET, cmd);
 }
 
