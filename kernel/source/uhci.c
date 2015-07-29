@@ -7,6 +7,7 @@
 #include <pci.h>
 #include <kernel.h>
 #include <interrupt.h>
+#include <pit.h>
 
 //#define USB_DEBUG
 
@@ -46,13 +47,26 @@ static bool init_port_io(uint32_t base_addr, uint8_t irq);
 static bool init_memory_mapped(pci_device* dev, uint32_t base_addr, uint8_t irq);
 static bool init_memory_mapped32(uint32_t base_addr, uint8_t irq, bool below_1mb);
 static bool init_memory_mapped64(uint64_t base_addr, uint8_t irq);
-static void wait(uint16_t ms);
 #ifdef USB_DEBUG
 static void print_init_info(struct pci_address* addr, uint32_t base_addr);
 #endif
 static int32_t detect_root(uint16_t base_addr, bool memory_mapped);
 static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped);
 static void uhci_irq(uint8_t irq, struct irq_regs* regs);
+// -------------------------------------------------------------------------
+// Static Types
+// -------------------------------------------------------------------------
+enum uhci_cmd {
+    uhci_cmd_runstop        = 1 << 0,
+    uhci_cmd_host_reset     = 1 << 1,
+    uhci_cmd_global_reset   = 1 << 2,
+    uhci_cmd_global_suspend = 1 << 3,
+    uhci_cmd_force_g_resume = 1 << 4,
+    uhci_cmd_swdebug        = 1 << 5,
+    uhci_cmd_config_flag    = 1 << 6,
+    uhci_cmd_max_packet     = 1 << 7,
+    uhci_cmd_loopback_test  = 1 << 8
+};
 
 // -------------------------------------------------------------------------
 // Public Contract
@@ -159,15 +173,13 @@ static int32_t detect_root(uint16_t base_addr, bool memory_mapped)
         return -1;
     }
 
+    // To reset the UHCI we write send the global reset command
+    // wait 10ms+, then reset the reset bit to 0 (HC won't do this for us)
+    // five times
     for(int i = 0; i < 5; i++)
     {
-        OUTW(base_addr + UHCI_CMD_OFFSET, 0x4);
-
-        wait(11111);
-
-        // Reset the global reset bit
-        // Note: We *must* wait 10ms before doing this
-        // after setting the bit to 1
+        OUTW(base_addr + UHCI_CMD_OFFSET, uhci_cmd_global_reset);
+        pit_wait(25);
         OUTW(base_addr + UHCI_CMD_OFFSET, 0x0);
     }
 
@@ -182,19 +194,20 @@ static int32_t detect_root(uint16_t base_addr, bool memory_mapped)
     }
 
     // Clear out status reg (it's WC)
-    OUTW(base_addr + UHCI_STATUS_OFFSET, 0xFF);
+    OUTW(base_addr + UHCI_STATUS_OFFSET, 0x00FF);
 
-    //if(INW(base_addr + UHCI_SOFMOD_OFFSET) != 0x40) {
-    //    terminal_write_string("Unexpected SOFMOD value, expected 0x40\n");
-    //	return -4;
-    //}
+    if(INB(base_addr + UHCI_SOFMOD_OFFSET) != 0x40) {
+        KERROR("Sofmod register does not have its default value of 0x40");
+        return -4;
+    }
 
     // If we set bit 1, the controller should reset it to 0
-    OUTW(base_addr + UHCI_CMD_OFFSET, 0x2);
+    OUTW(base_addr + UHCI_CMD_OFFSET, uhci_cmd_host_reset);
 
-    wait(11111); // arbitrary wait
+    // Supposedly, we have to give the HC at least 42ms to reset
+    pit_wait(42);
 
-    if(INW(base_addr + UHCI_CMD_OFFSET) & 0x2) {
+    if((INW(base_addr + UHCI_CMD_OFFSET) & uhci_cmd_host_reset) == uhci_cmd_host_reset) {
         KERROR("Controller did not reset bit :(");
 
         return -5;
@@ -259,17 +272,6 @@ static void uhci_irq(uint8_t irq, struct irq_regs* regs)
 // -------------------------------------------------------------------------
 // Static Utilities
 // -------------------------------------------------------------------------
-
-static void wait(uint16_t ms)
-{
-    // TODO: Need a real wait - this currently doesn't work at all
-    //       But I've left it in here to ensure the rest of the code
-    //       compiles (though it currently does NOT work!)
-    volatile uint64_t moo = ms * 10;
-    for(volatile uint64_t i = 0; i < moo; i++) {
-    }
-}
-
 #ifdef USB_DEBUG
 static void print_init_info(struct pci_address* addr, uint32_t base_addr)
 {

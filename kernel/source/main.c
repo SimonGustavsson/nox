@@ -71,6 +71,9 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
 
     pit_init();
 
+    // Re-enable interrupts, we're ready now!
+    interrupt_enable_all();
+
     usb_init();
 
     call_test_sys_call(0x1234);
@@ -81,8 +84,6 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
 
     cli_init();
 
-    // Re-enable interrupts, we're ready now!
-    interrupt_enable_all();
 
     cli_run();
 
