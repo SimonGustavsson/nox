@@ -49,6 +49,9 @@ static void print_init_info(struct pci_address* addr, uint32_t base_addr);
 static int32_t detect_root(uint16_t base_addr, bool memory_mapped);
 static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped);
 static void uhci_irq(uint8_t irq, struct irq_regs* regs);
+static bool reset_hc_port(uint32_t base_addr, uint8_t port);
+static bool enable_hc_port(uint32_t base_addr, uint8_t port);
+static bool enable_port(uint32_t base_addr, uint8_t port);
 // -------------------------------------------------------------------------
 // Static Types
 // -------------------------------------------------------------------------
@@ -69,6 +72,32 @@ enum uhci_irpt {
     uhci_irpt_resume_irpt_enable  = 1 << 1,
     uhci_irpt_oncomplete_enable   = 1 << 2,
     uhci_irpt_short_packet_enable = 1 << 3
+};
+
+enum uhci_portsc {
+    // On startup: 0000_0101_1000_1010b
+    // Not connected
+    // Status has changed <--- really should be set, so that we will read bit 0 (on empty ports, this is 0)
+    // NOT enabled
+    // Enable has changed (will not be set on empty ports, as they can't be enabled)
+    // Status D+ not set  \ these can't be set, as no device is attached
+    // Status D- not set  /
+    // Bit-7 set, always set, reserved
+    // Low speed device attached
+    // Port is not in reset   <--- This really shouldn't be set
+    // Not suspended
+    uhci_portsc_connect_status         = 1 << 0, // RO
+    uhci_portsc_connect_status_changed = 1 << 1, // R/WC
+    uhci_portsc_port_enabled           = 1 << 2, // R/W
+    uhci_portsc_port_enabled_changed   = 1 << 3, // R/WC
+
+    uhci_portsc_line_status_dpos       = 1 << 4, // RO
+    uhci_portsc_line_status_dneg       = 1 << 5, // RO
+    uhci_portsc_resume_detect          = 1 << 6, // R/W
+    uhci_portsc_low_speed_attached     = 1 << 8, // RO
+
+    uhci_portsc_port_reset             = 1 << 9, // R/W
+    uhci_portsc_suspend                = 1 << 12 // R/W
 };
 
 // -------------------------------------------------------------------------
@@ -121,6 +150,17 @@ static bool init_port_io(uint32_t base_addr, uint8_t irq)
     }
 
     setup(io_addr, irq, false);
+
+    // Reset and enable both ports
+    if(enable_port(io_addr, 1))
+    {
+        KINFO("Device on port 1 is ready for use");
+    }
+
+    if(enable_port(io_addr, 2))
+    {
+        KINFO("Device on port 2 is ready for use!");
+    }
 
     return true;
 }
@@ -266,6 +306,85 @@ static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped)
     cmd &= uhci_cmd_runstop;
 
     OUTW(base_addr + UHCI_CMD_OFFSET, cmd);
+}
+
+static bool enable_port(uint32_t base_addr, uint8_t port)
+{
+    return reset_hc_port(base_addr, port) && enable_hc_port(base_addr, port);
+}
+
+static bool enable_hc_port(uint32_t base_addr, uint8_t port)
+{
+    if(port > 2 || port < 1) {
+        KERROR("An attempt was made to reset a port that is out of range.");
+        return false;
+    }
+
+    uint32_t offset = port == 1 ? UHCI_PORTSC1_OFFSET : UHCI_PORTSC2_OFFSET;
+    uint16_t portsc;
+    uint16_t attempts = 0;
+
+    do {
+        portsc = INW(base_addr + offset);
+
+        // If we have a connection changed or enabled changed, just reset the bits
+        // and try again
+        if( ((portsc & uhci_portsc_port_enabled_changed) == uhci_portsc_port_enabled_changed) ||
+            ((portsc & uhci_portsc_connect_status_changed) == uhci_portsc_connect_status_changed)) {
+
+            OUTW(base_addr + offset, portsc | uhci_portsc_port_enabled_changed | uhci_portsc_connect_status_changed);
+
+            continue;
+        }
+
+        // Set it to enabled, and clear enabled changed whilst we're at it
+        portsc |= (uhci_portsc_port_enabled ||
+                   uhci_portsc_port_enabled_changed);
+
+        OUTW(base_addr + offset, portsc);
+
+        pit_wait(10);
+
+        portsc = INW(base_addr + offset);
+        attempts++;
+    } while( ((portsc & uhci_portsc_port_enabled) != uhci_portsc_port_enabled) &&
+            attempts < 10);
+
+    return (portsc & uhci_portsc_port_enabled) != uhci_portsc_port_enabled;
+}
+
+static bool reset_hc_port(uint32_t base_addr, uint8_t port)
+{
+    if(port > 2 || port < 1) {
+        KERROR("An attempt was made to reset a port that is out of range.");
+        return false;
+    }
+
+    uint32_t offset = port == 1 ? UHCI_PORTSC1_OFFSET : UHCI_PORTSC2_OFFSET;
+    uint16_t portsc = INW(base_addr + offset);
+
+    // Make sure the port is connected before we bother resetting it
+    if((portsc & uhci_portsc_connect_status) != uhci_portsc_connect_status) {
+        return false;
+    }
+
+    // Write enable bit
+    portsc |= uhci_portsc_port_reset;
+    OUTW(base_addr + offset, portsc);
+
+    // USB specification says to give the HC 50ms to reset
+    pit_wait(50);
+
+    // Clear the bit, the port should be reset now
+    portsc = INW(base_addr + offset);
+    portsc &= ~uhci_portsc_port_reset;
+
+    OUTW(base_addr + offset, portsc);
+
+    // Wait 10ms for the recovery time
+    pit_wait(10);
+
+    return true;
 }
 
 // -------------------------------------------------------------------------

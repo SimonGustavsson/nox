@@ -77,7 +77,7 @@ speaker: enabled=1, mode=sound
 # overwrite the file instead, asking user first.
 #=======================================================================
 #usb_uhci: enabled=1
-#usb_uhci: enabled=1, port1=mouse, port2=disk:usbstick.img
+usb_uhci: enabled=1, port1=mouse, port2=disk:usbstick.img
 #usb_uhci: enabled=1, port1=hub:7, port2=disk:growing:usbdisk.img
 #usb_uhci: enabled=1, port2=disk:undoable:usbdisk.img, options1=journal:redo.log
 #usb_uhci: enabled=1, port1=printer:printdata.bin, port2=cdrom:image.iso
