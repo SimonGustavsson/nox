@@ -52,6 +52,7 @@ static void uhci_irq(uint8_t irq, struct irq_regs* regs);
 static bool reset_hc_port(uint32_t base_addr, uint8_t port);
 static bool enable_hc_port(uint32_t base_addr, uint8_t port);
 static bool enable_port(uint32_t base_addr, uint8_t port);
+static uint32_t get_port_count(uint32_t base_addr);
 // -------------------------------------------------------------------------
 // Static Types
 // -------------------------------------------------------------------------
@@ -94,6 +95,7 @@ enum uhci_portsc {
     uhci_portsc_line_status_dpos       = 1 << 4, // RO
     uhci_portsc_line_status_dneg       = 1 << 5, // RO
     uhci_portsc_resume_detect          = 1 << 6, // R/W
+    uhci_portsc_reserved               = 1 << 7, // Reserved
     uhci_portsc_low_speed_attached     = 1 << 8, // RO
 
     uhci_portsc_port_reset             = 1 << 9, // R/W
@@ -151,15 +153,14 @@ static bool init_port_io(uint32_t base_addr, uint8_t irq)
 
     setup(io_addr, irq, false);
 
-    // Reset and enable both ports
-    if(enable_port(io_addr, 1))
-    {
-        KINFO("Device on port 1 is ready for use");
-    }
+    uint32_t port_count = get_port_count(io_addr);
 
-    if(enable_port(io_addr, 2))
-    {
-        KINFO("Device on port 2 is ready for use!");
+    for(size_t i = 0; i < port_count; i++) {
+        if(enable_port(io_addr, i)) {
+            terminal_write_string("Device on port ");
+            terminal_write_uint32(i);
+            terminal_write_string(" is ready for use\n");
+        }
     }
 
     return true;
@@ -308,6 +309,53 @@ static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped)
     OUTW(base_addr + UHCI_CMD_OFFSET, cmd);
 }
 
+static uint32_t get_port_count(uint32_t base_addr)
+{
+    uint32_t offset = 0;
+    uint32_t count = 0;
+    uint32_t io_port = base_addr + UHCI_PORTSC1_OFFSET + offset;
+
+    // Continue enumerating ports until we get a port that doesn't behave
+    // like a port status/control register
+    while(true) {
+
+        //
+        // Try to poke the reserved bit 7 to see if it behaves as expected
+        //
+
+        // Bit 7 is reserved, and always set to 1
+        if((INW(io_port) & uhci_portsc_reserved) == 0)
+            break;
+
+        // Try to clear bit 7, we're not supposed to be able to
+        // so if we manage to clear this bit, it means it's not a valid port
+        OUTW(io_port, INW(io_port) & ~uhci_portsc_reserved);
+        if((INW(io_port) & uhci_portsc_reserved) == 0)
+            break;
+
+        // Try to Write Clear bit 7, it's not supposed to do anything
+        // If it does reset the bit, it's not a valid port register
+        OUTW(io_port, INW(io_port) & uhci_portsc_reserved);
+        if((INW(io_port) & uhci_portsc_reserved) == 0)
+            break;
+
+        //
+        // Try to Write-Clear the Connected Status Changed and
+        // the Port Enabled changed bits, do they clear?
+        //
+        OUTW(io_port, INW(io_port) | uhci_portsc_connect_status_changed | uhci_portsc_port_enabled_changed);
+        if((INW(io_port) & (uhci_portsc_connect_status_changed | uhci_portsc_port_enabled_changed)) != 0)
+            break;
+
+        // if we got this far, we have a valid port
+        // Increment the count and try the next register
+        count++;
+        io_port += 2;
+    }
+
+    return count;
+}
+
 static bool enable_port(uint32_t base_addr, uint8_t port)
 {
     return reset_hc_port(base_addr, port) && enable_hc_port(base_addr, port);
@@ -315,12 +363,7 @@ static bool enable_port(uint32_t base_addr, uint8_t port)
 
 static bool enable_hc_port(uint32_t base_addr, uint8_t port)
 {
-    if(port > 2 || port < 1) {
-        KERROR("An attempt was made to reset a port that is out of range.");
-        return false;
-    }
-
-    uint32_t offset = port == 1 ? UHCI_PORTSC1_OFFSET : UHCI_PORTSC2_OFFSET;
+    uint32_t offset = UHCI_PORTSC1_OFFSET + ((port - 1) * 2);
     uint16_t portsc;
     uint16_t attempts = 0;
 
@@ -355,12 +398,7 @@ static bool enable_hc_port(uint32_t base_addr, uint8_t port)
 
 static bool reset_hc_port(uint32_t base_addr, uint8_t port)
 {
-    if(port > 2 || port < 1) {
-        KERROR("An attempt was made to reset a port that is out of range.");
-        return false;
-    }
-
-    uint32_t offset = port == 1 ? UHCI_PORTSC1_OFFSET : UHCI_PORTSC2_OFFSET;
+    uint32_t offset = UHCI_PORTSC1_OFFSET + ((port - 1) * 2);
     uint16_t portsc = INW(base_addr + offset);
 
     // Make sure the port is connected before we bother resetting it
