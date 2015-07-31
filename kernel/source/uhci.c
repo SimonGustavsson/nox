@@ -39,23 +39,27 @@
 // -------------------------------------------------------------------------
 // Forward Declarations
 // -------------------------------------------------------------------------
-static bool init_port_io(uint32_t base_addr, uint8_t irq);
-static bool init_memory_mapped(pci_device* dev, uint32_t base_addr, uint8_t irq);
-static bool init_memory_mapped32(uint32_t base_addr, uint8_t irq, bool below_1mb);
-static bool init_memory_mapped64(uint64_t base_addr, uint8_t irq);
+static bool init_io(uint32_t base_addr, uint8_t irq);
+static bool init_mm(pci_device* dev, uint32_t base_addr, uint8_t irq);
+static bool init_mm32(uint32_t base_addr, uint8_t irq, bool below_1mb);
+static bool init_mm64(uint64_t base_addr, uint8_t irq);
 #ifdef USB_DEBUG
 static void print_init_info(struct pci_address* addr, uint32_t base_addr);
 #endif
 static int32_t detect_root(uint16_t base_addr, bool memory_mapped);
 static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped);
 static void uhci_irq(uint8_t irq, struct irq_regs* regs);
-static bool reset_hc_port(uint32_t base_addr, uint8_t port);
-static bool enable_hc_port(uint32_t base_addr, uint8_t port);
 static bool enable_port(uint32_t base_addr, uint8_t port);
-static uint32_t get_port_count(uint32_t base_addr);
+static uint32_t port_count_get(uint32_t base_addr);
 // -------------------------------------------------------------------------
 // Static Types
 // -------------------------------------------------------------------------
+enum mm_space {
+    mm_space_32bit = 0,
+    mm_space_below1mb = 1,
+    mm_space_64bit = 2
+};
+
 enum uhci_cmd {
     uhci_cmd_runstop        = 1 << 0,
     uhci_cmd_host_reset     = 1 << 1,
@@ -118,11 +122,11 @@ void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, ui
     if((base_addr | 0x1) == 0) {
         //uint32_t size = prepare_pci_device(addr, 9, true);
 
-        result = init_memory_mapped(dev, base_addr, irq);
+        result = init_mm(dev, base_addr, irq);
     }
     else {
         // It's an IO port mapped device
-        result = init_port_io(base_addr, irq);
+        result = init_io(base_addr, irq);
     }
 
     terminal_indentation_decrease();
@@ -135,7 +139,7 @@ void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, ui
 // -------------------------------------------------------------------------
 // Initialization 
 // -------------------------------------------------------------------------
-static bool init_port_io(uint32_t base_addr, uint8_t irq)
+static bool init_io(uint32_t base_addr, uint8_t irq)
 {
     // Scrap bit 1:0 as it's not a part of the address
     uint32_t io_addr = (base_addr & ~(1));
@@ -153,7 +157,7 @@ static bool init_port_io(uint32_t base_addr, uint8_t irq)
 
     setup(io_addr, irq, false);
 
-    uint32_t port_count = get_port_count(io_addr);
+    uint32_t port_count = port_count_get(io_addr);
 
     for(size_t i = 0; i < port_count; i++) {
         if(enable_port(io_addr, i)) {
@@ -166,39 +170,29 @@ static bool init_port_io(uint32_t base_addr, uint8_t irq)
     return true;
 }
 
-static bool init_memory_mapped(pci_device* dev, uint32_t base_addr, uint8_t irq)
+static bool init_mm(pci_device* dev, uint32_t base_addr, uint8_t irq)
 {
     // Where in memory space this is is stored in bits 2:1
-    uint8_t details = ((base_addr >> 1) & 0x3);
-    switch(details) {
-        case 0x0: // Anywhere in 32-bit space 
-
-            return init_memory_mapped32(base_addr, irq, false);
-            break;
-        case 0x1: // Below 1MB 
-            return init_memory_mapped32(base_addr, irq, true);
-            break;
-        case 0x2: // Anywhere in 64-bit space 
-            {
-                unsigned long actual_addr = ((((uint64_t)dev->base_addr5) << 32) | base_addr);
-
-                return init_memory_mapped64(actual_addr, irq);
-                break;
-            }
+    uint8_t address_space = ((base_addr >> 1) & 0x3);
+    switch(address_space) {
+        case mm_space_32bit:    return init_mm32(base_addr, irq, false);
+        case mm_space_below1mb: return init_mm32(base_addr, irq, true);
+        case mm_space_64bit:    return init_mm64(((((uint64_t)dev->base_addr5) << 32) | base_addr), irq);
         default:
-            {
-                KERROR("Invalid address for memory mapped UHCI device");
-                return false;
-            }
+        {
+            // TODO: Can we recover? assume 32-bit?
+            KERROR("Invalid memory space for memory mapped UHCI device");
+            return false;
+        }
     }
 }
 
-static bool init_memory_mapped32(uint32_t base_addr, uint8_t irq, bool below_1mb)
+static bool init_mm32(uint32_t base_addr, uint8_t irq, bool below_1mb)
 {
     return false;
 }
 
-static bool init_memory_mapped64(uint64_t base_addr, uint8_t irq)
+static bool init_mm64(uint64_t base_addr, uint8_t irq)
 {
     return false;
 }
@@ -309,7 +303,7 @@ static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped)
     OUTW(base_addr + UHCI_CMD_OFFSET, cmd);
 }
 
-static uint32_t get_port_count(uint32_t base_addr)
+static uint32_t port_count_get(uint32_t base_addr)
 {
     uint32_t offset = 0;
     uint32_t count = 0;
@@ -358,15 +352,38 @@ static uint32_t get_port_count(uint32_t base_addr)
 
 static bool enable_port(uint32_t base_addr, uint8_t port)
 {
-    return reset_hc_port(base_addr, port) && enable_hc_port(base_addr, port);
-}
-
-static bool enable_hc_port(uint32_t base_addr, uint8_t port)
-{
     uint32_t offset = UHCI_PORTSC1_OFFSET + ((port - 1) * 2);
-    uint16_t portsc;
+    uint16_t portsc = INW(base_addr + offset);
     uint16_t attempts = 0;
 
+    //
+    // First reset the port
+    //
+
+    // Make sure the port is connected before we bother resetting it
+    if((portsc & uhci_portsc_connect_status) != uhci_portsc_connect_status) {
+        return false;
+    }
+
+    // Write enable bit
+    portsc |= uhci_portsc_port_reset;
+    OUTW(base_addr + offset, portsc);
+
+    // USB specification says to give the HC 50ms to reset
+    pit_wait(50);
+
+    // Clear the bit, the port should be reset now
+    portsc = INW(base_addr + offset);
+    portsc &= ~uhci_portsc_port_reset;
+
+    OUTW(base_addr + offset, portsc);
+
+    // Wait 10ms for the recovery time
+    pit_wait(10);
+
+    //
+    // Then enable the port
+    //
     do {
         portsc = INW(base_addr + offset);
 
@@ -394,35 +411,6 @@ static bool enable_hc_port(uint32_t base_addr, uint8_t port)
             attempts < 10);
 
     return (portsc & uhci_portsc_port_enabled) != uhci_portsc_port_enabled;
-}
-
-static bool reset_hc_port(uint32_t base_addr, uint8_t port)
-{
-    uint32_t offset = UHCI_PORTSC1_OFFSET + ((port - 1) * 2);
-    uint16_t portsc = INW(base_addr + offset);
-
-    // Make sure the port is connected before we bother resetting it
-    if((portsc & uhci_portsc_connect_status) != uhci_portsc_connect_status) {
-        return false;
-    }
-
-    // Write enable bit
-    portsc |= uhci_portsc_port_reset;
-    OUTW(base_addr + offset, portsc);
-
-    // USB specification says to give the HC 50ms to reset
-    pit_wait(50);
-
-    // Clear the bit, the port should be reset now
-    portsc = INW(base_addr + offset);
-    portsc &= ~uhci_portsc_port_reset;
-
-    OUTW(base_addr + offset, portsc);
-
-    // Wait 10ms for the recovery time
-    pit_wait(10);
-
-    return true;
 }
 
 // -------------------------------------------------------------------------
