@@ -43,22 +43,6 @@
 #define UHCI_FRAME_STACK_ADDRESS (0x12345678)
 
 // -------------------------------------------------------------------------
-// Forward Declarations
-// -------------------------------------------------------------------------
-static bool init_io(uint32_t base_addr, uint8_t irq);
-static bool init_mm(pci_device* dev, uint32_t base_addr, uint8_t irq);
-static bool init_mm32(uint32_t base_addr, uint8_t irq, bool below_1mb);
-static bool init_mm64(uint64_t base_addr, uint8_t irq);
-#ifdef USB_DEBUG
-static void print_init_info(struct pci_address* addr, uint32_t base_addr);
-#endif
-static int32_t detect_root(uint16_t base_addr, bool memory_mapped);
-static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped);
-static void uhci_irq(uint8_t irq, struct irq_regs* regs);
-static bool enable_port(uint32_t base_addr, uint8_t port);
-static uint32_t port_count_get(uint32_t base_addr);
-static void schedule_init(uint32_t frame_list_addr);
-// -------------------------------------------------------------------------
 // Static Types
 // -------------------------------------------------------------------------
 enum mm_space {
@@ -170,6 +154,9 @@ struct transfer_descriptor {
     uint32_t software_use3;
 } PACKED;
 
+// Address occupies everything but the low 4 bits
+#define QUEUE_HEAD_LINK_ADDR_MASK (0xFFFFFFF0)
+
 struct uhci_queue {
     uint32_t* head_link;
     uint32_t* element_link;
@@ -177,16 +164,60 @@ struct uhci_queue {
     // The host controller only cares about the first two
     // uint32 in this struct, the remaining fields are added because queues
     // have to be aligned to 16-byte boundary, making it easy to line up
-    // multiple queues
-    uint32_t padding1;
+    // multiple queues, and it allows us to attach some useful information! :-)
+    uint32_t parent;
     uint32_t padding2;
 } PACKED;
+
+enum nox_uhci_queue {
+    nox_uhci_queue_1,        // Executed every 1ms
+    nox_uhci_queue_2,        // Executed every 2ms
+    nox_uhci_queue_4,        // Executed every 4ms
+    nox_uhci_queue_8,        // ...etc...
+    nox_uhci_queue_16,
+    nox_uhci_queue_32,
+    nox_uhci_queue_64,
+    nox_uhci_queue_128,
+    nox_uhci_queue_lowspeed,
+    nox_uhci_queue_fullspeed,
+    nox_uhci_queue_iso,       // Not sure what this means?
+    nox_uhci_queue_reserved0, // Not used (yet)
+    nox_uhci_queue_reserved1, // Not used (yet)
+    nox_uhci_queue_reserved2, // Not used (yet)
+    nox_uhci_queue_reserved3, // Not used (yet)
+    nox_uhci_queue_reserved4, // Not used (yet)
+};
+
+// -------------------------------------------------------------------------
+// Forward Declarations
+// -------------------------------------------------------------------------
+static bool init_io(uint32_t base_addr, uint8_t irq);
+static bool init_mm(pci_device* dev, uint32_t base_addr, uint8_t irq);
+static bool init_mm32(uint32_t base_addr, uint8_t irq, bool below_1mb);
+static bool init_mm64(uint64_t base_addr, uint8_t irq);
+#ifdef USB_DEBUG
+static void print_init_info(struct pci_address* addr, uint32_t base_addr);
+#endif
+static int32_t detect_root(uint16_t base_addr, bool memory_mapped);
+static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped);
+static void uhci_irq(uint8_t irq, struct irq_regs* regs);
+static bool enable_port(uint32_t base_addr, uint8_t port);
+static uint32_t port_count_get(uint32_t base_addr);
+static void schedule_init(uint32_t frame_list_addr);
+static void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue root);
+static void schedule_queue_remove(struct uhci_queue* queue);
 
 // -------------------------------------------------------------------------
 // Public Contract
 // -------------------------------------------------------------------------
 void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, uint8_t irq)
 {
+    // Unused functions (so far.. make sure they're "used")
+    if(1 == 0) {
+        schedule_queue_insert(NULL, nox_uhci_queue_1);
+        schedule_queue_remove(NULL);
+    }
+
     terminal_write_string("Initializing UHCI Host controller\n");
     terminal_indentation_increase();
 
@@ -495,25 +526,6 @@ static bool enable_port(uint32_t base_addr, uint8_t port)
     return (portsc & uhci_portsc_port_enabled) != uhci_portsc_port_enabled;
 }
 
-enum nox_uhci_queue {
-    nox_uhci_queue_1,        // Executed every 1ms
-    nox_uhci_queue_2,        // Executed every 2ms
-    nox_uhci_queue_4,        // Executed every 4ms
-    nox_uhci_queue_8,        // ...etc...
-    nox_uhci_queue_16,
-    nox_uhci_queue_32,
-    nox_uhci_queue_64,
-    nox_uhci_queue_128,
-    nox_uhci_queue_lowspeed,
-    nox_uhci_queue_fullspeed,
-    nox_uhci_queue_iso,       // Not sure what this means?
-    nox_uhci_queue_reserved0, // Not used (yet)
-    nox_uhci_queue_reserved1, // Not used (yet)
-    nox_uhci_queue_reserved2, // Not used (yet)
-    nox_uhci_queue_reserved3, // Not used (yet)
-    nox_uhci_queue_reserved4, // Not used (yet)
-};
-
 struct uhci_queue g_root_queues[16] ALIGN(16) = {
     /*   1ms Queue */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
     /*   2ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_1], (uint32_t*)td_link_ptr_terminate, 0, 0},
@@ -532,6 +544,30 @@ struct uhci_queue g_root_queues[16] ALIGN(16) = {
     /*  Reserved3  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
     /*  Reserved4  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
 };
+
+static void schedule_queue_remove(struct uhci_queue* queue)
+{
+    //struct uhci_queue* parent = (struct uhci_queue*)(uintptr_t)queue->parent;
+}
+
+static void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue root)
+{
+    // Retrieve root queue to insert this queue into
+    struct uhci_queue* parent = &g_root_queues[root];
+
+    // Advance horizontally through the queue pointers until we
+    // find the terminating entry, that's where we'll insert this one
+    while(((uint32_t)(uintptr_t)parent->head_link & td_link_ptr_terminate) == 0) {
+       parent = (struct uhci_queue*)(uintptr_t)((uint32_t)(uintptr_t)parent->head_link & QUEUE_HEAD_LINK_ADDR_MASK);
+    }
+
+    // Link this parent to the queue that was passed in
+    parent->head_link = (uint32_t*)(uintptr_t)(((uint32_t)(uintptr_t)queue) & td_link_ptr_queue);
+
+    // Attach the parent's address so we can locate it super easily
+    // when we want to remove this queue after it has been executed
+    queue->parent = (uint32_t)(uintptr_t)parent;
+}
 
 static void schedule_init(uint32_t frame_list_addr)
 {
