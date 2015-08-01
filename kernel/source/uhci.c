@@ -15,6 +15,12 @@
 // -------------------------------------------------------------------------
 // Documentation
 // -------------------------------------------------------------------------
+
+/* Note: All address in the UHCI driver assumes 32-bit addresses
+ *       This is intentional and can *not* be changed, as UHCI only
+ *       supports 32-bit addresses
+*/
+
 /* Command register layout 
    15:11 - Reserved
       10 - Interrupt disable
@@ -51,6 +57,7 @@ static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped);
 static void uhci_irq(uint8_t irq, struct irq_regs* regs);
 static bool enable_port(uint32_t base_addr, uint8_t port);
 static uint32_t port_count_get(uint32_t base_addr);
+static void schedule_init(uint32_t frame_list_addr);
 // -------------------------------------------------------------------------
 // Static Types
 // -------------------------------------------------------------------------
@@ -105,6 +112,75 @@ enum uhci_portsc {
     uhci_portsc_port_reset             = 1 << 9, // R/W
     uhci_portsc_suspend                = 1 << 12 // R/W
 };
+
+enum frame_list_ptr {
+    frame_list_ptr_terminate = 1 << 0,
+    frame_list_ptr_queue     = 1 << 1
+};
+
+enum td_link_ptr {
+    td_link_ptr_terminate   = 1 << 0,
+    td_link_ptr_queue       = 1 << 1,
+    td_link_ptr_depth_first = 1 << 2,
+    // Bit 3 reserved
+    // 31:4 Link pointer to another TD or Queue
+};
+
+enum td_status {
+    td_status_bitstuff_error    = 1 << 17,
+    td_status_crc_timeout       = 1 << 18,
+    td_status_nak_received      = 1 << 19,
+    td_status_babble_detected   = 1 << 20,
+    td_status_data_buffer_error = 1 << 21,
+    td_status_stalled           = 1 << 22,
+    td_status_active            = 1 << 23
+};
+
+enum td_ctrl_status {
+    // 10:0 Actual length
+    // 15:11 reserved
+    // 23:16 see td_status
+    td_ctrl_status_ioc          = 1 << 24,
+    td_ctrl_status_ios          = 1 << 25,
+    td_ctrl_status_lowspeed     = 1 << 26,
+    td_ctrl_status_3errors      = 3 << 27,
+    td_ctrl_status_2errors      = 2 << 27,
+    td_ctrl_status_1error       = 1 << 27,
+    td_ctrl_status_short_packet = 1 << 29,
+    // 31:30 reserved
+};
+
+enum td_token {
+    // 7:0   Packet Identification
+    // 14:8  Device Address
+    // 18:15 End point
+    td_ctrl_status_data_toggle = 1 << 19,
+    // 20    reserved
+    // 31:21 Maximum Length
+};
+
+struct transfer_descriptor {
+    uint32_t link_ptr;
+    uint32_t td_ctrl_status;
+    uint32_t td_token;
+    uint32_t buffer_ptr;    // 32-bit pointer to data of this transfer
+    uint32_t software_use0;
+    uint32_t software_use1;
+    uint32_t software_use2;
+    uint32_t software_use3;
+} PACKED;
+
+struct uhci_queue {
+    uint32_t* head_link;
+    uint32_t* element_link;
+
+    // The host controller only cares about the first two
+    // uint32 in this struct, the remaining fields are added because queues
+    // have to be aligned to 16-byte boundary, making it easy to line up
+    // multiple queues
+    uint32_t padding1;
+    uint32_t padding2;
+} PACKED;
 
 // -------------------------------------------------------------------------
 // Public Contract
@@ -161,6 +237,12 @@ static bool init_io(uint32_t base_addr, uint8_t irq)
 
     for(size_t i = 0; i < port_count; i++) {
         if(enable_port(io_addr, i)) {
+
+            // Initialize our schedule skeleton
+            uint32_t frame_list_addr = IND(io_addr + UHCI_FRAME_BASEADDR_OFFSET);
+            schedule_init(frame_list_addr);
+
+            // Happy days :-)
             terminal_write_string("Device on port ");
             terminal_write_uint32(i);
             terminal_write_string(" is ready for use\n");
@@ -411,6 +493,98 @@ static bool enable_port(uint32_t base_addr, uint8_t port)
             attempts < 10);
 
     return (portsc & uhci_portsc_port_enabled) != uhci_portsc_port_enabled;
+}
+
+enum nox_uhci_queue {
+    nox_uhci_queue_1,        // Executed every 1ms
+    nox_uhci_queue_2,        // Executed every 2ms
+    nox_uhci_queue_4,        // Executed every 4ms
+    nox_uhci_queue_8,        // ...etc...
+    nox_uhci_queue_16,
+    nox_uhci_queue_32,
+    nox_uhci_queue_64,
+    nox_uhci_queue_128,
+    nox_uhci_queue_lowspeed,
+    nox_uhci_queue_fullspeed,
+    nox_uhci_queue_iso,       // Not sure what this means?
+    nox_uhci_queue_reserved0, // Not used (yet)
+    nox_uhci_queue_reserved1, // Not used (yet)
+    nox_uhci_queue_reserved2, // Not used (yet)
+    nox_uhci_queue_reserved3, // Not used (yet)
+    nox_uhci_queue_reserved4, // Not used (yet)
+};
+
+struct uhci_queue g_root_queues[16] ALIGN(16) = {
+    /*   1ms Queue */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
+    /*   2ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_1], (uint32_t*)td_link_ptr_terminate, 0, 0},
+    /*   4ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_2], (uint32_t*)td_link_ptr_terminate, 0, 0},
+    /*   8ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_4], (uint32_t*)td_link_ptr_terminate, 0, 0},
+    /*  16ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_8], (uint32_t*)td_link_ptr_terminate, 0, 0},
+    /*  32ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_16], (uint32_t*)td_link_ptr_terminate, 0, 0},
+    /*  64ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_32], (uint32_t*)td_link_ptr_terminate, 0, 0},
+    /* 128ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_64], (uint32_t*)td_link_ptr_terminate, 0, 0},
+    /*  Low speed  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
+    /*  Full speed */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
+    /*     ISO     */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
+    /*  Reserved0  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
+    /*  Reserved1  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
+    /*  Reserved2  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
+    /*  Reserved3  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
+    /*  Reserved4  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
+};
+
+static void schedule_init(uint32_t frame_list_addr)
+{
+    // In Nox, we maintain 16 queues in the frame list, these queues
+    // are static, and we should never have to modify the frame list after this point
+    // If we want to queue a TD or Queue, we stick it in one of these pre-defined queues
+    // Which will cause it to be executed at the desired interval
+    //
+    // nox_uhci_queue_1 executes every 1ms,
+    // nox_uhci_queue_2 executes every 1ms etc.
+    // This means the first frame will point to queue_1
+    // The second frame will point to queue_2, which in turn points to queue_1 etc
+    //
+    // So our Frame List will end up looking like this (where --> means "points to"):
+    // [0] --> queue_1
+    // [1] --> queue_2 --> queue_1
+    // [2] --> queue_1
+    // [3] --> queue_4 --> queue_2 --> queue_1
+    // NOTE: The queues have already been linked up at compile time, all we have to do now is install them!
+
+    // Install them into the frame list
+    uint32_t* frame_list = (uint32_t*)(uintptr_t)frame_list_addr;
+    for(size_t i = 0; i < 1024; i++) {
+
+        // Because the frames go from 0 -> 1023, we add one to the index
+        // to figure out which type of queue to insert
+        uint32_t frame_num = i + 1;
+
+        if(frame_num % 128 == 0) {
+           frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_128]) & frame_list_ptr_queue;
+        }
+        else if(frame_num % 64 == 0) {
+           frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_64]) & frame_list_ptr_queue;
+        }
+        else if(frame_num % 32 == 0) {
+           frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_32]) & frame_list_ptr_queue;
+        }
+        else if(frame_num % 16 == 0) {
+           frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_16]) & frame_list_ptr_queue;
+        }
+        else if(frame_num % 8 == 0) {
+           frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_8]) & frame_list_ptr_queue;
+        }
+        else if(frame_num % 4 == 0) {
+           frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_4]) & frame_list_ptr_queue;
+        }
+        else if(frame_num % 2 == 0) {
+           frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_2]) & frame_list_ptr_queue;
+        }
+        else if(frame_num % 1 == 0) {
+           frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_1]) & frame_list_ptr_queue;
+        }
+    }
 }
 
 // -------------------------------------------------------------------------
