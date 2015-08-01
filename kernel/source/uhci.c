@@ -40,7 +40,9 @@
 // Static Defines
 // -------------------------------------------------------------------------
 // TODO: Allocate mem for frame stack
-#define UHCI_FRAME_STACK_ADDRESS (0x12345678)
+#define IS_TERMINATE(link) ((((uint32_t)(uintptr_t)link) & td_link_ptr_terminate) == td_link_ptr_terminate)
+#define GET_LINK_QUEUE(link) ((struct uhci_queue*) (uintptr_t) ((uint32_t)(uintptr_t)link & QUEUE_HEAD_LINK_ADDR_MASK))
+#define QUEUE_PTR_CREATE(queue_ptr) (uint32_t*)(uintptr_t) ((uint32_t)(uintptr_t)queue_ptr & td_link_ptr_queue);
 
 // -------------------------------------------------------------------------
 // Static Types
@@ -165,7 +167,7 @@ struct uhci_queue {
     // uint32 in this struct, the remaining fields are added because queues
     // have to be aligned to 16-byte boundary, making it easy to line up
     // multiple queues, and it allows us to attach some useful information! :-)
-    uint32_t parent;
+    uint32_t* parent;
     uint32_t padding2;
 } PACKED;
 
@@ -526,28 +528,33 @@ static bool enable_port(uint32_t base_addr, uint8_t port)
     return (portsc & uhci_portsc_port_enabled) != uhci_portsc_port_enabled;
 }
 
+uint32_t g_foo[sizeof(struct uhci_queue)];
+
 struct uhci_queue g_root_queues[16] ALIGN(16) = {
-    /*   1ms Queue */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
-    /*   2ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_1], (uint32_t*)td_link_ptr_terminate, 0, 0},
-    /*   4ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_2], (uint32_t*)td_link_ptr_terminate, 0, 0},
-    /*   8ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_4], (uint32_t*)td_link_ptr_terminate, 0, 0},
-    /*  16ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_8], (uint32_t*)td_link_ptr_terminate, 0, 0},
-    /*  32ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_16], (uint32_t*)td_link_ptr_terminate, 0, 0},
-    /*  64ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_32], (uint32_t*)td_link_ptr_terminate, 0, 0},
-    /* 128ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_64], (uint32_t*)td_link_ptr_terminate, 0, 0},
-    /*  Low speed  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
-    /*  Full speed */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
-    /*     ISO     */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
-    /*  Reserved0  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
-    /*  Reserved1  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
-    /*  Reserved2  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
-    /*  Reserved3  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
-    /*  Reserved4  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, 0, 0},
+    /*   1ms Queue */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*   2ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_1], (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*   4ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_2], (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*   8ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_4], (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  16ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_8], (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  32ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_16], (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  64ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_32], (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /* 128ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_64], (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  Low speed  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  Full speed */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*     ISO     */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  Reserved0  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  Reserved1  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  Reserved2  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  Reserved3  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  Reserved4  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
 };
 
 static void schedule_queue_remove(struct uhci_queue* queue)
 {
-    //struct uhci_queue* parent = (struct uhci_queue*)(uintptr_t)queue->parent;
+    struct uhci_queue* parent = (struct uhci_queue*)(uintptr_t)queue->parent;
+
+    // Reset the head link to a terminate entry
+    parent->head_link = QUEUE_PTR_CREATE(0);
 }
 
 static void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue root)
@@ -557,16 +564,16 @@ static void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue 
 
     // Advance horizontally through the queue pointers until we
     // find the terminating entry, that's where we'll insert this one
-    while(((uint32_t)(uintptr_t)parent->head_link & td_link_ptr_terminate) == 0) {
-       parent = (struct uhci_queue*)(uintptr_t)((uint32_t)(uintptr_t)parent->head_link & QUEUE_HEAD_LINK_ADDR_MASK);
+    while(!IS_TERMINATE(parent->head_link)) {
+       parent = GET_LINK_QUEUE(parent->head_link);
     }
 
     // Link this parent to the queue that was passed in
-    parent->head_link = (uint32_t*)(uintptr_t)(((uint32_t)(uintptr_t)queue) & td_link_ptr_queue);
+    parent->head_link = QUEUE_PTR_CREATE(queue);
 
     // Attach the parent's address so we can locate it super easily
     // when we want to remove this queue after it has been executed
-    queue->parent = (uint32_t)(uintptr_t)parent;
+    queue->parent = (uint32_t*)(uintptr_t)parent;
 }
 
 static void schedule_init(uint32_t frame_list_addr)
