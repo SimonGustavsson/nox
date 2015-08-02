@@ -80,5 +80,6 @@
 
 int32_t uhci_detect_root(uint16_t base_addr, bool io_addr);
 void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, uint8_t irq);
+void uhci_command(char** args, size_t arg_count);
 
 #endif

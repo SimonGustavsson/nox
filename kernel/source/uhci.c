@@ -9,6 +9,8 @@
 #include <interrupt.h>
 #include <pit.h>
 #include <mem_mgr.h>
+#include <string.h>
+#include <cli.h>
 
 //#define USB_DEBUG
 
@@ -156,6 +158,47 @@ struct transfer_descriptor {
     uint32_t software_use3;
 } PACKED;
 
+struct usb_device_descriptor {
+    uint8_t  desc_length;        // Size of this struct (should be 18-bytes)
+    uint8_t  type;               // For standard descriptors, this should be 1
+    uint16_t release_num;        // Version of USB spec this device complies with
+    uint8_t  device_class;
+    uint8_t  sub_class;
+    uint8_t  protocol;
+    uint8_t  max_packet_size;    // Max packet size for endpoint 0 (possible values: 8, 16, 32, 64)
+    uint16_t vendor_id;
+    uint16_t product_id;
+    uint16_t device_rel;
+    uint8_t  manufacturer;       // Index of string descriptor (0 = no descriptor)
+    uint8_t  product;            // Index of string descriptor (0 = no descriptor)
+    uint8_t  serial_num;         // Index of string descriptor (0 = no descriptor)
+    uint8_t  num_configurations; // Number of possible configurations
+} PACKED;
+
+enum usb_request_type {
+    usb_request_type_device_to_host = 1 << 7,
+
+    // 6:5 Type
+    usb_request_type_standard       = 0 << 5,
+    usb_request_type_class          = 1 << 5,
+    usb_request_type_vendor         = 2 << 5,
+    usb_request_type_reserved       = 3 << 5,
+
+    // 4:0 Recipient
+    usb_request_recip_device        = 0 << 0,
+    usb_request_recip_interface     = 1 << 0,
+    usb_request_recip_endpoint      = 2 << 0,
+    usb_request_recip_other         = 3 << 0
+};
+
+struct device_request_packet {
+    uint8_t  type;    // See usb_request_type
+    uint8_t  request; // The desired request
+    uint16_t value;   // Request specific
+    uint16_t index;   // Request specific
+    uint16_t length;  // If a data phase, number of bytes to transfer
+} PACKED;
+
 // Address occupies everything but the low 4 bits
 #define QUEUE_HEAD_LINK_ADDR_MASK (0xFFFFFFF0)
 
@@ -191,6 +234,33 @@ enum nox_uhci_queue {
 };
 
 // -------------------------------------------------------------------------
+// Global Variables
+// -------------------------------------------------------------------------
+uint32_t g_initialized_base_addr;
+uint32_t g_foo[sizeof(struct uhci_queue)];
+uint32_t g_frame_list;
+
+// TODO: These entries need to have the QUEUE flag set!
+struct uhci_queue g_root_queues[16] ALIGN(16) = {
+    /*   1ms Queue */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*   2ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_1], (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*   4ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_2], (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*   8ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_4], (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  16ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_8], (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  32ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_16], (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  64ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_32], (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /* 128ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_64], (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  Low speed  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  Full speed */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*     ISO     */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  Reserved0  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  Reserved1  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  Reserved2  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  Reserved3  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*  Reserved4  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
+};
+
+// -------------------------------------------------------------------------
 // Forward Declarations
 // -------------------------------------------------------------------------
 static bool init_io(uint32_t base_addr, uint8_t irq);
@@ -212,8 +282,82 @@ static void schedule_queue_remove(struct uhci_queue* queue);
 // -------------------------------------------------------------------------
 // Public Contract
 // -------------------------------------------------------------------------
+void print_queue_type(enum nox_uhci_queue type)
+{
+    switch(type) {
+        case nox_uhci_queue_1: terminal_write_string("1ms");   return;
+        case nox_uhci_queue_2: terminal_write_string("2ms");   return;
+        case nox_uhci_queue_4: terminal_write_string("4ms");   return;
+        case nox_uhci_queue_8: terminal_write_string("8ms");   return;
+        case nox_uhci_queue_16: terminal_write_string("16ms");  return;
+        case nox_uhci_queue_32: terminal_write_string("32ms");  return;
+        case nox_uhci_queue_64: terminal_write_string("64ms");  return;
+        case nox_uhci_queue_128: terminal_write_string("128ms"); return;
+        default: terminal_write_string("Unknown"); return;
+    }
+}
+
+void uhci_command(char** args, size_t arg_count)
+{
+    if(kstrcmp(args[1], "fl")) {
+        SHOWVAL_x("Dumping frame list at ", g_frame_list);
+        uint32_t root_addr = (uint32_t)(uintptr_t)(g_root_queues);
+
+        uint32_t* fl = (uint32_t*)(uintptr_t)(g_frame_list);
+        for(size_t i = 0; i < 65; i++) {
+
+            uint32_t entry = *fl++;
+            entry -= 2;
+
+            //g_root_queues
+            terminal_write_char('[');
+            terminal_write_uint32(i);
+            terminal_write_string("] ");
+            terminal_write_uint32_x(entry);
+
+            // TOOD: strip out the queue flag
+            uint32_t diff = entry - root_addr;
+            diff /= 16;
+            enum nox_uhci_queue type = (enum nox_uhci_queue)diff;
+
+            terminal_write_string(" (");
+            print_queue_type(type);
+            terminal_write_string(")\n");
+        }
+    }
+    else if(kstrcmp(args[1], "info")) {
+
+        if(g_initialized_base_addr == 0) {
+            KERROR("Unable to retrieve info for uninitialized host controller");
+            return;
+        }
+
+        // long names, are too long!
+        uint32_t ba = g_initialized_base_addr;
+
+        uint16_t cmd = INW(ba + UHCI_CMD_OFFSET);
+        SHOWVAL_x("Command Register: ", cmd);
+        uint16_t status = INW(ba + UHCI_STATUS_OFFSET);
+        SHOWVAL_x("Status Register: ", status);
+        uint16_t irpt = INW(ba + UHCI_STATUS_OFFSET);
+        SHOWVAL_x("Interrupt Register: ", irpt);
+        uint16_t frnum = INW(ba + UHCI_FRAME_NUM_OFFSET);
+        SHOWVAL_x("Frame Number Register: ", frnum);
+        uint32_t frbase = IND(ba + UHCI_FRAME_BASEADDR_OFFSET);
+        SHOWVAL_x("Frame Base Register: ", frbase);
+        uint8_t sofmod = INB(ba + UHCI_SOFMOD_OFFSET);
+        SHOWVAL_x("Sofmod Register: ", sofmod);
+        uint16_t portsc1 = INW(ba + UHCI_PORTSC1_OFFSET);
+        SHOWVAL_x("Port Status/Command 1 Register: ", portsc1);
+        uint16_t portsc2 = INW(ba + UHCI_PORTSC2_OFFSET);
+        SHOWVAL_x("Port Status/Command 2 Register: ", portsc2);
+    }
+}
+
 void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, uint8_t irq)
 {
+    cli_cmd_handler_register("uhci", uhci_command);
+
     // Unused functions (so far.. make sure they're "used")
     if(1 == 0) {
         schedule_queue_insert(NULL, nox_uhci_queue_1);
@@ -242,6 +386,9 @@ void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, ui
 
     if(!result) {
         KERROR("Host controller initialization failed.");
+    }
+    else {
+        SHOWVAL_x("Initialized base address: ", g_initialized_base_addr);
     }
 }
 
@@ -273,6 +420,11 @@ static bool init_io(uint32_t base_addr, uint8_t irq)
 
             // Initialize our schedule skeleton
             uint32_t frame_list_addr = IND(io_addr + UHCI_FRAME_BASEADDR_OFFSET);
+
+            terminal_write_string("Initializing FL at: ");
+            terminal_write_uint32_x(frame_list_addr);
+            terminal_write_char('\n');
+
             schedule_init(frame_list_addr);
 
             // Happy days :-)
@@ -282,6 +434,7 @@ static bool init_io(uint32_t base_addr, uint8_t irq)
         }
     }
 
+    g_initialized_base_addr = io_addr;
     return true;
 }
 
@@ -389,6 +542,12 @@ static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped)
 
     // Allocate a stack for use by the driver
     uint32_t stack_frame = (uint32_t)(uintptr_t)mem_page_get();
+
+    // Currently - We will only have one UHCI, so it's save to store
+    // some global state about it - however, this is mostly used for debugging
+    // so if/when we support multiple host controllers, this can go. :-)
+    g_frame_list = stack_frame;
+
     OUTD(base_addr + UHCI_FRAME_BASEADDR_OFFSET, stack_frame);
 
     // The sofmod regisster *should* already be set to 0x40
@@ -528,27 +687,6 @@ static bool enable_port(uint32_t base_addr, uint8_t port)
     return (portsc & uhci_portsc_port_enabled) != uhci_portsc_port_enabled;
 }
 
-uint32_t g_foo[sizeof(struct uhci_queue)];
-
-struct uhci_queue g_root_queues[16] ALIGN(16) = {
-    /*   1ms Queue */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*   2ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_1], (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*   4ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_2], (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*   8ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_4], (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  16ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_8], (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  32ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_16], (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  64ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_32], (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /* 128ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_64], (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  Low speed  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  Full speed */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*     ISO     */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  Reserved0  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  Reserved1  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  Reserved2  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  Reserved3  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  Reserved4  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
-};
-
 static void schedule_queue_remove(struct uhci_queue* queue)
 {
     struct uhci_queue* parent = (struct uhci_queue*)(uintptr_t)queue->parent;
@@ -595,6 +733,8 @@ static void schedule_init(uint32_t frame_list_addr)
     // [3] --> queue_4 --> queue_2 --> queue_1
     // NOTE: The queues have already been linked up at compile time, all we have to do now is install them!
 
+    SHOWVAL_x("Initializingskeleton schedule @ ", frame_list_addr);
+
     // Install them into the frame list
     uint32_t* frame_list = (uint32_t*)(uintptr_t)frame_list_addr;
     for(size_t i = 0; i < 1024; i++) {
@@ -604,28 +744,28 @@ static void schedule_init(uint32_t frame_list_addr)
         uint32_t frame_num = i + 1;
 
         if(frame_num % 128 == 0) {
-           frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_128]) & frame_list_ptr_queue;
+            frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_128]) | frame_list_ptr_queue;
         }
         else if(frame_num % 64 == 0) {
-           frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_64]) & frame_list_ptr_queue;
+            frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_64]) | frame_list_ptr_queue;
         }
         else if(frame_num % 32 == 0) {
-           frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_32]) & frame_list_ptr_queue;
+            frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_32]) | frame_list_ptr_queue;
         }
         else if(frame_num % 16 == 0) {
-           frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_16]) & frame_list_ptr_queue;
+            frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_16]) | frame_list_ptr_queue;
         }
         else if(frame_num % 8 == 0) {
-           frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_8]) & frame_list_ptr_queue;
+            frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_8]) | frame_list_ptr_queue;
         }
         else if(frame_num % 4 == 0) {
-           frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_4]) & frame_list_ptr_queue;
+            frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_4]) | frame_list_ptr_queue;
         }
         else if(frame_num % 2 == 0) {
-           frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_2]) & frame_list_ptr_queue;
+            frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_2]) | frame_list_ptr_queue;
         }
         else if(frame_num % 1 == 0) {
-           frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_1]) & frame_list_ptr_queue;
+            frame_list[i] = ((uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_1])) | frame_list_ptr_queue;
         }
     }
 }
