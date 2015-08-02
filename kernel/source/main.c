@@ -80,7 +80,7 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
 
     terminal_write_string("Kernel initialized, off to you, interrupts!\n");
 
-    elf_run("USERLANDELF");
+    //elf_run("USERLANDELF");
 
     cli_init();
 
