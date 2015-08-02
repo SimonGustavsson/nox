@@ -9,32 +9,67 @@
 #include <string.h>
 #include <fs.h>
 #include <elf.h>
+#include <pci.h>
+#include <cli.h>
 
 #define MAX_COMMAND_SIZE 1024
 #define COMMAND_BUFFER_SIZE (MAX_COMMAND_SIZE + 1)
 #define MAX_ARGS 32
 #define INPUT_BUFFER_SIZE 256
 
-// Forward declarations
+// -------------------------------------------------------------------------
+// Forward Declarations
+// -------------------------------------------------------------------------
 static size_t read_line(char* buffer, size_t buffer_size);
 static void dispatch_command(char** args, size_t arg_count);
 static size_t parse_command(char* buffer, size_t buffer_size, char** args, size_t args_size);
 static void cli_key_up(enum keys key);
 static void cli_key_down(enum keys key);
 
+// -------------------------------------------------------------------------
 // Globals
+// -------------------------------------------------------------------------
+struct cli_command {
+    bool active;
+    char name[10];
+    cmd_handler func;
+};
+
+static struct cli_command g_registered_commands[10];
+static uint32_t g_next_free_command = 0;
+
 static size_t g_input_read_index;
 static size_t g_input_write_index;
 static enum keys g_input_buffer[INPUT_BUFFER_SIZE];
-
 static bool g_shift_pressed;
-
 static struct kb_subscriber g_subscriber = {
     .up = cli_key_up,
     .down = cli_key_down
 };
 
+// -------------------------------------------------------------------------
 // Exports
+// -------------------------------------------------------------------------
+void cli_cmd_handler_register(char* cmd, cmd_handler handler)
+{
+   if(g_next_free_command > 9) {
+       terminal_write_string("Can't register command '");
+       terminal_write_string(cmd);
+       terminal_write_string("' too many commands already!\n");
+       return;
+   } 
+
+   terminal_write_string("Registered new command with root '");
+   terminal_write_string(cmd);
+   terminal_write_string("'\n");
+   struct cli_command* reg_cmd = &g_registered_commands[g_next_free_command++];
+
+   // TODO: name length checking
+   kstrcpy_n(reg_cmd->name, strlen(cmd), cmd);
+   reg_cmd->func = handler;
+   reg_cmd->active = true;
+}
+
 void cli_init() {
     for(size_t i = 0; i < INPUT_BUFFER_SIZE; i++) {
         g_input_buffer[i] = -1;
@@ -63,6 +98,9 @@ void cli_run()
     }
 }
 
+// -------------------------------------------------------------------------
+// Static Functions
+// -------------------------------------------------------------------------
 static void cli_key_down(enum keys key)
 {
     if(key == keys_lshift || key == keys_rshift) {
@@ -180,7 +218,7 @@ static void dispatch_command(char* args[], size_t arg_count)
                 lgdt -1"); // This REALLY shouldn't work LOL
         KWARN("HUH!?");
     }
-    if(kstrcmp(args[0], "reset")) {
+    else if(kstrcmp(args[0], "reset")) {
         cpu_reset();
     }
     else if(kstrcmp(args[0], "clear")) {
@@ -216,6 +254,20 @@ static void dispatch_command(char* args[], size_t arg_count)
         terminal_write_string("run <file> - Runs the given program\n");
     }
     else {
+
+        // See if a registered command matches
+        for(size_t i = 0; i < 10; i++) {
+
+            struct cli_command* cmd = &g_registered_commands[i];
+            if(!cmd->active)
+                continue;
+
+            if(kstrcmp(cmd->name, args[0])) {
+                cmd->func(args, arg_count);
+                return;
+            }
+        }
+
         print_invalid_command(args, arg_count);
     }
 }
