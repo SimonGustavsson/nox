@@ -84,7 +84,6 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
 
     cli_init();
 
-
     cli_run();
 
     while(1);
