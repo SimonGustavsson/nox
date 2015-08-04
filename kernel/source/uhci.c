@@ -278,6 +278,7 @@ static uint32_t port_count_get(uint32_t base_addr);
 static void schedule_init(uint32_t frame_list_addr);
 static void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue root);
 static void schedule_queue_remove(struct uhci_queue* queue);
+static void print_frame_list_entry(uint32_t entry);
 
 // -------------------------------------------------------------------------
 // Public Contract
@@ -371,9 +372,24 @@ void uhci_command(char** args, size_t arg_count)
         terminal_write_string("Frame List Entry [");
         terminal_write_uint32(entry_index);
         terminal_write_string("]: ");
-        terminal_write_uint32_x(entry);
+        print_frame_list_entry(entry);
         terminal_write_char('\n');
     }
+}
+
+static void print_frame_list_entry(uint32_t entry)
+{
+    terminal_write_string("Pointer: ");
+    uint32_t addr = (entry & 0xFFFFFFF0);
+    terminal_write_uint32_x(addr);
+
+    if((entry & frame_list_ptr_queue) == frame_list_ptr_queue)
+        terminal_write_string(" (Queue) ");
+    else
+        terminal_write_string(" (Transfer Descriptor) ");
+
+    if((entry & frame_list_ptr_terminate) == frame_list_ptr_terminate)
+        terminal_write_string(" Terminate");
 }
 
 void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, uint8_t irq)
