@@ -44,7 +44,7 @@
 // TODO: Allocate mem for frame stack
 #define IS_TERMINATE(link) ((((uint32_t)(uintptr_t)link) & td_link_ptr_terminate) == td_link_ptr_terminate)
 #define GET_LINK_QUEUE(link) ((struct uhci_queue*) (uintptr_t) ((uint32_t)(uintptr_t)link & QUEUE_HEAD_LINK_ADDR_MASK))
-#define QUEUE_PTR_CREATE(queue_ptr) (uint32_t*)(uintptr_t) ((uint32_t)(uintptr_t)queue_ptr & td_link_ptr_queue);
+#define QUEUE_PTR_CREATE(queue_ptr) (uint32_t)(uintptr_t) ((uint32_t)(uintptr_t)queue_ptr & td_link_ptr_queue);
 
 // -------------------------------------------------------------------------
 // Static Types
@@ -142,7 +142,7 @@ enum td_token {
     // 7:0   Packet Identification
     // 14:8  Device Address
     // 18:15 End point
-    td_ctrl_status_data_toggle = 1 << 19,
+    td_token_data_toggle = 1 << 19,
     // 20    reserved
     // 31:21 Maximum Length
 };
@@ -203,8 +203,8 @@ struct device_request_packet {
 #define QUEUE_HEAD_LINK_ADDR_MASK (0xFFFFFFF0)
 
 struct uhci_queue {
-    uint32_t* head_link;
-    uint32_t* element_link;
+    uint32_t head_link;
+    uint32_t element_link;
 
     // The host controller only cares about the first two
     // uint32 in this struct, the remaining fields are added because queues
@@ -240,24 +240,24 @@ uint32_t g_initialized_base_addr;
 uint32_t g_foo[sizeof(struct uhci_queue)];
 uint32_t g_frame_list;
 
-// TODO: These entries need to have the QUEUE flag set!
+// Note: The head_link gets set up in a function, because, constant expressions SUCK
 struct uhci_queue g_root_queues[16] ALIGN(16) = {
-    /*   1ms Queue */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*   2ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_1], (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*   4ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_2], (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*   8ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_4], (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  16ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_8], (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  32ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_16], (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  64ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_32], (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /* 128ms Queue */ {(uint32_t*)(uintptr_t)&g_root_queues[nox_uhci_queue_64], (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  Low speed  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  Full speed */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*     ISO     */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  Reserved0  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  Reserved1  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  Reserved2  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  Reserved3  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
-    /*  Reserved4  */ {(uint32_t*)td_link_ptr_terminate, (uint32_t*)td_link_ptr_terminate, NULL, 0},
+    /*   1ms Queue */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+    /*   2ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+    /*   4ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+    /*   8ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+    /*  16ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+    /*  32ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+    /*  64ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+    /* 128ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+    /*  Low speed  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+    /*  Full speed */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+    /*     ISO     */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+    /*  Reserved0  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+    /*  Reserved1  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+    /*  Reserved2  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+    /*  Reserved3  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+    /*  Reserved4  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
 };
 
 // -------------------------------------------------------------------------
@@ -279,6 +279,7 @@ static void schedule_init(uint32_t frame_list_addr);
 static void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue root);
 static void schedule_queue_remove(struct uhci_queue* queue);
 static void print_frame_list_entry(uint32_t entry);
+static void initialize_root_queues();
 
 // -------------------------------------------------------------------------
 // Public Contract
@@ -305,7 +306,7 @@ void uhci_command(char** args, size_t arg_count)
         uint32_t root_addr = (uint32_t)(uintptr_t)(g_root_queues);
 
         uint32_t* fl = (uint32_t*)(uintptr_t)(g_frame_list);
-        for(size_t i = 0; i < 65; i++) {
+        for(size_t i = 0; i < 6; i++) {
 
             uint32_t entry = *fl++;
             entry -= 2;
@@ -377,23 +378,85 @@ void uhci_command(char** args, size_t arg_count)
     }
 }
 
+static void print_queue(struct uhci_queue* queue)
+{
+    terminal_write_string("Queue [");
+    terminal_write_uint32_x((uint32_t)(uintptr_t)queue);
+    terminal_write_string("] - Head: ");
+    terminal_write_uint32_x((uint32_t)(uintptr_t)queue->head_link);
+    terminal_write_string(" Element: ");
+    terminal_write_uint32_x((uint32_t)(uintptr_t)queue->element_link);
+}
+
+static void print_td(struct transfer_descriptor* td)
+{
+    terminal_write_string("TD [");
+    terminal_write_uint32_x((uint32_t)(uintptr_t)td);
+    terminal_write_string("] - ");
+
+    terminal_write_string("Link: ");
+    terminal_write_uint32_x(td->link_ptr);
+
+    if((td->td_token & td_token_data_toggle) == td_token_data_toggle)
+        terminal_write_string(" Data Toggle");
+
+    if((td->td_ctrl_status & td_ctrl_status_ioc) == td_ctrl_status_ioc)
+        terminal_write_string(" IOC");
+
+    if((td->td_ctrl_status & td_ctrl_status_ios) == td_ctrl_status_ios)
+        terminal_write_string(" IOS");
+
+    if((td->td_ctrl_status & td_ctrl_status_lowspeed) == td_ctrl_status_lowspeed)
+        terminal_write_string(" Low Speed");
+
+    if((td->td_ctrl_status & td_ctrl_status_short_packet) == td_ctrl_status_short_packet)
+        terminal_write_string(" Short Packet");
+
+    terminal_write_string(" Buffer: ");
+    terminal_write_uint32_x(td->buffer_ptr);
+
+}
+
 static void print_frame_list_entry(uint32_t entry)
 {
+    // Print information about the frame list entry
     terminal_write_string("Pointer: ");
-    uint32_t addr = (entry & 0xFFFFFFF0);
-    terminal_write_uint32_x(addr);
+    terminal_write_uint32_x((entry & 0xFFFFFFF0));
 
-    if((entry & frame_list_ptr_queue) == frame_list_ptr_queue)
+    bool is_queue = (entry & frame_list_ptr_queue) == frame_list_ptr_queue;
+    if(is_queue)
         terminal_write_string(" (Queue) ");
     else
         terminal_write_string(" (Transfer Descriptor) ");
 
     if((entry & frame_list_ptr_terminate) == frame_list_ptr_terminate)
-        terminal_write_string(" Terminate");
+        return; // Frame list entry points to nothing
+
+    terminal_write_string("\n\t-->");
+
+    // Get the entry the Frame List Entry points to
+    uint32_t* entry_ptr = ((uint32_t*)(uintptr_t)(entry & 0xFFFFFFF0));
+
+    // Keep following the pointer chain :-) (Breath) until we reach a terminate entry
+    while(true) {
+
+        if(is_queue)
+            print_queue((struct uhci_queue*)(uintptr_t)(entry_ptr));
+        else
+            print_td((struct transfer_descriptor*)(uintptr_t)(entry_ptr));
+
+        if((*entry_ptr & frame_list_ptr_terminate) == frame_list_ptr_terminate)
+            return; // No more entries
+
+        is_queue = (*entry_ptr & frame_list_ptr_queue) == frame_list_ptr_queue;
+        entry_ptr = (uint32_t*)(uintptr_t)(*entry_ptr & 0xFFFFFFF0);
+        terminal_write_string("\n\t-->");
+    }
 }
 
 void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, uint8_t irq)
 {
+    initialize_root_queues();
     cli_cmd_handler_register("uhci", uhci_command);
 
     // Unused functions (so far.. make sure they're "used")
@@ -806,6 +869,18 @@ static void schedule_init(uint32_t frame_list_addr)
             frame_list[i] = ((uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_1])) | frame_list_ptr_queue;
         }
     }
+}
+
+static void initialize_root_queues()
+{
+    g_root_queues[0].head_link = td_link_ptr_terminate;
+    g_root_queues[1].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_1] | td_link_ptr_queue);
+    g_root_queues[2].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_2] | td_link_ptr_queue);
+    g_root_queues[3].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_4] | td_link_ptr_queue);
+    g_root_queues[4].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_8] | td_link_ptr_queue);
+    g_root_queues[5].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_16] | td_link_ptr_queue);
+    g_root_queues[6].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_32] | td_link_ptr_queue);
+    g_root_queues[7].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_64] | td_link_ptr_queue);
 }
 
 // -------------------------------------------------------------------------
