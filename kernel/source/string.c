@@ -40,6 +40,40 @@ bool kstrcmp_n(const char* a, const char* b, size_t len)
     return true;
 }
 
+uint32_t uatoi(const char* str)
+{
+    unsigned char* ustr = (unsigned char*)str;
+    uint32_t res = 0;
+    uint8_t c;
+
+    while((c = *ustr++)) {
+        res *= 10;
+        res += (c - '0');
+    }
+
+    return res;
+}
+
+char* uitoa(uint32_t number, char* buf)
+{
+    buf++;
+    uint32_t shifter = number;
+
+    do {
+        buf++;
+        shifter /= 10;
+    } while(shifter > 0);
+
+    *--buf = '\0';
+
+	do {
+		*--buf = '0' + (number % 10); // Muahaha!
+		number /= 10;
+	} while(number > 0);
+
+    return buf;
+}
+
 char* itoa(int32_t number, char* buf) {
 
 	// We populate the string backwards, increment to make room for \0

@@ -98,7 +98,7 @@ void terminal_write_string_n(const char* data, size_t length)
 void terminal_write_uint32(uint32_t val)
 {
 	char buf[11];
-	itoa(val, buf);
+	uitoa(val, buf);
 	terminal_write_string(buf);
 }
 
