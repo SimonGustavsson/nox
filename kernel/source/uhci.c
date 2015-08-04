@@ -352,6 +352,28 @@ void uhci_command(char** args, size_t arg_count)
         uint16_t portsc2 = INW(ba + UHCI_PORTSC2_OFFSET);
         SHOWVAL_x("Port Status/Command 2 Register: ", portsc2);
     }
+    else if(kstrcmp(args[1], "fle")) {
+        if(arg_count < 3) {
+            KWARN("But which frame list entry?");
+            return;
+        }
+
+        uint32_t* flptr = (uint32_t*)(uintptr_t)g_frame_list;
+
+        uint32_t entry_index = uatoi(args[2]);
+        if(entry_index > 1023) {
+            KWARN("Cmon, you know there are only 1024 entries!");
+            return;
+        }
+
+        uint32_t entry = flptr[entry_index];
+
+        terminal_write_string("Frame List Entry [");
+        terminal_write_uint32(entry_index);
+        terminal_write_string("]: ");
+        terminal_write_uint32_x(entry);
+        terminal_write_char('\n');
+    }
 }
 
 void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, uint8_t irq)
