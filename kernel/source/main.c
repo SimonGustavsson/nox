@@ -18,6 +18,7 @@
 #include <fat.h>
 #include <elf.h>
 #include <pic.h>
+#include <paging.h>
 
 static void call_test_sys_call(uint32_t foo)
 {
@@ -76,6 +77,12 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
     call_test_sys_call(0x1234);
 
     terminal_write_string("Kernel initialized, off to you, interrupts!\n");
+
+    // Just print some page table stuff to verify that it works
+    uintptr_t pd = page_directory_create();
+    print_pde(pd, 0);
+    uintptr_t pt0 = (uintptr_t) (*(uint32_t*)pd & 0xFFFFF000);
+    print_pte(pt0, 0x10e);
 
     elf_run("USERLANDELF");
 

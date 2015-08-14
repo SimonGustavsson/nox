@@ -86,7 +86,7 @@ speaker: enabled=1, mode=sound
 # 2-port hub. The portX option accepts the same device types with the same
 # syntax as the UHCI controller (see above).
 #=======================================================================
-usb_ohci: enabled=1
+#usb_ohci: enabled=1
 #usb_ohci: enabled=1, port1=printer:usbprinter.bin
 
 #=======================================================================
@@ -95,7 +95,7 @@ usb_ohci: enabled=1
 # with a 4-port hub. The portX option accepts the same device types with the
 # same syntax as the UHCI controller (see above).
 #=======================================================================
-usb_xhci: enabled=1
+#usb_xhci: enabled=1
 
 #=======================================================================
 # PCIDEV:
