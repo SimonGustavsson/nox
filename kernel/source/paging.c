@@ -91,6 +91,21 @@ void print_pte(uintptr_t pt, uint16_t entry_index)
     terminal_write_string("\n");
 }
 
+#include <debug.h>
+void page_directory_install(uintptr_t pd)
+{
+    BREAK();
+
+    __asm("mov %0,              %%cr3;  \
+           mov %%cr0,           %%eax;  \
+           or  $0x80000000,     %%eax;  \
+           mov %%eax,           %%cr0; "
+           :
+           : "r"(pd)
+           : "eax"
+         );
+}
+
 uintptr_t page_directory_create()
 {
     // Page Directory fits neatly inside a page, neat!
@@ -98,51 +113,36 @@ uintptr_t page_directory_create()
 
     // Make sure our frame is nice and clean
     for(size_t i = 0; i < 1024; i++) {
-        *((uint32_t*)(uintptr_t)pd) = 0;
+        *((uint32_t*)(uintptr_t)pd + i) = 0;
     }
 
-    // Allocate kernel code (Read-Only, Supervisor, cache enabled)
-    struct mem_region* kcode = mem_get_kernel_region(mem_region_type_code);
-    for(size_t i = 0; i < kcode->size / PAGE_SIZE; i++) {
-        uint32_t page_address = kcode->start + (i * PAGE_SIZE);
-        page_allocate(pd, page_address, page_address, pde_32_pt_write_through);
+    // Map in all of kernel memory 256MiB (Note: ring3 can access this right meow)
+    uint32_t ring0_page_count = (134217728 * 2) / PAGE_SIZE;
+    for(size_t i = 0; i < ring0_page_count; i++) {
+        page_allocate(pd, i * PAGE_SIZE, i * PAGE_SIZE, pde_32_pt_write_through | pde_32_pt_read_write | pte_32_4k_user | pte_32_4k_global);
     }
-
-    // Allocate kernel Read-Only data (Read-Only, Supervisor, cache enabled)
-    struct mem_region* krodata = mem_get_kernel_region(mem_region_type_rodata);
-    for(size_t i = 0; i < krodata->size / PAGE_SIZE; i++) {
-        uint32_t page_address = krodata->start + (i * PAGE_SIZE);
-        page_allocate(pd, page_address, page_address, pde_32_pt_write_through);
-    }
-
-    // Allocate kernel Read-Only data (Read-Only, Supervisor, cache enabled)
-    struct mem_region* krwdata = mem_get_kernel_region(mem_region_type_data);
-    for(size_t i = 0; i < krwdata->size / PAGE_SIZE; i++) {
-        uint32_t page_address = krwdata->start + (i * PAGE_SIZE);
-        page_allocate(pd, page_address, page_address, pde_32_pt_write_through | pde_32_pt_read_write);
-    }
-
     return pd;
 }
 
-void page_allocate(uintptr_t pd_ptr, uintptr_t physical_addr, uintptr_t virtual_addr, uint32_t attr)
+void page_allocate(uintptr_t pd, uintptr_t physical_addr, uintptr_t virtual_addr, uint32_t attr)
 {
+    uint32_t* pd_ptr = (uint32_t*)pd;
     // Virtual address breakdown:
     // 31:22 - Directory in pde_ptr
     // 21:12 - Table entry in Directory found in prev step
     // 11:0  - Offset within table enter (we don't touch this)
     uint16_t pde_index = (virtual_addr >> 22) & 0x3FF;
 
-    uint32_t* pde_ptr = (uint32_t*)(pd_ptr + pde_index);
+    uint32_t* pde_ptr = &pd_ptr[pde_index];
+
     if((*pde_ptr & pde_32_pt_present) != pde_32_pt_present) {
 
         // Initialize PDE with a brand new page for the PT
-        uint32_t pt = (uint32_t)(intptr_t)mem_page_get();
+        uint32_t pt = (uint32_t)(uintptr_t)mem_page_get();
+        uint32_t* pt_ptr = (uint32_t*)(uintptr_t)pt;
 
         // Make sure the frame is nice and clean
-        for(size_t i = 0; i < 1024; i++) {
-            *((uint32_t*)(uintptr_t)pt + i) = 0;
-        }
+        for(size_t i = 0; i < 1024; i++) pt_ptr[i] = 0;
 
         *pde_ptr = (pt & PDE_32_PT_ADDRESS_MASK) | pde_32_pt_present | attr;
     }

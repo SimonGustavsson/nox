@@ -20,6 +20,9 @@
 #include <pic.h>
 #include <paging.h>
 
+// LOL
+#include <arch/cpu.h>
+
 static void call_test_sys_call(uint32_t foo)
 {
     __asm("mov %0, %%eax"
@@ -48,6 +51,8 @@ void print_welcome()
 
 SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
 {
+    stack_set(0x1337000);
+
     screen_init();
     screen_cursor_hide();
 
@@ -62,6 +67,16 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
 
     mem_mgr_init(mem_map, mem_entry_count);
     mem_mgr_gdt_setup();
+
+    // Just print some page table stuff to verify that it works
+    uintptr_t pd = page_directory_create();
+    //page_allocate(pd, 0x1337000 - 4096, 0x1337000 - 4096, (1 << 1) | (1 << 3));
+    print_pde(pd, 1);
+    uintptr_t pt0 = (uintptr_t) (*(uint32_t*)pd & 0xFFFFF000);
+    print_pte(pt0, 0);
+
+    SHOWVAL_x("The page directory is at: ", (uint32_t)pd);
+    page_directory_install(pd);
 
     kb_init();
 
@@ -78,13 +93,7 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
 
     terminal_write_string("Kernel initialized, off to you, interrupts!\n");
 
-    // Just print some page table stuff to verify that it works
-    uintptr_t pd = page_directory_create();
-    print_pde(pd, 0);
-    uintptr_t pt0 = (uintptr_t) (*(uint32_t*)pd & 0xFFFFF000);
-    print_pte(pt0, 0x10e);
-
-    elf_run("USERLANDELF");
+    //elf_run("USERLANDELF");
 
     cli_init();
 

@@ -5,7 +5,7 @@
 #include <keyboard.h>
 #include <terminal.h>
 #include <debug.h>
-#include <arch/x86/cpu.h>
+#include <arch/cpu.h>
 #include <string.h>
 #include <fs.h>
 #include <elf.h>

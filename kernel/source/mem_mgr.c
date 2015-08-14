@@ -257,6 +257,8 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
         KERROR("Failed to reserve pages for the kernel!");
     if(!mem_page_reserve("PAGES", (void*)g_pages, mem_map_pages))
         KERROR("Failed to reserve pages for the page map!");
+    if(!mem_page_reserve("STACK", (void*)0x1337000-4096, 2))
+        KERROR("Failed to reserve pages for the stack!");
 
     // And just a quick test to make sure everything words
     test_allocator();
