@@ -88,7 +88,8 @@ static void process_uhci(struct pci_address* addr, pci_device* dev)
     pci_write_dword(addr, 0x38, 0x00000000);
 
     // Set the IRQ
-    pci_write_byte(addr, PCI_IRQ_REG_OFFSET, UHCI_IRQ);
+    uint8_t old_irq = pci_read_byte(addr, PCI_IRQ_REG_OFFSET);
+    //pci_write_byte(addr, PCI_IRQ_REG_OFFSET, UHCI_IRQ);
 
     // Now try to get the size of the address space
     //uint32_t size = pci_device_get_memory_size(addr, PCI_BASE_ADDR4_REG_OFFSET);
@@ -101,7 +102,7 @@ static void process_uhci(struct pci_address* addr, pci_device* dev)
             PCI_LEGACY_TBY64W | PCI_LEGACY_TBY64R | PCI_LEGACY_TBY60W | PCI_LEGACY_TBY60R); // Clear status
 
     // The device is now ready for the UHCI driver to take over
-    uhci_init(dev->base_addr4, dev, addr, UHCI_IRQ);
+    uhci_init(dev->base_addr4, dev, addr,old_irq);
 }
 
 // -------------------------------------------------------------------------

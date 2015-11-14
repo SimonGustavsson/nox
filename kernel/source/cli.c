@@ -282,7 +282,7 @@ static size_t parse_command(char* buffer, size_t buffer_size, char** args, size_
     bool in_str = false;
 
     // TODO: This currently does NOT deal with arguments lacking
-    //       a terminating quote.
+    //     a terminating quote.
     //
     //       The string below will therefore result in 0 args
     //       "hello, World

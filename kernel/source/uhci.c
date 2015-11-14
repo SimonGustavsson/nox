@@ -11,8 +11,10 @@
 #include <mem_mgr.h>
 #include <string.h>
 #include <cli.h>
+#include <pic.h>
+#include <debug.h>
 
-//#define USB_DEBUG
+#define USB_DEBUG
 
 // -------------------------------------------------------------------------
 // Documentation
@@ -44,7 +46,7 @@
 // TODO: Allocate mem for frame stack
 #define IS_TERMINATE(link) ((((uint32_t)(uintptr_t)link) & td_link_ptr_terminate) == td_link_ptr_terminate)
 #define GET_LINK_QUEUE(link) ((struct uhci_queue*) (uintptr_t) ((uint32_t)(uintptr_t)link & QUEUE_HEAD_LINK_ADDR_MASK))
-#define QUEUE_PTR_CREATE(queue_ptr) (uint32_t)(uintptr_t) ((uint32_t)(uintptr_t)queue_ptr & td_link_ptr_queue);
+#define QUEUE_PTR_CREATE(queue_ptr) (uint32_t)(uintptr_t) ((uint32_t)(uintptr_t)queue_ptr | td_link_ptr_queue);
 
 // -------------------------------------------------------------------------
 // Static Types
@@ -114,28 +116,35 @@ enum td_link_ptr {
     // 31:4 Link pointer to another TD or Queue
 };
 
-enum td_status {
+enum td_ctrl_status {
+    // 10:0 Actual length
+
+    // 15:11 reserved
+    // 23:16 Status bits (16 is reserved)
     td_status_bitstuff_error    = 1 << 17,
     td_status_crc_timeout       = 1 << 18,
     td_status_nak_received      = 1 << 19,
     td_status_babble_detected   = 1 << 20,
     td_status_data_buffer_error = 1 << 21,
     td_status_stalled           = 1 << 22,
-    td_status_active            = 1 << 23
+    td_status_active            = 1 << 23,
+
+    td_ctrl_ioc          = 1 << 24,
+    td_ctrl_ios          = 1 << 25, // Isochronous
+    td_ctrl_lowspeed     = 1 << 26,
+
+    // 28:27 Error numbers
+    td_ctrl_3errors      = 3 << 27,
+    td_ctrl_2errors      = 2 << 27,
+    td_ctrl_1error       = 1 << 27,
+    td_ctrl_short_packet = 1 << 29,
+    // 31:30 reserved
 };
 
-enum td_ctrl_status {
-    // 10:0 Actual length
-    // 15:11 reserved
-    // 23:16 see td_status
-    td_ctrl_status_ioc          = 1 << 24,
-    td_ctrl_status_ios          = 1 << 25,
-    td_ctrl_status_lowspeed     = 1 << 26,
-    td_ctrl_status_3errors      = 3 << 27,
-    td_ctrl_status_2errors      = 2 << 27,
-    td_ctrl_status_1error       = 1 << 27,
-    td_ctrl_status_short_packet = 1 << 29,
-    // 31:30 reserved
+enum uhci_packet_id {
+    uhci_packet_id_setup = 0x2D,
+    uhci_packet_id_in = 0x69,
+    uhci_packet_id_out = 0xE1
 };
 
 enum td_token {
@@ -177,6 +186,7 @@ struct usb_device_descriptor {
 
 enum usb_request_type {
     usb_request_type_device_to_host = 1 << 7,
+    usb_request_type_host_to_device = 0 << 7,
 
     // 6:5 Type
     usb_request_type_standard       = 0 << 5,
@@ -240,6 +250,11 @@ uint32_t g_initialized_base_addr;
 uint32_t g_foo[sizeof(struct uhci_queue)];
 uint32_t g_frame_list;
 
+struct transfer_descriptor* g_setup_td0;
+struct transfer_descriptor* g_setup_td1;
+struct transfer_descriptor* g_setup_td2;
+struct device_request_packet* g_get_desc_data;
+
 // Note: The head_link gets set up in a function, because, constant expressions SUCK
 struct uhci_queue g_root_queues[16] ALIGN(16) = {
     /*   1ms Queue */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
@@ -279,11 +294,56 @@ static void schedule_init(uint32_t frame_list_addr);
 static void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue root);
 static void schedule_queue_remove(struct uhci_queue* queue);
 static void print_frame_list_entry(uint32_t entry);
+static void print_td(struct transfer_descriptor* td);
 static void initialize_root_queues();
+static void start_schedule(uint16_t base_addr);
+
+enum uhci_status {
+    uhci_status_halted            = 1 << 5,
+    uhci_status_process_error     = 1 << 4,
+    uhci_status_host_system_error = 1 << 3,
+    uhci_status_resume_detected   = 1 << 2,
+    uhci_status_error_interrupt   = 1 << 1,
+    uhci_status_usb_interrupt     = 1 << 0
+};
 
 // -------------------------------------------------------------------------
 // Public Contract
 // -------------------------------------------------------------------------
+static void print_status_register(uint32_t base_addr);
+static void print_status_register2()
+{
+    if(g_initialized_base_addr == NULL) {
+        KERROR("THe UHCI has not been initialized yet!");
+        return;
+    }
+
+    print_status_register(g_initialized_base_addr);
+}
+
+static void print_status_register(uint32_t base_addr)
+{
+    uint16_t status = INW(base_addr + UHCI_STATUS_OFFSET); 
+    SHOWVAL_x("UHCI Status Register. Base: ", base_addr);
+    if((status & uhci_status_halted) == uhci_status_halted)
+        KINFO("Halted - Yes");
+
+    if((status & uhci_status_process_error) == uhci_status_process_error)
+        KERROR("Host Controller Process Error - Yes");
+
+    if((status & uhci_status_host_system_error) == uhci_status_host_system_error)
+        KERROR("Host System Error - Yes");
+
+    if((status & uhci_status_resume_detected) == uhci_status_resume_detected)
+        KINFO("Resume Detected - Yes");
+
+    if((status & uhci_status_error_interrupt) == uhci_status_error_interrupt)
+        KERROR("Error Interrupt - Yes");
+
+    if((status & uhci_status_usb_interrupt) == uhci_status_usb_interrupt)
+        KINFO("USB interrupt - Yes");
+}
+
 void print_queue_type(enum nox_uhci_queue type)
 {
     switch(type) {
@@ -326,6 +386,9 @@ void uhci_command(char** args, size_t arg_count)
             print_queue_type(type);
             terminal_write_string(")\n");
         }
+    }
+    else if(kstrcmp(args[1], "status")) {
+       print_status_register2();
     }
     else if(kstrcmp(args[1], "info")) {
 
@@ -376,6 +439,166 @@ void uhci_command(char** args, size_t arg_count)
         print_frame_list_entry(entry);
         terminal_write_char('\n');
     }
+    else if(kstrcmp(args[1], "insert")) {
+
+        // Step 0: Allocate memory for our stuff
+        uint32_t q_mem = (uint32_t)(uintptr_t)mem_page_get();
+        struct uhci_queue* queue = (struct uhci_queue*)(uintptr_t)q_mem;
+
+        /*
+         * Status/Control breakdown
+         * 28, 27, 26, 23  ( 3 Errors, low-speed, active )
+         * 0x1c800000 = 0001 1100 1000 0000 0000 0000 0000 0000
+         *
+         * 28, 27, 26, (3 Errors, low-sped, active, interrupt-on-complete)
+         * 0x1d800000 = 0001 1101 1000 0000 0000 0000 0000 0000
+         *
+         * Token breakdown:
+         * 
+         *    Packet IDs:
+         *        0x2D = SETUP
+         *        0x69 = IN packet (We expect data back)
+         *        0xE1 = OUT packet (to tell the HC we received the IN)
+         * 
+         * Packet ID: 0x2D (45), Device: 0, End Point: 0, Max Length: 0x70 (112)
+         * 0x0E00002D = 0000 1110 000  0  0  0000 0000000  00101101
+         *
+         * Packet ID: 0x69 (105), Device: 0, End Point: 0, Max Length: 0x70 (112)
+         * 0x0E800069 = 0000 1110 100  0  0  0000  0000000  01101001
+         *
+         * Packet ID: 0xE1 (225), Device: 0, End Point: 0, Max Length: 0x7F0 (2032)
+         * 0xFE8000E1 = 1111 1110 100  0  0  0000  0000000  11100001
+         *
+         */
+
+
+        /*=================================================
+         *  GET_DESCRIPTOR
+         * ===============================================
+         *
+         * Initial SETUP packet (Request device descriptor):
+         *      first dword
+         *          Link pointer: To the next TD
+         *          Depth/breath bit set
+         *
+         *      Second dword
+         *          SPD CLEARED
+         *          C_ERROR = 11b
+         *          Low Speed Set
+         *          Active (clear all other status bits)
+         *          Actual length: 0
+         *          INTERRUPT ON COMPLETE!!
+         *      Third DWORD
+         *          Maximum length = 0x7
+         *          Data toggle = 1
+         *          End point = 0
+         *          DEvice = 0
+         *          Packet ID = 0x2D (SETUP)
+         *      Forth DWORD:
+         *          Pointer to physical buffer of actual data to send
+         *
+         *  Second IN packet:
+         *      First DWORD
+         *          Link pointer to the next TD
+         *          Depth/Breath bit set
+         *      Second DWORD
+         *          SPP Cleared
+         *          C_ERROR = 11b
+         *          Low Speed set
+         *          Active (Clear remaining bits of status)
+         *      Third DWORD
+         *          Max length: 0x7
+         *          Clear data toggle
+         *          end point: 0
+         *          Device: 0
+         *          Packet ID: 0x69 (IN)
+         *      Forth DWORD
+         *          Any byte aligned address where descriptor will be stored
+         *  Third Packet (OUT):  ("Status packet"?)
+         *      First DWORD
+         *          link pointer = 0
+         *          Terminate
+         *      Second DWORD
+         *          SPP Cleared
+         *          C_ERROR = 11b
+         *          Low spee set
+         *          Active
+         *      Third DWORD
+         *          Max length: 0x7FF
+         *          Data Toggle SET
+         *          End point: 0
+         *          Device: 0
+         *          Packet ID: 0xE1
+         */
+
+        /*
+         * Queue - Head link : Terminate. Element Link: Itself?
+         *     TD0 - Link ptr: TD1 (Depth first). Ctrl: 0x1c800000. Token: 0E00002D. Buffer: 0x01234070
+         *     TD1 - Link ptr: TD2 (Depth first). Ctrl: 0x1c800000. Token: 0E800069. Buffer: 0x01234080
+         *     TD2 - Link ptr: terminate          Ctrl: 0x1D800000. Token: FE8000E1. Buffer: 0000000000
+         *
+         * Request Packet: 
+         * 0x80 0x06 0x00 0x01 
+         * 0x00 0x00 0x08 0x00
+         * */
+
+        // Step 1: Stick 2 TDs in said queue
+        uintptr_t td0_mem = (uintptr_t)q_mem + (sizeof(struct uhci_queue) * 1);
+        uintptr_t td1_mem = (uintptr_t)((uint32_t)td0_mem)  + sizeof(struct transfer_descriptor);
+        uintptr_t td2_mem = (uintptr_t)((uint32_t)td1_mem)  + sizeof(struct transfer_descriptor);
+        uintptr_t data_mem = (uintptr_t)((uint32_t)td2_mem) + sizeof(struct transfer_descriptor);
+
+        // Step 2: Initial SETUP packet
+        struct transfer_descriptor* td0 = (struct transfer_descriptor*)td0_mem;
+        g_setup_td0 = td0;
+        td0->link_ptr = ((uint32_t)td1_mem) | td_link_ptr_depth_first;
+        td0->td_ctrl_status = 0x1c800000;// td_ctrl_3errors | td_ctrl_lowspeed | td_status_active | td_ctrl_ioc;
+        td0->td_token = 0x0e0000dd;//uhci_packet_id_setup | (0x7 << 21); // MaxLength = 0x7
+        td0->buffer_ptr = (uint32_t)data_mem;
+        print_td(td0);
+
+        // Step 3: Follow-up IN packet to read data from the device
+        struct transfer_descriptor* td1 = (struct transfer_descriptor*)td1_mem;
+        g_setup_td1 = td1;
+        td1->link_ptr = (uint32_t)td2_mem | td_link_ptr_depth_first;
+        td1->td_ctrl_status = 0x1c80000;// td_ctrl_3errors | td_ctrl_lowspeed | td_status_active;
+        td1->td_token = 0x80000C80; //uhci_packet_id_in | (0x7 << 21); // MaxLength = 0x7
+        td1->buffer_ptr = td0->buffer_ptr + 8; // Put it right after the SETUP buffer
+        print_td(td1);
+
+        // Step 4:  The OUT packet to acknowledge transfer
+        struct transfer_descriptor* td2 = (struct transfer_descriptor*)td2_mem;
+        g_setup_td2 = td2;
+        td2->link_ptr = td_link_ptr_terminate;
+        td2->td_ctrl_status = 0x1D800000;//td_ctrl_3errors | td_ctrl_lowspeed | td_status_active;
+        td2->td_token = 0x80000C80; //td_token_data_toggle | uhci_packet_id_out | (0x7FF << 21); // This sets MaxLength to 0
+        print_td(td2);
+
+        // Step 5: Setup queue to point to first TD
+        queue->head_link = (uint32_t)td0_mem;
+        queue->element_link = td_link_ptr_terminate;
+
+        // Step 6: initialize data packet to send
+        struct device_request_packet* data = (struct device_request_packet*)(uint8_t*)data_mem;
+        g_get_desc_data = data;
+        data->type = usb_request_type_standard | usb_request_type_device_to_host;
+        data->request = 0x06; // GET_DESCRIPTOR
+        data->value = 0x1 << 8; // Device?
+        data->length = 0x8;
+
+        uint32_t* hacky = (uint32_t*)data_mem;
+        *hacky = 0x800601;
+        *(hacky + 1)  = 0x00000800;
+
+        SHOWVAL_x("GET_DESC: ", (uint32_t)*(uint32_t*)(uintptr_t)(data));
+
+        // Step 2: Add queue too root queue
+        schedule_queue_insert(queue, nox_uhci_queue_1);
+
+        // TODO: I Think this works, we should cast the result buffer to 
+        //       usb_device_descriptor (note that only the first 8-bytes are valid!)
+        //       and verify whether we got a sane response or not
+    }
 }
 
 static void print_queue(struct uhci_queue* queue)
@@ -390,31 +613,57 @@ static void print_queue(struct uhci_queue* queue)
 
 static void print_td(struct transfer_descriptor* td)
 {
-    terminal_write_string("TD [");
-    terminal_write_uint32_x((uint32_t)(uintptr_t)td);
-    terminal_write_string("] - ");
+    if(td == NULL) {
+        KERROR("Null pointer? what kinda tricks are you playing!");
+        return;
+    }
 
-    terminal_write_string("Link: ");
+    SHOWVAL_x("Transfer descriptor addr: ", (uint32_t)(uintptr_t)td);
+    SHOWVAL_x("Link Pointer: ", td->link_ptr);
+    SHOWVAL_x("Control/Status: ", td->td_ctrl_status);
+    SHOWVAL_x("Token: ", td->td_token);
+    SHOWVAL_x("Buffer: ", td->buffer_ptr);
+    KWARN("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+    return;
+    terminal_write_string("TD [");
+
+    terminal_write_uint32_x((uint32_t)(uintptr_t)td);
+    terminal_write_string("] (");
+    
+    if((td->td_ctrl_status & td_status_active) == td_status_active)
+        terminal_write_string("Active)");
+    else
+        terminal_write_string("Inactive)");
+
+    terminal_write_string(" - Link: ");
     terminal_write_uint32_x(td->link_ptr);
 
     if((td->td_token & td_token_data_toggle) == td_token_data_toggle)
-        terminal_write_string(" Data Toggle");
+        terminal_write_string(" DT");
 
-    if((td->td_ctrl_status & td_ctrl_status_ioc) == td_ctrl_status_ioc)
+    if((td->td_ctrl_status & td_ctrl_ioc) == td_ctrl_ioc)
         terminal_write_string(" IOC");
 
-    if((td->td_ctrl_status & td_ctrl_status_ios) == td_ctrl_status_ios)
+    if((td->td_ctrl_status & td_ctrl_ios) == td_ctrl_ios)
         terminal_write_string(" IOS");
 
-    if((td->td_ctrl_status & td_ctrl_status_lowspeed) == td_ctrl_status_lowspeed)
-        terminal_write_string(" Low Speed");
+    if((td->td_ctrl_status & td_ctrl_lowspeed) == td_ctrl_lowspeed)
+        terminal_write_string(" LS");
 
-    if((td->td_ctrl_status & td_ctrl_status_short_packet) == td_ctrl_status_short_packet)
-        terminal_write_string(" Short Packet");
+    if((td->td_ctrl_status & td_ctrl_short_packet) == td_ctrl_short_packet)
+        terminal_write_string(" SPS");
+
+    if((td->td_ctrl_status & td_status_stalled) == td_status_stalled)
+        terminal_write_string(" Stalled");
+
+    SHOWVAL(" Len:", td->td_token >> 21);
 
     terminal_write_string(" Buffer: ");
     terminal_write_uint32_x(td->buffer_ptr);
 
+    terminal_write_string(" (value: ");
+    terminal_write_uint32_x(*((uint32_t*)(uintptr_t)td->buffer_ptr));
+    terminal_write_string(")\n");
 }
 
 static void print_frame_list_entry(uint32_t entry)
@@ -456,6 +705,11 @@ static void print_frame_list_entry(uint32_t entry)
 
 void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, uint8_t irq)
 {
+    // IRQs are remapped with IRQ0 being at 0x20
+    irq += 0x20;
+
+    SHOWVAL("Initializing UHCI on IRQ", irq);
+
     initialize_root_queues();
     cli_cmd_handler_register("uhci", uhci_command);
 
@@ -501,6 +755,8 @@ static bool init_io(uint32_t base_addr, uint8_t irq)
     // Scrap bit 1:0 as it's not a part of the address
     uint32_t io_addr = (base_addr & ~(1));
 
+    g_initialized_base_addr = io_addr;
+
 #ifdef USB_DEBUG
     terminal_write_string("I/O port: ");
     terminal_write_uint32_x(io_addr);
@@ -528,6 +784,8 @@ static bool init_io(uint32_t base_addr, uint8_t irq)
 
             schedule_init(frame_list_addr);
 
+            start_schedule(io_addr);
+
             // Happy days :-)
             terminal_write_string("Device on port ");
             terminal_write_uint32(i);
@@ -535,7 +793,6 @@ static bool init_io(uint32_t base_addr, uint8_t irq)
         }
     }
 
-    g_initialized_base_addr = io_addr;
     return true;
 }
 
@@ -592,6 +849,7 @@ static int32_t detect_root(uint16_t base_addr, bool memory_mapped)
 
     if(INW(base_addr + UHCI_CMD_OFFSET) != 0x0) {
         KERROR("CMD register does not have the default value '0'");
+        SHOWVAL_x("Value is: ", INW(base_addr + UHCI_CMD_OFFSET));
         return -2;
     }
 
@@ -658,6 +916,8 @@ static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped)
     // Clear the entire status register (it's WC)
     OUTW(base_addr + UHCI_STATUS_OFFSET, 0xFFFF);
 
+    print_status_register(base_addr);
+
 #ifdef USB_DEBUG
     terminal_write_string("UHCI set up for use\n");
 #endif
@@ -665,7 +925,12 @@ static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped)
     // Install the interrupt handler before we enable the schedule
     // So we don't miss any interrupts!
     interrupt_receive_trap(irq, uhci_irq);
+    pic_enable_irq(irq);
 
+}
+
+static void start_schedule(uint16_t base_addr)
+{
     uint16_t cmd = INW(base_addr + UHCI_CMD_OFFSET);
 
     // We don't yet know if this HC supports 64-byte packets,
@@ -673,8 +938,9 @@ static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped)
     cmd &= ~uhci_cmd_max_packet;
 
     // Go go go!
-    cmd &= uhci_cmd_runstop;
+    cmd |= uhci_cmd_runstop;
 
+    KINFO("Starting UHCI schedule");
     OUTW(base_addr + UHCI_CMD_OFFSET, cmd);
 }
 
@@ -798,7 +1064,6 @@ static void schedule_queue_remove(struct uhci_queue* queue)
 
 static void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue root)
 {
-    // Retrieve root queue to insert this queue into
     struct uhci_queue* parent = &g_root_queues[root];
 
     // Advance horizontally through the queue pointers until we
@@ -807,12 +1072,13 @@ static void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue 
        parent = GET_LINK_QUEUE(parent->head_link);
     }
 
-    // Link this parent to the queue that was passed in
-    parent->head_link = QUEUE_PTR_CREATE(queue);
-
     // Attach the parent's address so we can locate it super easily
     // when we want to remove this queue after it has been executed
     queue->parent = (uint32_t*)(uintptr_t)parent;
+
+    // It's very important that we do this last, as as soon as
+    // we set it, the Host Controller will pick it up and start processing
+    parent->head_link = QUEUE_PTR_CREATE(queue);
 }
 
 static void schedule_init(uint32_t frame_list_addr)
@@ -834,7 +1100,7 @@ static void schedule_init(uint32_t frame_list_addr)
     // [3] --> queue_4 --> queue_2 --> queue_1
     // NOTE: The queues have already been linked up at compile time, all we have to do now is install them!
 
-    SHOWVAL_x("Initializingskeleton schedule @ ", frame_list_addr);
+    SHOWVAL_x("Initializing skeleton schedule @ ", frame_list_addr);
 
     // Install them into the frame list
     uint32_t* frame_list = (uint32_t*)(uintptr_t)frame_list_addr;
@@ -842,7 +1108,7 @@ static void schedule_init(uint32_t frame_list_addr)
 
         // Because the frames go from 0 -> 1023, we add one to the index
         // to figure out which type of queue to insert
-        uint32_t frame_num = i + 1;
+        uint32_t frame_num = i;// + 1;
 
         if(frame_num % 128 == 0) {
             frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_128]) | frame_list_ptr_queue;
@@ -888,7 +1154,14 @@ static void initialize_root_queues()
 // -------------------------------------------------------------------------
 static void uhci_irq(uint8_t irq, struct irq_regs* regs)
 {
-    terminal_write_string("uhci irq!\n");
+    KERROR("~~~~~~~~~~~~~~uhci irq fired~~~~~~~~~~~~~~~~~~");
+    print_status_register2();
+    //print_td(g_setup_td0);
+    //print_td(g_setup_td1);
+    //print_td(g_setup_td2);
+
+
+    KERROR("~~~~~~~~~~~~~~End IRQ~~~~~~~~~~~~~~~~~~");
 }
 
 // -------------------------------------------------------------------------

@@ -64,6 +64,7 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
 
     kb_init();
 
+    KERROR("MOO!?");
     // Let's do some hdd stuff m8
     ata_init();
 
@@ -73,6 +74,8 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
 
     // Re-enable interrupts, we're ready now!
     interrupt_enable_all();
+
+    KWARN("Interrupts are now enabled!");
 
     usb_init();
 
