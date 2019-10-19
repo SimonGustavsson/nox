@@ -25,7 +25,7 @@
  *       supports 32-bit addresses
 */
 
-/* Command register layout 
+/* Command register layout
    15:11 - Reserved
       10 - Interrupt disable
        9 - Fast back-to-back enable
@@ -323,7 +323,7 @@ static void print_status_register2()
 
 static void print_status_register(uint32_t base_addr)
 {
-    uint16_t status = INW(base_addr + UHCI_STATUS_OFFSET); 
+    uint16_t status = INW(base_addr + UHCI_STATUS_OFFSET);
     SHOWVAL_x("UHCI Status Register. Base: ", base_addr);
     if((status & uhci_status_halted) == uhci_status_halted)
         KINFO("Halted - Yes");
@@ -445,157 +445,58 @@ void uhci_command(char** args, size_t arg_count)
         uint32_t q_mem = (uint32_t)(uintptr_t)mem_page_get();
         struct uhci_queue* queue = (struct uhci_queue*)(uintptr_t)q_mem;
 
-        /*
-         * Status/Control breakdown
-         * 28, 27, 26, 23  ( 3 Errors, low-speed, active )
-         * 0x1c800000 = 0001 1100 1000 0000 0000 0000 0000 0000
-         *
-         * 28, 27, 26, (3 Errors, low-sped, active, interrupt-on-complete)
-         * 0x1d800000 = 0001 1101 1000 0000 0000 0000 0000 0000
-         *
-         * Token breakdown:
-         * 
-         *    Packet IDs:
-         *        0x2D = SETUP
-         *        0x69 = IN packet (We expect data back)
-         *        0xE1 = OUT packet (to tell the HC we received the IN)
-         * 
-         * Packet ID: 0x2D (45), Device: 0, End Point: 0, Max Length: 0x70 (112)
-         * 0x0E00002D = 0000 1110 000  0  0  0000 0000000  00101101
-         *
-         * Packet ID: 0x69 (105), Device: 0, End Point: 0, Max Length: 0x70 (112)
-         * 0x0E800069 = 0000 1110 100  0  0  0000  0000000  01101001
-         *
-         * Packet ID: 0xE1 (225), Device: 0, End Point: 0, Max Length: 0x7F0 (2032)
-         * 0xFE8000E1 = 1111 1110 100  0  0  0000  0000000  11100001
-         *
-         */
+        // Zero out page (Page size = 4096 bytes = 1024 uint_32s)
+        uint32_t* tmp = (uint32_t*)q_mem;
+        for (int i = 0; i < 1024; i++)
+        {
+          *(tmp + i) = 0;
+        }
 
-
-        /*=================================================
-         *  GET_DESCRIPTOR
-         * ===============================================
-         *
-         * Initial SETUP packet (Request device descriptor):
-         *      first dword
-         *          Link pointer: To the next TD
-         *          Depth/breath bit set
-         *
-         *      Second dword
-         *          SPD CLEARED
-         *          C_ERROR = 11b
-         *          Low Speed Set
-         *          Active (clear all other status bits)
-         *          Actual length: 0
-         *          INTERRUPT ON COMPLETE!!
-         *      Third DWORD
-         *          Maximum length = 0x7
-         *          Data toggle = 1
-         *          End point = 0
-         *          DEvice = 0
-         *          Packet ID = 0x2D (SETUP)
-         *      Forth DWORD:
-         *          Pointer to physical buffer of actual data to send
-         *
-         *  Second IN packet:
-         *      First DWORD
-         *          Link pointer to the next TD
-         *          Depth/Breath bit set
-         *      Second DWORD
-         *          SPP Cleared
-         *          C_ERROR = 11b
-         *          Low Speed set
-         *          Active (Clear remaining bits of status)
-         *      Third DWORD
-         *          Max length: 0x7
-         *          Clear data toggle
-         *          end point: 0
-         *          Device: 0
-         *          Packet ID: 0x69 (IN)
-         *      Forth DWORD
-         *          Any byte aligned address where descriptor will be stored
-         *  Third Packet (OUT):  ("Status packet"?)
-         *      First DWORD
-         *          link pointer = 0
-         *          Terminate
-         *      Second DWORD
-         *          SPP Cleared
-         *          C_ERROR = 11b
-         *          Low spee set
-         *          Active
-         *      Third DWORD
-         *          Max length: 0x7FF
-         *          Data Toggle SET
-         *          End point: 0
-         *          Device: 0
-         *          Packet ID: 0xE1
-         */
-
-        /*
-         * Queue - Head link : Terminate. Element Link: Itself?
-         *     TD0 - Link ptr: TD1 (Depth first). Ctrl: 0x1c800000. Token: 0E00002D. Buffer: 0x01234070
-         *     TD1 - Link ptr: TD2 (Depth first). Ctrl: 0x1c800000. Token: 0E800069. Buffer: 0x01234080
-         *     TD2 - Link ptr: terminate          Ctrl: 0x1D800000. Token: FE8000E1. Buffer: 0000000000
-         *
-         * Request Packet: 
-         * 0x80 0x06 0x00 0x01 
-         * 0x00 0x00 0x08 0x00
-         * */
-
-        // Step 1: Stick 2 TDs in said queue
         uintptr_t td0_mem = (uintptr_t)q_mem + (sizeof(struct uhci_queue) * 1);
         uintptr_t td1_mem = (uintptr_t)((uint32_t)td0_mem)  + sizeof(struct transfer_descriptor);
         uintptr_t td2_mem = (uintptr_t)((uint32_t)td1_mem)  + sizeof(struct transfer_descriptor);
-        uintptr_t data_mem = (uintptr_t)((uint32_t)td2_mem) + sizeof(struct transfer_descriptor);
+        uintptr_t request_packet_mem = (uintptr_t)((uint32_t)td2_mem) + sizeof(struct transfer_descriptor);
+        uintptr_t return_data_mem = (uintptr_t)(request_packet_mem + 0x10); // data is 8 bytes, but align it
 
         // Step 2: Initial SETUP packet
         struct transfer_descriptor* td0 = (struct transfer_descriptor*)td0_mem;
         g_setup_td0 = td0;
         td0->link_ptr = ((uint32_t)td1_mem) | td_link_ptr_depth_first;
-        td0->td_ctrl_status = 0x1c800000;// td_ctrl_3errors | td_ctrl_lowspeed | td_status_active | td_ctrl_ioc;
-        td0->td_token = 0x0e0000dd;//uhci_packet_id_setup | (0x7 << 21); // MaxLength = 0x7
-        td0->buffer_ptr = (uint32_t)data_mem;
-        print_td(td0);
+        td0->td_ctrl_status = td_ctrl_3errors | td_ctrl_lowspeed | td_status_active;
+        td0->td_token = (0x7 << 21) | uhci_packet_id_setup;
+        td0->buffer_ptr = (uint32_t)request_packet_mem;
 
         // Step 3: Follow-up IN packet to read data from the device
         struct transfer_descriptor* td1 = (struct transfer_descriptor*)td1_mem;
         g_setup_td1 = td1;
         td1->link_ptr = (uint32_t)td2_mem | td_link_ptr_depth_first;
-        td1->td_ctrl_status = 0x1c80000;// td_ctrl_3errors | td_ctrl_lowspeed | td_status_active;
-        td1->td_token = 0x80000C80; //uhci_packet_id_in | (0x7 << 21); // MaxLength = 0x7
-        td1->buffer_ptr = td0->buffer_ptr + 8; // Put it right after the SETUP buffer
-        print_td(td1);
+        td1->td_ctrl_status = td_ctrl_3errors | td_ctrl_lowspeed | td_status_active;
+        td1->td_token = uhci_packet_id_in | (0x7 << 21) | td_token_data_toggle;
+        td1->buffer_ptr = (uint32_t)return_data_mem;
 
         // Step 4:  The OUT packet to acknowledge transfer
         struct transfer_descriptor* td2 = (struct transfer_descriptor*)td2_mem;
         g_setup_td2 = td2;
         td2->link_ptr = td_link_ptr_terminate;
-        td2->td_ctrl_status = 0x1D800000;//td_ctrl_3errors | td_ctrl_lowspeed | td_status_active;
-        td2->td_token = 0x80000C80; //td_token_data_toggle | uhci_packet_id_out | (0x7FF << 21); // This sets MaxLength to 0
-        print_td(td2);
+        td2->td_ctrl_status = td_ctrl_3errors | td_ctrl_lowspeed | td_status_active | td_ctrl_ioc;
+        td2->td_token = uhci_packet_id_out | (0x7FF << 21) | td_token_data_toggle;
 
         // Step 5: Setup queue to point to first TD
-        queue->head_link = (uint32_t)td0_mem;
-        queue->element_link = td_link_ptr_terminate;
+        queue->element_link = ((uint32_t)td0_mem);
+        queue->head_link = td_link_ptr_terminate;
 
         // Step 6: initialize data packet to send
-        struct device_request_packet* data = (struct device_request_packet*)(uint8_t*)data_mem;
+        struct device_request_packet* data = (struct device_request_packet*)(uint8_t*)request_packet_mem;
         g_get_desc_data = data;
         data->type = usb_request_type_standard | usb_request_type_device_to_host;
         data->request = 0x06; // GET_DESCRIPTOR
         data->value = 0x1 << 8; // Device?
         data->length = 0x8;
 
-        uint32_t* hacky = (uint32_t*)data_mem;
-        *hacky = 0x800601;
-        *(hacky + 1)  = 0x00000800;
-
-        SHOWVAL_x("GET_DESC: ", (uint32_t)*(uint32_t*)(uintptr_t)(data));
-
-        // Step 2: Add queue too root queue
+        // Step 7: Add queue too root queue
         schedule_queue_insert(queue, nox_uhci_queue_1);
 
-        // TODO: I Think this works, we should cast the result buffer to 
+        // TODO: I Think this works, we should cast the result buffer to
         //       usb_device_descriptor (note that only the first 8-bytes are valid!)
         //       and verify whether we got a sane response or not
     }
@@ -623,13 +524,15 @@ static void print_td(struct transfer_descriptor* td)
     SHOWVAL_x("Control/Status: ", td->td_ctrl_status);
     SHOWVAL_x("Token: ", td->td_token);
     SHOWVAL_x("Buffer: ", td->buffer_ptr);
-    KWARN("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-    return;
+
+    // KWARN("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+    //return;
+
     terminal_write_string("TD [");
 
     terminal_write_uint32_x((uint32_t)(uintptr_t)td);
     terminal_write_string("] (");
-    
+
     if((td->td_ctrl_status & td_status_active) == td_status_active)
         terminal_write_string("Active)");
     else
@@ -664,6 +567,7 @@ static void print_td(struct transfer_descriptor* td)
     terminal_write_string(" (value: ");
     terminal_write_uint32_x(*((uint32_t*)(uintptr_t)td->buffer_ptr));
     terminal_write_string(")\n");
+    KWARN("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 }
 
 static void print_frame_list_entry(uint32_t entry)
@@ -748,7 +652,7 @@ void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, ui
 }
 
 // -------------------------------------------------------------------------
-// Initialization 
+// Initialization
 // -------------------------------------------------------------------------
 static bool init_io(uint32_t base_addr, uint8_t irq)
 {
@@ -1159,8 +1063,6 @@ static void uhci_irq(uint8_t irq, struct irq_regs* regs)
     //print_td(g_setup_td0);
     //print_td(g_setup_td1);
     //print_td(g_setup_td2);
-
-
     KERROR("~~~~~~~~~~~~~~End IRQ~~~~~~~~~~~~~~~~~~");
 }
 
