@@ -1,5 +1,6 @@
-cpu: model=core2_penryn_t9600, count=1, ips=50000000, reset_on_triple_fault=1, ignore_bad_msrs=1, msrs="msrs.def"
-cpu: cpuid_limit_winnt=0
+# Removing this CPU as it seems to seg fault instantly for me on Ubuntu 14
+#cpu: model=core2_penryn_t9600, count=1, ips=50000000, reset_on_triple_fault=1, ignore_bad_msrs=1, msrs="msrs.def"
+#cpu: cpuid_limit_winnt=0
 
 clock: sync=realtime
 
@@ -14,6 +15,9 @@ ata0: enabled=1, ioaddr1=0x1f0, ioaddr2=0x3f0, irq=14
 ata1: enabled=1, ioaddr1=0x170, ioaddr2=0x370, irq=15
 ata2: enabled=0, ioaddr1=0x1e8, ioaddr2=0x3e0, irq=11
 ata3: enabled=0, ioaddr1=0x168, ioaddr2=0x360, irq=9
+
+# Enable hack that allows Nox to write to the Bochs console output
+port_e9_hack: enabled=1
 
 # BREAKPOINTS YES PLz
 magic_break: enabled=1
