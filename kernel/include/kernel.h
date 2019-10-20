@@ -4,7 +4,7 @@
 #define PACKED __attribute__((__packed__))
 #define SECTION_BOOT __attribute__((section(".text.boot")))
 #define NO_INLINE __attribute__((noinline))
-#define ALIGN(x) __attribute__ ((aligned (x))) 
+#define ALIGN(x) __attribute__ ((aligned (x)))
 #define PRINTK(str, fg, bg) \
             do {                                 \
                 terminal_set_color(fg, bg);      \
@@ -20,14 +20,14 @@
         KERROR(str);                  \
         while(1);                     \
     } while(0);
-#define SHOWVAL(str, val)             \
+#define SHOWVAL_U8(str, val)          \
     do {                              \
         terminal_write_string(str);   \
-        terminal_write_uint32(val);   \
+        terminal_write_uint8_x(val);    \
         terminal_write_char('\n');    \
     } while(0)
 
-#define SHOWVAL_x(str, val)           \
+#define SHOWVAL_U32(str, val)         \
     do {                              \
         terminal_write_string(str);   \
         terminal_write_uint32_x(val); \
