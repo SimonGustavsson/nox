@@ -328,7 +328,7 @@ bool mem_page_reserve(const char* identifier, void* address, size_t num_pages)
 
     if(IS_PAGE_RESERVED(g_pages[page_index].flags)) {
         KWARN("An attempt was made to re-reserve a page!");
-        SHOWVAL_x("The following page is already reserved: ", (uint32_t)(intptr_t)address);
+        SHOWVAL_U32("The following page is already reserved: ", (uint32_t)(intptr_t)address);
         return false;
     }
 

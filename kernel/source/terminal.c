@@ -3,6 +3,9 @@
 #include <terminal.h>
 #include <string.h>
 #include <bit_utils.h>
+#include <pio.h>
+
+#define BochsConsolePrintChar(c) OUTB(0xe9, c)
 
 // -------------------------------------------------------------------------
 // Static defines
@@ -74,7 +77,7 @@ void terminal_write_string_endpadded(const char* data, size_t total_length)
 {
     size_t str_len = strlen(data);
     size_t spaces_to_insert = total_length - str_len;
-    
+
     terminal_write_string_n(data, str_len);
 
     for(size_t i = 0; i < spaces_to_insert; i++) {
@@ -123,7 +126,7 @@ void terminal_write_uint8_x(uint8_t val)
 {
     terminal_write_char('0');
     terminal_write_char('x');
-    terminal_write_hex_byte(BYTE(val, 1));
+    terminal_write_hex_byte(val);
 }
 
 void terminal_write_uint16_x(uint16_t val)
@@ -252,6 +255,8 @@ void terminal_write_char(const char c)
         // (the row will be verified next and clamped if need be)
         g_current_row++;
         g_current_column = g_current_indentation;
+
+        BochsConsolePrintChar('\n');
     }
 
     if(g_current_row >= screen_height_get() + g_buffer_row_offset) {
@@ -277,25 +282,27 @@ void terminal_write_char(const char c)
     if(c == '\n') {
         g_current_row++;
         g_current_column = g_current_indentation;
+        BochsConsolePrintChar('\n');
         return;
     }
 
     // Write the character to our buffer
     g_buffer[g_current_row][g_current_column] = vgaentry_create(c, g_current_color);
+    BochsConsolePrintChar(c);
 
-    if(g_current_row >= g_buffer_row_offset) {
+    if (g_current_row >= g_buffer_row_offset) {
         // This also needs writing to the screen
         screen_put_char(c, g_current_color, g_current_column, g_current_row - g_buffer_row_offset);
     }
 
-	if (++g_current_column == BUFFER_MAX_COLUMNS)
-	{
-		g_current_column = g_current_indentation;
-		if (++g_current_row - g_buffer_row_offset > screen_height_get())
-		{
-			g_current_row = 0;
-		}
-	}
+    if (++g_current_column == BUFFER_MAX_COLUMNS)
+    {
+        g_current_column = g_current_indentation;
+        if (++g_current_row - g_buffer_row_offset > screen_height_get())
+        {
+            g_current_row = 0;
+        }
+    }
 }
 
 void terminal_indentation_increase()
@@ -303,7 +310,7 @@ void terminal_indentation_increase()
     if(g_current_indentation < BUFFER_MAX_COLUMNS - 1) {
 
         bool update_column = g_current_column == g_current_indentation;
-        
+
         g_current_indentation += TERMINAL_INDENTATION_LENGTH;
 
         if(update_column) {

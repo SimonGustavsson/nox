@@ -250,10 +250,12 @@ uint32_t g_initialized_base_addr;
 uint32_t g_foo[sizeof(struct uhci_queue)];
 uint32_t g_frame_list;
 
+struct uhci_queue* g_setup_queue;
 struct transfer_descriptor* g_setup_td0;
 struct transfer_descriptor* g_setup_td1;
 struct transfer_descriptor* g_setup_td2;
 struct device_request_packet* g_get_desc_data;
+uint32_t g_setup_return_data_mem;
 
 // Note: The head_link gets set up in a function, because, constant expressions SUCK
 struct uhci_queue g_root_queues[16] ALIGN(16) = {
@@ -278,6 +280,8 @@ struct uhci_queue g_root_queues[16] ALIGN(16) = {
 // -------------------------------------------------------------------------
 // Forward Declarations
 // -------------------------------------------------------------------------
+static void enqueue_get_descriptor();
+static bool is_set(uint32_t val, uint32_t num);
 static bool init_io(uint32_t base_addr, uint8_t irq);
 static bool init_mm(pci_device* dev, uint32_t base_addr, uint8_t irq);
 static bool init_mm32(uint32_t base_addr, uint8_t irq, bool below_1mb);
@@ -293,8 +297,10 @@ static uint32_t port_count_get(uint32_t base_addr);
 static void schedule_init(uint32_t frame_list_addr);
 static void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue root);
 static void schedule_queue_remove(struct uhci_queue* queue);
+// static void poll_status_interrupt(); // Not used (yet?)
 static void print_frame_list_entry(uint32_t entry);
 static void print_td(struct transfer_descriptor* td);
+static void print_td_nice(struct transfer_descriptor* td);
 static void initialize_root_queues();
 static void start_schedule(uint16_t base_addr);
 
@@ -324,24 +330,32 @@ static void print_status_register2()
 static void print_status_register(uint32_t base_addr)
 {
     uint16_t status = INW(base_addr + UHCI_STATUS_OFFSET);
-    SHOWVAL_x("UHCI Status Register. Base: ", base_addr);
-    if((status & uhci_status_halted) == uhci_status_halted)
-        KINFO("Halted - Yes");
+    terminal_write_string("UHCI Status Register. Base: ");
+    terminal_write_uint32_x(base_addr);
+    terminal_write_string(". Value: ");
+    terminal_write_uint16_x(status);
+    terminal_write_char('\n');
 
-    if((status & uhci_status_process_error) == uhci_status_process_error)
-        KERROR("Host Controller Process Error - Yes");
+    if(is_set(status, uhci_status_halted))            KINFO("Halted - Yes");
+    if(is_set(status, uhci_status_process_error))     KERROR("Host Controller Process Error - Yes");
+    if(is_set(status, uhci_status_host_system_error)) KERROR("Host System Error - Yes");
+    if(is_set(status, uhci_status_resume_detected))   KINFO("Resume Detected - Yes");
+    if(is_set(status, uhci_status_error_interrupt))   KERROR("Error Interrupt - Yes");
 
-    if((status & uhci_status_host_system_error) == uhci_status_host_system_error)
-        KERROR("Host System Error - Yes");
-
-    if((status & uhci_status_resume_detected) == uhci_status_resume_detected)
-        KINFO("Resume Detected - Yes");
-
-    if((status & uhci_status_error_interrupt) == uhci_status_error_interrupt)
-        KERROR("Error Interrupt - Yes");
+    if (1 == 0) print_td_nice(g_setup_td0);
 
     if((status & uhci_status_usb_interrupt) == uhci_status_usb_interrupt)
+    {
         KINFO("USB interrupt - Yes");
+        SHOWVAL_U32("Ret buf? ", *((uint32_t*)g_setup_return_data_mem));
+        uint32_t* queue = (uint32_t*)g_setup_queue;
+        SHOWVAL_U32("Setup queue Head: ", *queue);
+        SHOWVAL_U32("Setup queue Ele: ", *(queue + 1));
+        terminal_write_string("Setup TDs:\n");
+        print_td_nice(g_setup_td0);
+        print_td_nice(g_setup_td1);
+        print_td_nice(g_setup_td2);
+    }
 }
 
 void print_queue_type(enum nox_uhci_queue type)
@@ -362,7 +376,7 @@ void print_queue_type(enum nox_uhci_queue type)
 void uhci_command(char** args, size_t arg_count)
 {
     if(kstrcmp(args[1], "fl")) {
-        SHOWVAL_x("Dumping frame list at ", g_frame_list);
+        SHOWVAL_U32("Dumping frame list at ", g_frame_list);
         uint32_t root_addr = (uint32_t)(uintptr_t)(g_root_queues);
 
         uint32_t* fl = (uint32_t*)(uintptr_t)(g_frame_list);
@@ -401,21 +415,21 @@ void uhci_command(char** args, size_t arg_count)
         uint32_t ba = g_initialized_base_addr;
 
         uint16_t cmd = INW(ba + UHCI_CMD_OFFSET);
-        SHOWVAL_x("Command Register: ", cmd);
+        SHOWVAL_U32("Command Register: ", cmd);
         uint16_t status = INW(ba + UHCI_STATUS_OFFSET);
-        SHOWVAL_x("Status Register: ", status);
+        SHOWVAL_U32("Status Register: ", status);
         uint16_t irpt = INW(ba + UHCI_STATUS_OFFSET);
-        SHOWVAL_x("Interrupt Register: ", irpt);
+        SHOWVAL_U32("Interrupt Register: ", irpt);
         uint16_t frnum = INW(ba + UHCI_FRAME_NUM_OFFSET);
-        SHOWVAL_x("Frame Number Register: ", frnum);
+        SHOWVAL_U32("Frame Number Register: ", frnum);
         uint32_t frbase = IND(ba + UHCI_FRAME_BASEADDR_OFFSET);
-        SHOWVAL_x("Frame Base Register: ", frbase);
+        SHOWVAL_U32("Frame Base Register: ", frbase);
         uint8_t sofmod = INB(ba + UHCI_SOFMOD_OFFSET);
-        SHOWVAL_x("Sofmod Register: ", sofmod);
+        SHOWVAL_U32("Sofmod Register: ", sofmod);
         uint16_t portsc1 = INW(ba + UHCI_PORTSC1_OFFSET);
-        SHOWVAL_x("Port Status/Command 1 Register: ", portsc1);
+        SHOWVAL_U32("Port Status/Command 1 Register: ", portsc1);
         uint16_t portsc2 = INW(ba + UHCI_PORTSC2_OFFSET);
-        SHOWVAL_x("Port Status/Command 2 Register: ", portsc2);
+        SHOWVAL_U32("Port Status/Command 2 Register: ", portsc2);
     }
     else if(kstrcmp(args[1], "fle")) {
         if(arg_count < 3) {
@@ -440,66 +454,76 @@ void uhci_command(char** args, size_t arg_count)
         terminal_write_char('\n');
     }
     else if(kstrcmp(args[1], "insert")) {
-
-        // Step 0: Allocate memory for our stuff
-        uint32_t q_mem = (uint32_t)(uintptr_t)mem_page_get();
-        struct uhci_queue* queue = (struct uhci_queue*)(uintptr_t)q_mem;
-
-        // Zero out page (Page size = 4096 bytes = 1024 uint_32s)
-        uint32_t* tmp = (uint32_t*)q_mem;
-        for (int i = 0; i < 1024; i++)
-        {
-          *(tmp + i) = 0;
-        }
-
-        uintptr_t td0_mem = (uintptr_t)q_mem + (sizeof(struct uhci_queue) * 1);
-        uintptr_t td1_mem = (uintptr_t)((uint32_t)td0_mem)  + sizeof(struct transfer_descriptor);
-        uintptr_t td2_mem = (uintptr_t)((uint32_t)td1_mem)  + sizeof(struct transfer_descriptor);
-        uintptr_t request_packet_mem = (uintptr_t)((uint32_t)td2_mem) + sizeof(struct transfer_descriptor);
-        uintptr_t return_data_mem = (uintptr_t)(request_packet_mem + 0x10); // data is 8 bytes, but align it
-
-        // Step 2: Initial SETUP packet
-        struct transfer_descriptor* td0 = (struct transfer_descriptor*)td0_mem;
-        g_setup_td0 = td0;
-        td0->link_ptr = ((uint32_t)td1_mem) | td_link_ptr_depth_first;
-        td0->td_ctrl_status = td_ctrl_3errors | td_ctrl_lowspeed | td_status_active;
-        td0->td_token = (0x7 << 21) | uhci_packet_id_setup;
-        td0->buffer_ptr = (uint32_t)request_packet_mem;
-
-        // Step 3: Follow-up IN packet to read data from the device
-        struct transfer_descriptor* td1 = (struct transfer_descriptor*)td1_mem;
-        g_setup_td1 = td1;
-        td1->link_ptr = (uint32_t)td2_mem | td_link_ptr_depth_first;
-        td1->td_ctrl_status = td_ctrl_3errors | td_ctrl_lowspeed | td_status_active;
-        td1->td_token = uhci_packet_id_in | (0x7 << 21) | td_token_data_toggle;
-        td1->buffer_ptr = (uint32_t)return_data_mem;
-
-        // Step 4:  The OUT packet to acknowledge transfer
-        struct transfer_descriptor* td2 = (struct transfer_descriptor*)td2_mem;
-        g_setup_td2 = td2;
-        td2->link_ptr = td_link_ptr_terminate;
-        td2->td_ctrl_status = td_ctrl_3errors | td_ctrl_lowspeed | td_status_active | td_ctrl_ioc;
-        td2->td_token = uhci_packet_id_out | (0x7FF << 21) | td_token_data_toggle;
-
-        // Step 5: Setup queue to point to first TD
-        queue->element_link = ((uint32_t)td0_mem);
-        queue->head_link = td_link_ptr_terminate;
-
-        // Step 6: initialize data packet to send
-        struct device_request_packet* data = (struct device_request_packet*)(uint8_t*)request_packet_mem;
-        g_get_desc_data = data;
-        data->type = usb_request_type_standard | usb_request_type_device_to_host;
-        data->request = 0x06; // GET_DESCRIPTOR
-        data->value = 0x1 << 8; // Device?
-        data->length = 0x8;
-
-        // Step 7: Add queue too root queue
-        schedule_queue_insert(queue, nox_uhci_queue_1);
-
-        // TODO: I Think this works, we should cast the result buffer to
-        //       usb_device_descriptor (note that only the first 8-bytes are valid!)
-        //       and verify whether we got a sane response or not
+        enqueue_get_descriptor();
     }
+}
+
+static void enqueue_get_descriptor()
+{
+    terminal_write_string("Running GET_DESCRIPTOR for device 0\n");
+
+    // Step 0: Allocate memory for our stuff
+    for (int i = 0 ; i < 16; i++)
+        mem_page_get();
+
+    uint32_t q_mem = (uint32_t)(uintptr_t)mem_page_get();
+    struct uhci_queue* queue = (struct uhci_queue*)(uintptr_t)q_mem;
+    g_setup_queue = queue;
+
+    // Zero out page (Page size = 4096 bytes = 1024 uint_32s)
+    uint32_t* tmp = (uint32_t*)q_mem;
+    for (int i = 0; i < 1024; i++)
+    {
+        *(tmp + i) = 0;
+    }
+
+    uintptr_t td0_mem = (uintptr_t)q_mem + (sizeof(struct uhci_queue) * 1);
+    uintptr_t td1_mem = (uintptr_t)((uint32_t)td0_mem)  + sizeof(struct transfer_descriptor);
+    uintptr_t td2_mem = (uintptr_t)((uint32_t)td1_mem)  + sizeof(struct transfer_descriptor);
+    uintptr_t request_packet_mem = (uintptr_t)((uint32_t)td2_mem) + sizeof(struct transfer_descriptor);
+    uintptr_t return_data_mem = (uintptr_t)(request_packet_mem + 0x10); // data is 8 bytes, but align it
+    g_setup_return_data_mem = return_data_mem;
+
+    // Step 2: Initial SETUP packet
+    struct transfer_descriptor* td0 = (struct transfer_descriptor*)td0_mem;
+    g_setup_td0 = td0;
+    td0->link_ptr = ((uint32_t)td1_mem) | td_link_ptr_depth_first;
+    td0->td_ctrl_status = td_ctrl_3errors | td_status_active; // td_ctrl_lowspeed |
+    td0->td_token = (0x7 << 21) | uhci_packet_id_setup;
+    td0->buffer_ptr = (uint32_t)request_packet_mem;
+
+    // Step 3: Follow-up IN packet to read data from the device
+    struct transfer_descriptor* td1 = (struct transfer_descriptor*)td1_mem;
+    g_setup_td1 = td1;
+    td1->link_ptr = (uint32_t)td2_mem | td_link_ptr_depth_first;
+    td1->td_ctrl_status = td_ctrl_3errors | td_status_active;  //  td_ctrl_lowspeed |
+    td1->td_token = uhci_packet_id_in | (0x7 << 21) | td_token_data_toggle;
+    td1->buffer_ptr = (uint32_t)return_data_mem;
+
+    // Step 4:  The OUT packet to acknowledge transfer
+    struct transfer_descriptor* td2 = (struct transfer_descriptor*)td2_mem;
+    g_setup_td2 = td2;
+    td2->link_ptr = td_link_ptr_terminate;
+    td2->td_ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_ioc;  // td_ctrl_lowspeed |
+    td2->td_token = uhci_packet_id_out | (0x7FF << 21);// | td_token_data_toggle;
+
+    // Step 5: Setup queue to point to first TD
+    queue->element_link = ((uint32_t)td0_mem);
+    queue->head_link = td_link_ptr_terminate;
+
+    // Step 6: initialize data packet to send
+    struct device_request_packet* data = (struct device_request_packet*) (uint8_t*)request_packet_mem;
+    g_get_desc_data = data;
+    data->type = usb_request_type_standard | usb_request_type_device_to_host;
+    data->request = 0x06; // GET_DESCRIPTOR
+    data->value = 0x1 << 8; // Device?
+    data->length = 0x8;
+
+    // Step 7: Add queue too root queue to schedule for execution
+    //         we'll have to wait for an interrupt now
+    schedule_queue_insert(queue, nox_uhci_queue_1);
+
+    terminal_write_string("END insert.\n");
 }
 
 static void print_queue(struct uhci_queue* queue)
@@ -519,15 +543,18 @@ static void print_td(struct transfer_descriptor* td)
         return;
     }
 
-    SHOWVAL_x("Transfer descriptor addr: ", (uint32_t)(uintptr_t)td);
-    SHOWVAL_x("Link Pointer: ", td->link_ptr);
-    SHOWVAL_x("Control/Status: ", td->td_ctrl_status);
-    SHOWVAL_x("Token: ", td->td_token);
-    SHOWVAL_x("Buffer: ", td->buffer_ptr);
+    KWARN("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+    SHOWVAL_U32("Transfer descriptor addr: ", (uint32_t)(uintptr_t)td);
+    SHOWVAL_U32("Link Pointer: ", td->link_ptr);
+    SHOWVAL_U32("Control/Status: ", td->td_ctrl_status);
+    SHOWVAL_U32("Token: ", td->td_token);
+    SHOWVAL_U32("Buffer: ", td->buffer_ptr);
+    KWARN("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+}
 
-    // KWARN("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-    //return;
-
+static void print_td_nice(struct transfer_descriptor* td)
+{
+    KWARN("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
     terminal_write_string("TD [");
 
     terminal_write_uint32_x((uint32_t)(uintptr_t)td);
@@ -537,37 +564,51 @@ static void print_td(struct transfer_descriptor* td)
         terminal_write_string("Active)");
     else
         terminal_write_string("Inactive)");
+    terminal_write_char('\n');
 
-    terminal_write_string(" - Link: ");
+    terminal_write_string("Link: ");
     terminal_write_uint32_x(td->link_ptr);
+    terminal_write_char('\n');
 
-    if((td->td_token & td_token_data_toggle) == td_token_data_toggle)
-        terminal_write_string(" DT");
+    terminal_write_string("Token: ");
+    terminal_write_uint32_x(td->td_token);
+    if(is_set(td->td_token, td_token_data_toggle)) terminal_write_string(" (DataToggle)");
+    terminal_write_string(" Length: ");
+    terminal_write_uint32_x(td->td_token >> 21);
+    terminal_write_char('\n');
 
-    if((td->td_ctrl_status & td_ctrl_ioc) == td_ctrl_ioc)
-        terminal_write_string(" IOC");
+    terminal_write_string("Status: ");
+    terminal_write_uint32_x(td->td_ctrl_status);
+    terminal_write_char(' ');
+    if (is_set(td->td_ctrl_status, td_ctrl_ioc))                 terminal_write_string(" IOC ");
+    if (is_set(td->td_ctrl_status, td_ctrl_ios))                 terminal_write_string(" IOS ");
+    if (is_set(td->td_ctrl_status, td_ctrl_lowspeed))            terminal_write_string(" LowSpeed ");
+    if (is_set(td->td_ctrl_status, td_ctrl_short_packet))        terminal_write_string(" SPS ");
+    if (is_set(td->td_ctrl_status, td_status_stalled))           terminal_write_string(" Stalled ");
+    if (is_set(td->td_ctrl_status, td_status_crc_timeout))       terminal_write_string(" CRCTimeout ");
+    if (is_set(td->td_ctrl_status, td_status_nak_received))      terminal_write_string(" NAK ");
+    if (is_set(td->td_ctrl_status, td_status_babble_detected))   terminal_write_string(" BABBLE ");
+    if (is_set(td->td_ctrl_status, td_status_data_buffer_error)) terminal_write_string(" BUF_ERR ");
+    if (is_set(td->td_ctrl_status, td_status_bitstuff_error))    terminal_write_string(" BITSTUFF_ERR ");
 
-    if((td->td_ctrl_status & td_ctrl_ios) == td_ctrl_ios)
-        terminal_write_string(" IOS");
+    terminal_write_char('\n');
 
-    if((td->td_ctrl_status & td_ctrl_lowspeed) == td_ctrl_lowspeed)
-        terminal_write_string(" LS");
+    if ( (td->td_ctrl_status & td_status_bitstuff_error) == td_status_bitstuff_error) {
+        KWARN("BIT STUFF");
+    }
 
-    if((td->td_ctrl_status & td_ctrl_short_packet) == td_ctrl_short_packet)
-        terminal_write_string(" SPS");
-
-    if((td->td_ctrl_status & td_status_stalled) == td_status_stalled)
-        terminal_write_string(" Stalled");
-
-    SHOWVAL(" Len:", td->td_token >> 21);
-
-    terminal_write_string(" Buffer: ");
+    terminal_write_string("Buffer: ");
     terminal_write_uint32_x(td->buffer_ptr);
-
-    terminal_write_string(" (value: ");
+    terminal_write_string(" (Contents: ");
     terminal_write_uint32_x(*((uint32_t*)(uintptr_t)td->buffer_ptr));
     terminal_write_string(")\n");
+
     KWARN("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+}
+
+static bool is_set(uint32_t val, uint32_t num)
+{
+    return (val & (num)) == (num);
 }
 
 static void print_frame_list_entry(uint32_t entry)
@@ -612,7 +653,7 @@ void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, ui
     // IRQs are remapped with IRQ0 being at 0x20
     irq += 0x20;
 
-    SHOWVAL("Initializing UHCI on IRQ", irq);
+    SHOWVAL_U8("UHCI IRQ set to ", irq);
 
     initialize_root_queues();
     cli_cmd_handler_register("uhci", uhci_command);
@@ -623,7 +664,7 @@ void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, ui
         schedule_queue_remove(NULL);
     }
 
-    terminal_write_string("Initializing UHCI Host controller\n");
+    terminal_write_string("UHCI Initializing Host Controller\n");
     terminal_indentation_increase();
 
 #ifdef USB_DEBUG
@@ -644,10 +685,12 @@ void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, ui
     terminal_indentation_decrease();
 
     if(!result) {
-        KERROR("Host controller initialization failed.");
+        KERROR("UHCI Host controller initialization failed.");
     }
     else {
-        SHOWVAL_x("Initialized base address: ", g_initialized_base_addr);
+        SHOWVAL_U32("UHCI: Initialized base address: ", g_initialized_base_addr);
+
+        enqueue_get_descriptor();
     }
 }
 
@@ -753,7 +796,7 @@ static int32_t detect_root(uint16_t base_addr, bool memory_mapped)
 
     if(INW(base_addr + UHCI_CMD_OFFSET) != 0x0) {
         KERROR("CMD register does not have the default value '0'");
-        SHOWVAL_x("Value is: ", INW(base_addr + UHCI_CMD_OFFSET));
+        SHOWVAL_U32("Value is: ", INW(base_addr + UHCI_CMD_OFFSET));
         return -2;
     }
 
@@ -830,7 +873,6 @@ static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped)
     // So we don't miss any interrupts!
     interrupt_receive_trap(irq, uhci_irq);
     pic_enable_irq(irq);
-
 }
 
 static void start_schedule(uint16_t base_addr)
@@ -980,6 +1022,12 @@ static void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue 
     // when we want to remove this queue after it has been executed
     queue->parent = (uint32_t*)(uintptr_t)parent;
 
+    terminal_write_string("Inserted queue at ");
+    terminal_write_uint32_x((uint32_t)queue);
+    terminal_write_string(" into queue at ");
+    terminal_write_uint32_x((uint32_t)parent);
+    terminal_write_char('\n');
+
     // It's very important that we do this last, as as soon as
     // we set it, the Host Controller will pick it up and start processing
     parent->head_link = QUEUE_PTR_CREATE(queue);
@@ -1004,7 +1052,7 @@ static void schedule_init(uint32_t frame_list_addr)
     // [3] --> queue_4 --> queue_2 --> queue_1
     // NOTE: The queues have already been linked up at compile time, all we have to do now is install them!
 
-    SHOWVAL_x("Initializing skeleton schedule @ ", frame_list_addr);
+    SHOWVAL_U32("Initializing skeleton schedule @ ", frame_list_addr);
 
     // Install them into the frame list
     uint32_t* frame_list = (uint32_t*)(uintptr_t)frame_list_addr;
@@ -1012,7 +1060,7 @@ static void schedule_init(uint32_t frame_list_addr)
 
         // Because the frames go from 0 -> 1023, we add one to the index
         // to figure out which type of queue to insert
-        uint32_t frame_num = i;// + 1;
+        uint32_t frame_num = i + 1;
 
         if(frame_num % 128 == 0) {
             frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_128]) | frame_list_ptr_queue;
@@ -1043,6 +1091,8 @@ static void schedule_init(uint32_t frame_list_addr)
 
 static void initialize_root_queues()
 {
+    terminal_write_string("Initializing root UHCI queues\n");
+
     g_root_queues[0].head_link = td_link_ptr_terminate;
     g_root_queues[1].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_1] | td_link_ptr_queue);
     g_root_queues[2].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_2] | td_link_ptr_queue);
@@ -1051,7 +1101,27 @@ static void initialize_root_queues()
     g_root_queues[5].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_16] | td_link_ptr_queue);
     g_root_queues[6].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_32] | td_link_ptr_queue);
     g_root_queues[7].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_64] | td_link_ptr_queue);
+
+    SHOWVAL_U32("Queue1 head_link: ", g_root_queues[0].head_link);
+    SHOWVAL_U32("Queue2 head_link: ", g_root_queues[1].head_link);
+    SHOWVAL_U32("Queue3 head_link: ", g_root_queues[2].head_link);
+    SHOWVAL_U32("Queue4 head_link: ", g_root_queues[3].head_link);
+    SHOWVAL_U32("Queue5 head_link: ", g_root_queues[4].head_link);
+    SHOWVAL_U32("Queue6 head_link: ", g_root_queues[5].head_link);
+    SHOWVAL_U32("Queue7 head_link: ", g_root_queues[6].head_link);
+    SHOWVAL_U32("Queue8 head_link: ", g_root_queues[7].head_link);
 }
+
+/* Not yet used (can be used instead of setting IOC on TDs)
+static void poll_status_interrupt()
+{
+  uint16_t status = 0;
+  do {
+    status = INW(g_initialized_base_addr + UHCI_STATUS_OFFSET);
+
+  } while ((status & uhci_status_usb_interrupt) != uhci_status_usb_interrupt);
+}
+*/
 
 // -------------------------------------------------------------------------
 // IRQ Handler
