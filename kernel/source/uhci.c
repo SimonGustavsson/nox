@@ -244,9 +244,6 @@ static void enqueue_get_descriptor()
     terminal_write_string("Running GET_DESCRIPTOR for device 0\n");
 
     // Step 0: Allocate memory for our stuff
-    for (int i = 0 ; i < 16; i++)
-        mem_page_get();
-
     uint32_t q_mem = (uint32_t)(uintptr_t)mem_page_get();
     struct uhci_queue* queue = (struct uhci_queue*)(uintptr_t)q_mem;
     g_setup_queue = queue;
