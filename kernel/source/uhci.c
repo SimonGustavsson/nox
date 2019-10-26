@@ -25,21 +25,6 @@
  *       supports 32-bit addresses
 */
 
-/* Command register layout
-   15:11 - Reserved
-      10 - Interrupt disable
-       9 - Fast back-to-back enable
-       8 - SERR# Enable
-       7 - Reserved
-       6 - Parity Error Response
-       5 - VGA Palette Snoop
-       4 - Memory Write and Invalidate Enable
-       3 - Special cycles
-       2 - Bus Master
-       1 - Memory space
-       0 - I/O space
-*/
-
 // -------------------------------------------------------------------------
 // Static Defines
 // -------------------------------------------------------------------------
@@ -300,7 +285,6 @@ static void schedule_queue_remove(struct uhci_queue* queue);
 // static void poll_status_interrupt(); // Not used (yet?)
 static void print_frame_list_entry(uint32_t entry);
 static void print_td(struct transfer_descriptor* td);
-static void print_td_nice(struct transfer_descriptor* td);
 static void initialize_root_queues();
 static void start_schedule(uint16_t base_addr);
 
@@ -344,8 +328,6 @@ static void print_status_register(uint32_t base_addr)
 
     if ( (status & ((uint16_t)uhci_status_error_interrupt)) == uhci_status_error_interrupt)   KERROR("Error Interrupt - Yes");
 
-    if (1 == 0) print_td_nice(g_setup_td0);
-
     if((status & uhci_status_usb_interrupt) == uhci_status_usb_interrupt)
     {
         KINFO("USB interrupt - Yes");
@@ -357,11 +339,6 @@ static void print_status_register(uint32_t base_addr)
             SHOWVAL_U8("Descriptor size: ", descriptor->desc_length);
             SHOWVAL_U16("USB Ver: ", descriptor->release_num);
         }
-
-        terminal_write_string("Setup TDs:\n");
-        print_td_nice(g_setup_td0);
-        print_td_nice(g_setup_td1);
-        print_td_nice(g_setup_td2);
     }
 }
 
@@ -535,8 +512,6 @@ static void enqueue_get_descriptor()
     // Step 7: Add queue too root queue to schedule for execution
     //         we'll have to wait for an interrupt now
     schedule_queue_insert(queue, nox_uhci_queue_1);
-
-    terminal_write_string("END insert.\n");
 }
 
 static void print_queue(struct uhci_queue* queue)
@@ -551,23 +526,7 @@ static void print_queue(struct uhci_queue* queue)
 
 static void print_td(struct transfer_descriptor* td)
 {
-    if(td == NULL) {
-        KERROR("Null pointer? what kinda tricks are you playing!");
-        return;
-    }
-
-    KWARN("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-    SHOWVAL_U32("Transfer descriptor addr: ", (uint32_t)(uintptr_t)td);
-    SHOWVAL_U32("Link Pointer: ", td->link_ptr);
-    SHOWVAL_U32("Control/Status: ", td->td_ctrl_status);
-    SHOWVAL_U32("Token: ", td->td_token);
-    SHOWVAL_U32("Buffer: ", td->buffer_ptr);
-    KWARN("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-}
-
-static void print_td_nice(struct transfer_descriptor* td)
-{
-    KWARN("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+    KINFO("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
     terminal_write_string("TD [");
 
     terminal_write_uint32_x((uint32_t)(uintptr_t)td);
@@ -616,7 +575,7 @@ static void print_td_nice(struct transfer_descriptor* td)
     terminal_write_uint32_x(*((uint32_t*)(uintptr_t)td->buffer_ptr));
     terminal_write_string(")\n");
 
-    KWARN("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+    KINFO("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 }
 
 static bool is_set(uint32_t val, uint32_t num)
@@ -1145,12 +1104,9 @@ static void poll_status_interrupt()
 // -------------------------------------------------------------------------
 static void uhci_irq(uint8_t irq, struct irq_regs* regs)
 {
-    KERROR("~~~~~~~~~~~~~~uhci irq fired~~~~~~~~~~~~~~~~~~");
+    KINFO("~~~~~~~~~~~~~~uhci irq fired~~~~~~~~~~~~~~~~~~");
     print_status_register2();
-    print_td(g_setup_td0);
-    print_td(g_setup_td1);
-    print_td(g_setup_td2);
-    KERROR("~~~~~~~~~~~~~~End IRQ~~~~~~~~~~~~~~~~~~");
+    KINFO("~~~~~~~~~~~~~~End IRQ~~~~~~~~~~~~~~~~~~");
 }
 
 // -------------------------------------------------------------------------
