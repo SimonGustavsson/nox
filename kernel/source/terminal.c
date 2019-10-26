@@ -133,8 +133,11 @@ void terminal_write_uint16_x(uint16_t val)
 {
     terminal_write_char('0');
     terminal_write_char('x');
-    terminal_write_hex_byte(BYTE(val, 1));
-    terminal_write_hex_byte(BYTE(val, 2));
+
+    uint8_t byte1 = ((val & 0xFF00) >> 8);
+    uint8_t byte2 = ((val & 0xFF));
+    terminal_write_hex_byte(byte1);
+    terminal_write_hex_byte(byte2);
 }
 
 void terminal_write_uint24_x(uint32_t val)
