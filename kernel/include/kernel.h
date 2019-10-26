@@ -20,10 +20,18 @@
         KERROR(str);                  \
         while(1);                     \
     } while(0);
+
 #define SHOWVAL_U8(str, val)          \
     do {                              \
         terminal_write_string(str);   \
         terminal_write_uint8_x(val);    \
+        terminal_write_char('\n');    \
+    } while(0)
+
+#define SHOWVAL_U16(str, val)          \
+    do {                              \
+        terminal_write_string(str);   \
+        terminal_write_uint16_x(val);    \
         terminal_write_char('\n');    \
     } while(0)
 
