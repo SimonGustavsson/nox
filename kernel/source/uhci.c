@@ -133,8 +133,12 @@ static void print_status_register(uint32_t base_addr)
         {
             struct usb_device_descriptor* descriptor = (struct usb_device_descriptor*)( (uint32_t*)g_setup_return_data_mem);
 
+            KINFO("GET_DESCRIPTOR response");
             SHOWVAL_U8("Descriptor size: ", descriptor->desc_length);
+            SHOWVAL_U8("Type: ", descriptor->type);
             SHOWVAL_U16("USB Ver: ", descriptor->release_num);
+            SHOWVAL_U8("Device Class:", descriptor->device_class);
+            SHOWVAL_U8("Sub Class:", descriptor->sub_class);
         }
     }
 }
