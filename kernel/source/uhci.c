@@ -94,15 +94,6 @@ static void print_td(struct transfer_descriptor* td);
 static void initialize_root_queues();
 static void start_schedule(uint16_t base_addr);
 
-enum uhci_status {
-    uhci_status_halted            = 1 << 5,
-    uhci_status_process_error     = 1 << 4,
-    uhci_status_host_system_error = 1 << 3,
-    uhci_status_resume_detected   = 1 << 2,
-    uhci_status_error_interrupt   = 1 << 1,
-    uhci_status_usb_interrupt     = 1 << 0
-};
-
 // -------------------------------------------------------------------------
 // Public Contract
 // -------------------------------------------------------------------------

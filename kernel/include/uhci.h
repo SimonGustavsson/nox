@@ -49,6 +49,15 @@ enum uhci_cmd {
     uhci_cmd_loopback_test  = 1 << 8
 };
 
+enum uhci_status {
+    uhci_status_halted            = 1 << 5,
+    uhci_status_process_error     = 1 << 4,
+    uhci_status_host_system_error = 1 << 3,
+    uhci_status_resume_detected   = 1 << 2,
+    uhci_status_error_interrupt   = 1 << 1,
+    uhci_status_usb_interrupt     = 1 << 0
+};
+
 enum uhci_irpt {
     uhci_irpt_timeout_enable      = 1 << 0,
     uhci_irpt_resume_irpt_enable  = 1 << 1,
