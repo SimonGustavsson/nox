@@ -1,13 +1,11 @@
 # Removing this CPU as it seems to seg fault instantly for me on Ubuntu 14
 #cpu: model=core2_penryn_t9600, count=1, ips=50000000, reset_on_triple_fault=1, ignore_bad_msrs=1, msrs="msrs.def"
 #cpu: cpuid_limit_winnt=0
-
 clock: sync=realtime
-
 memory: guest=512, host=256
 romimage: file=$BXSHARE/BIOS-bochs-latest
 vgaromimage: file=$BXSHARE/VGABIOS-lgpl-latest
-mouse: enabled=0
+mouse: enabled=1
 pci: enabled=1, chipset=i440fx
 private_colormap: enabled=0
 #floppya: 1_44=C:/git/nox/noxhdd1_floppy.img, status=inserted
@@ -18,10 +16,7 @@ ata3: enabled=0, ioaddr1=0x168, ioaddr2=0x360, irq=9
 
 # Enable hack that allows Nox to write to the Bochs console output
 port_e9_hack: enabled=1
-
-# BREAKPOINTS YES PLz
 magic_break: enabled=1
-
 
 ata0-master: type=disk, path="build/nox-disk.img", mode=flat
 # Examples:
@@ -30,6 +25,7 @@ ata0-master: type=disk, path="build/nox-disk.img", mode=flat
 #   boot: network, disk
 #   boot: cdrom, floppy, disk
 #=======================================================================
+ata0-master: type=disk, path="build/nox-disk.img", mode=flat
 boot: disk
 
 floppy_bootsig_check: disabled=0
@@ -81,11 +77,13 @@ speaker: enabled=1, mode=sound
 # overwrite the file instead, asking user first.
 #=======================================================================
 #usb_uhci: enabled=1
-usb_uhci: enabled=1, port1=mouse, port2=disk:usbstick.img
+usb_uhci: enabled=1, port1=mouse, options1="debug,speed:full"
+#usb_uhci: enabled=1, port1=disk:/home/simon/src/nox/nox-usb.img,options2="debug, speed=full"
+
+#, port2=disk:usbstick.img
 #usb_uhci: enabled=1, port1=hub:7, port2=disk:growing:usbdisk.img
 #usb_uhci: enabled=1, port2=disk:undoable:usbdisk.img, options1=journal:redo.log
 #usb_uhci: enabled=1, port1=printer:printdata.bin, port2=cdrom:image.iso
-
 #=======================================================================
 # USB_OHCI:
 # This option controls the presence of the USB OHCI host controller with a
@@ -108,3 +106,4 @@ usb_uhci: enabled=1, port1=mouse, port2=disk:usbstick.img
 # PCI host device mapping
 #=======================================================================
 #pcidev: vendor=0x1234, device=0x5678
+
