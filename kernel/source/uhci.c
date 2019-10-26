@@ -342,15 +342,22 @@ static void print_status_register(uint32_t base_addr)
     if(is_set(status, uhci_status_resume_detected))   KINFO("Resume Detected - Yes");
     if(is_set(status, uhci_status_error_interrupt))   KERROR("Error Interrupt - Yes");
 
+    if ( (status & ((uint16_t)uhci_status_error_interrupt)) == uhci_status_error_interrupt)   KERROR("Error Interrupt - Yes");
+
     if (1 == 0) print_td_nice(g_setup_td0);
 
     if((status & uhci_status_usb_interrupt) == uhci_status_usb_interrupt)
     {
         KINFO("USB interrupt - Yes");
-        SHOWVAL_U32("Ret buf? ", *((uint32_t*)g_setup_return_data_mem));
-        uint32_t* queue = (uint32_t*)g_setup_queue;
-        SHOWVAL_U32("Setup queue Head: ", *queue);
-        SHOWVAL_U32("Setup queue Ele: ", *(queue + 1));
+
+        if( *((uint32_t*)g_setup_return_data_mem) != 0)
+        {
+            struct usb_device_descriptor* descriptor = (struct usb_device_descriptor*)( (uint32_t*)g_setup_return_data_mem);
+
+            SHOWVAL_U8("Descriptor size: ", descriptor->desc_length);
+            SHOWVAL_U16("USB Ver: ", descriptor->release_num);
+        }
+
         terminal_write_string("Setup TDs:\n");
         print_td_nice(g_setup_td0);
         print_td_nice(g_setup_td1);
@@ -487,8 +494,9 @@ static void enqueue_get_descriptor()
     // Step 2: Initial SETUP packet
     struct transfer_descriptor* td0 = (struct transfer_descriptor*)td0_mem;
     g_setup_td0 = td0;
-    td0->link_ptr = ((uint32_t)td1_mem) | td_link_ptr_depth_first;
-    td0->td_ctrl_status = td_ctrl_3errors | td_status_active; // td_ctrl_lowspeed |
+    td0->link_ptr = ((uint32_t)td1_mem) | (td_link_ptr_depth_first);
+
+    td0->td_ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_lowspeed;
     td0->td_token = (0x7 << 21) | uhci_packet_id_setup;
     td0->buffer_ptr = (uint32_t)request_packet_mem;
 
@@ -496,7 +504,7 @@ static void enqueue_get_descriptor()
     struct transfer_descriptor* td1 = (struct transfer_descriptor*)td1_mem;
     g_setup_td1 = td1;
     td1->link_ptr = (uint32_t)td2_mem | td_link_ptr_depth_first;
-    td1->td_ctrl_status = td_ctrl_3errors | td_status_active;  //  td_ctrl_lowspeed |
+    td1->td_ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_lowspeed;
     td1->td_token = uhci_packet_id_in | (0x7 << 21) | td_token_data_toggle;
     td1->buffer_ptr = (uint32_t)return_data_mem;
 
@@ -504,8 +512,8 @@ static void enqueue_get_descriptor()
     struct transfer_descriptor* td2 = (struct transfer_descriptor*)td2_mem;
     g_setup_td2 = td2;
     td2->link_ptr = td_link_ptr_terminate;
-    td2->td_ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_ioc;  // td_ctrl_lowspeed |
-    td2->td_token = uhci_packet_id_out | (0x7FF << 21);// | td_token_data_toggle;
+    td2->td_ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_ioc | td_ctrl_lowspeed;
+    td2->td_token = uhci_packet_id_out | (0x7FF << 21) | td_token_data_toggle;
 
     // Step 5: Setup queue to point to first TD
     queue->element_link = ((uint32_t)td0_mem);
@@ -516,7 +524,12 @@ static void enqueue_get_descriptor()
     g_get_desc_data = data;
     data->type = usb_request_type_standard | usb_request_type_device_to_host;
     data->request = 0x06; // GET_DESCRIPTOR
-    data->value = 0x1 << 8; // Device?
+
+    // High byte = 0x01 for DEVICE. Low byte = 0. The two bytes are written
+    // as a 16-bit word in little-endian
+    data->value = 0x1 << 8; // Device
+    // We only read 8 bytes as right now we don't know how big transfers this device
+    // supports. So start off with 8 as all devices support that, we'll adjust this later
     data->length = 0x8;
 
     // Step 7: Add queue too root queue to schedule for execution
@@ -719,8 +732,14 @@ static bool init_io(uint32_t base_addr, uint8_t irq)
 
     uint32_t port_count = port_count_get(io_addr);
 
+    SHOWVAL_U32("UHCI Done detecting ports. Found ", port_count);
+
     for(size_t i = 0; i < port_count; i++) {
-        if(enable_port(io_addr, i)) {
+
+        // Ports are 1-based
+        uint8_t port_num = i + 1;
+
+        if(enable_port(io_addr, port_num)) {
 
             // Initialize our schedule skeleton
             uint32_t frame_list_addr = IND(io_addr + UHCI_FRAME_BASEADDR_OFFSET);
@@ -735,7 +754,7 @@ static bool init_io(uint32_t base_addr, uint8_t irq)
 
             // Happy days :-)
             terminal_write_string("Device on port ");
-            terminal_write_uint32(i);
+            terminal_write_uint8_x(port_num);
             terminal_write_string(" is ready for use\n");
         }
     }
@@ -892,14 +911,12 @@ static void start_schedule(uint16_t base_addr)
 
 static uint32_t port_count_get(uint32_t base_addr)
 {
-    uint32_t offset = 0;
     uint32_t count = 0;
-    uint32_t io_port = base_addr + UHCI_PORTSC1_OFFSET + offset;
+    uint32_t io_port = base_addr + UHCI_PORTSC1_OFFSET;
 
     // Continue enumerating ports until we get a port that doesn't behave
     // like a port status/control register
     while(true) {
-
         //
         // Try to poke the reserved bit 7 to see if it behaves as expected
         //
@@ -979,23 +996,23 @@ static bool enable_port(uint32_t base_addr, uint8_t port)
         if( ((portsc & uhci_portsc_port_enabled_changed) == uhci_portsc_port_enabled_changed) ||
             ((portsc & uhci_portsc_connect_status_changed) == uhci_portsc_connect_status_changed)) {
 
-            OUTW(base_addr + offset, portsc | uhci_portsc_port_enabled_changed | uhci_portsc_connect_status_changed);
+            // Write the value back (should write-clear both bits)
+            OUTW(base_addr + offset, portsc);
 
             continue;
         }
 
-        // Set it to enabled, and clear enabled changed whilst we're at it
-        portsc |= (uhci_portsc_port_enabled ||
-                   uhci_portsc_port_enabled_changed);
+        if( ((portsc & uhci_portsc_port_enabled) == uhci_portsc_port_enabled)) {
+            return true;
+        }
 
-        OUTW(base_addr + offset, portsc);
+        // Set it to enabled, and clear enabled changed whilst we're at it
+        OUTW(base_addr + offset, portsc | uhci_portsc_port_enabled);
 
         pit_wait(10);
 
-        portsc = INW(base_addr + offset);
         attempts++;
-    } while( ((portsc & uhci_portsc_port_enabled) != uhci_portsc_port_enabled) &&
-            attempts < 10);
+    } while(attempts < 16);
 
     return (portsc & uhci_portsc_port_enabled) != uhci_portsc_port_enabled;
 }
@@ -1130,9 +1147,9 @@ static void uhci_irq(uint8_t irq, struct irq_regs* regs)
 {
     KERROR("~~~~~~~~~~~~~~uhci irq fired~~~~~~~~~~~~~~~~~~");
     print_status_register2();
-    //print_td(g_setup_td0);
-    //print_td(g_setup_td1);
-    //print_td(g_setup_td2);
+    print_td(g_setup_td0);
+    print_td(g_setup_td1);
+    print_td(g_setup_td2);
     KERROR("~~~~~~~~~~~~~~End IRQ~~~~~~~~~~~~~~~~~~");
 }
 
