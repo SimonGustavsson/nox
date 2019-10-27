@@ -156,6 +156,24 @@ struct transfer_descriptor {
     uint32_t software_use3;
 } PACKED;
 
+struct uhci_string_lang_descriptor {
+    uint8_t desc_length;
+    uint8_t type; // Should be 0x3 for string language descriptors
+    uint16_t lang_id_0; // see LANG_ID_EN_US etc..
+    uint16_t lang_id_1;
+    // uint16_t lang_id_2
+    // uint16_t lang_id_n.. (depending on device)
+} PACKED;
+
+struct uhci_string_descriptor {
+    uint8_t desc_length;
+    uint8_t type; // Should be 0x3 for string descriptors
+    uint8_t first_byte; // The remaining bytes follow this
+} PACKED;
+
+#define LANG_ID_EN_US 0x0409
+#define LANG_ID_GER   0x407
+
 struct usb_device_descriptor {
     uint8_t  desc_length;        // Size of this struct (should be 18-bytes)
     uint8_t  type;               // For standard descriptors, this should be 1
