@@ -59,7 +59,7 @@ struct uhci_queue g_root_queues[16] ALIGN(16) = {
     /*  16ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
     /*  32ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
     /*  64ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
-    /* 128ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+    /* 128ms Queue */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
     /*  Low speed  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
     /*  Full speed */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
     /*     ISO     */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
