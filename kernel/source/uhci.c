@@ -783,7 +783,7 @@ static void schedule_queue_remove(struct uhci_queue* queue)
     struct uhci_queue* parent = (struct uhci_queue*)(uintptr_t)queue->parent;
 
     // Reset the head link to a terminate entry
-    parent->head_link = QUEUE_PTR_CREATE(0);
+    parent->head_link = td_link_ptr_queue | td_link_ptr_terminate;
 }
 
 static void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue root)
