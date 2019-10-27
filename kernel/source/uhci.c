@@ -732,7 +732,6 @@ static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped)
     // Install the interrupt handler before we enable the schedule
     // So we don't miss any interrupts!
     g_irq_num = irq;
-    //interrupt_receive_trap(irq, uhci_irq);
     interrupt_receive(irq, uhci_irq);
     pic_enable_irq(irq);
 }
