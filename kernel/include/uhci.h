@@ -190,6 +190,18 @@ enum usb_request_type {
     usb_request_recip_other         = 3 << 0
 };
 
+#define UHCI_REQUEST_GET_STATUS        (0x00)
+#define UHCI_REQUEST_CLEAR_FEATURE     (0x01)
+#define UHCI_REQUEST_SET_FEATURE       (0x03)
+#define UHCI_REQUEST_SET_ADDRESS       (0x05)
+#define UHCI_REQUEST_GET_DESCRIPTOR    (0x06)
+#define UHCI_REQUEST_SET_DESCRIPTOR    (0x07)
+#define UHCI_REQUEST_GET_CONFIGURATION (0x08)
+#define UHCI_REQUEST_SET_CONFIGURATION (0x09)
+#define UHCI_REQUEST_GET_INTERFACE     (0x10)
+#define UHCI_REQUEST_SET_INTERFACE     (0x11)
+#define UHCI_REQUEST_SYNC_FRAME        (0x12)
+
 struct device_request_packet {
     uint8_t  type;    // See usb_request_type
     uint8_t  request; // The desired request
@@ -231,5 +243,12 @@ enum nox_uhci_queue {
     nox_uhci_queue_reserved3, // Not used (yet)
     nox_uhci_queue_reserved4, // Not used (yet)
 };
+
+// uhci_device is not in the spec, this is a Nox struct
+// to keep track of connected devices
+struct uhci_device {
+    int8_t num; // (<1 = uninitialized)
+    struct usb_device_descriptor* descriptor;
+} PACKED;
 
 #endif
