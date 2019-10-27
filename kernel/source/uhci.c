@@ -37,6 +37,8 @@
 // -------------------------------------------------------------------------
 // Global Variables
 // -------------------------------------------------------------------------
+uint8_t g_irq_num;
+
 uint32_t g_initialized_base_addr;
 uint32_t g_foo[sizeof(struct uhci_queue)];
 uint32_t g_frame_list;
@@ -647,7 +649,9 @@ static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped)
 
     // Install the interrupt handler before we enable the schedule
     // So we don't miss any interrupts!
-    interrupt_receive_trap(irq, uhci_irq);
+    g_irq_num = irq;
+    //interrupt_receive_trap(irq, uhci_irq);
+    interrupt_receive(irq, uhci_irq);
     pic_enable_irq(irq);
 }
 
@@ -903,7 +907,8 @@ static void poll_status_interrupt()
 static void uhci_irq(uint8_t irq, struct irq_regs* regs)
 {
     KINFO("~~~~~~~~~~~~~~uhci irq fired~~~~~~~~~~~~~~~~~~");
-    print_status_register2();
+    pic_send_eoi(g_irq_num);
+
     KINFO("~~~~~~~~~~~~~~End IRQ~~~~~~~~~~~~~~~~~~");
 }
 
