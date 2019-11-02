@@ -23,8 +23,15 @@ void kloader_cmain(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
 
     mem_mgr_init(mem_map, mem_entry_count);
 
-    ata_init();
-    fs_init();
+    // Allocate some dummy pages where we're loading the kernel
+    // such that nothing else tries to use that memory space
+    // *Currently* the kernel is ~70,000 bytes. Allocate FOUR times
+    // that to be safe (#WatchThisBiteMeInTheAssInTheFuture)
+    // 70,000 * 4096 = 17 page. 17 * 4 =
+    mem_page_reserve("Nox", (void*)KERNEL_LOAD_ADDRESS, 68);
+
+    if (!ata_init()) KPANIC("ata_init failed");
+    if (!fs_init()) KPANIC("fs_init failed");
 
     struct fat_part_info* part_info = fs_get_system_part();
     struct fat_dir_entry kernel;
@@ -34,19 +41,16 @@ void kloader_cmain(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     }
 
     intptr_t kernel_entry_point;
-
-    if(!elf_load_trusted("KERNEL  ELF", &kernel_entry_point)) {
-        KWARN("Failed to load elf!");
-    } 
+    if (!elf_load_trusted("KERNEL  ELF", &kernel_entry_point)) {
+        KPANIC("Failed to load elf!");
+    }
 
     kernel_entry cmain = (kernel_entry)(kernel_entry_point);
 
     cmain(mem_map, mem_entry_count);
 
-
     KINFO("Bootloader done");
 
     while(1);
 }
-
 
