@@ -240,13 +240,14 @@ bool elf_load_trusted(const char* filename, intptr_t* res_entry)
         return false;
     }
 
-    // first off, allocate a buffer where we'll temporararily load the file
+    // First off, allocate a buffer where we'll temporarily load the file
+    // (the Elf itself will then dictate where in memory it'll end up)
     size_t pages_req = entry.size / PAGE_SIZE;
     if(entry.size % PAGE_SIZE)
         pages_req++;
 
     intptr_t buffer = (intptr_t)mem_page_get_many(pages_req);
-    if(!fat_read_file(fs_get_system_part(), &entry, buffer, pages_req * PAGE_SIZE)) {
+    if(!fat_read_file(fs_get_system_part(), &entry, buffer, entry.size)) {
         KERROR("Failed to read file");
         return false;
     }
@@ -254,10 +255,13 @@ bool elf_load_trusted(const char* filename, intptr_t* res_entry)
     struct elf32_header* elf = (struct elf32_header*)buffer;
     if(!verify_header(elf)) {
         mem_page_free((void*)buffer);
+        KERROR("Invalid Elf header");
         return false;
     }
 
     struct elf32_phdr* phdrs = (struct elf32_phdr*)(buffer + elf->phoff);
+
+    uint32_t loaded_size = 0;
 
     char* file_buf = (char*)(buffer);
     for(size_t i = 0; i < elf->phnum; i++) {
@@ -266,18 +270,22 @@ bool elf_load_trusted(const char* filename, intptr_t* res_entry)
         if(ph->type != elf_ph_type_load)
             continue;
 
+        loaded_size += ph->mem_size;
+
         // Load all loadable program headers into memory
         kstrcpy_n((char*)(intptr_t)ph->vaddr, ph->file_size, file_buf + ph->offset);
 
         if(ph->file_size < ph->mem_size) {
-
             char* start = (char*)(intptr_t)(ph->vaddr + ph->file_size + 1);
             size_t len = ph->mem_size - ph->file_size;
+
             for(size_t i = 0; i < len; i++) {
                 *start++ = 0;
             }
         }
     }
+
+    SHOWVAL_U32_d("Done loading, file is this many bytes:", loaded_size);
 
     *res_entry = (intptr_t)elf->entry;
     return true;
