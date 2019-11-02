@@ -41,6 +41,13 @@
         terminal_write_uint32_x(val); \
         terminal_write_char('\n');    \
     } while(0)
+#define SHOWVAL_U32_d(str, val)         \
+    do {                              \
+        terminal_write_string(str);   \
+        terminal_write_uint32(val); \
+        terminal_write_char('\n');    \
+    } while(0)
+
 #define SHOWSTR(str, val)           \
     do {                              \
         terminal_write_string(str);   \
