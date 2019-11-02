@@ -37,14 +37,14 @@ static enum ready_result wait_until_ready(enum ata_controller controller);
 // -------------------------------------------------------------------------
 // Externs
 // -------------------------------------------------------------------------
-void ata_init()
+bool ata_init()
 {
     // We only support one IDE device right meow
     struct pci_address addr = {};
     pci_device dev;
     if(!pci_device_get_next(&addr, MASS_STORAGE_CLASS_CODE, MASS_STORAGE_SUBCLASS_CODE, &dev)) {
         KERROR("No IDE drive found!");
-        return;
+        return false;
     }
 
     g_channels[0].base = dev.base_addr0 > 2 ? dev.base_addr0 : 0x1F0;
@@ -58,6 +58,8 @@ void ata_init()
     // TODO: Finish setup using values discovered via PCI
 
     select_drive(ata_controller_primary, ata_drive_master);
+
+    return true;
 }
 
 uint8_t ata_read(enum ata_controller controller, enum ata_register port)
