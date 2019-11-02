@@ -187,6 +187,7 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
         return;
     }
 
+    terminal_write_string("Calculating total memory...");
     for (int i = 0; i < mem_entry_count; i++) {
         struct mem_map_entry* entry = &mem_map[i];
 
@@ -194,9 +195,9 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
             g_total_available_memory += entry->length;
         }
 
-        if(1 == 0)
-            print_mem_entry(i, entry->base, entry->length, get_mem_type(entry->type));
+        print_mem_entry(i, entry->base, entry->length, get_mem_type(entry->type));
     }
+
     g_max_pages = g_total_available_memory / PAGE_SIZE;
 
     uint32_t kernel_end = (uint32_t)(intptr_t)&LD_KERNEL_END;
@@ -228,17 +229,15 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     }
 
     // Reserve the pages we know about right now
-    // Screen is 80*25 2-byte characters
-    if(!mem_page_reserve("BIOS", (void*)0x0, 0x7C00 / PAGE_SIZE))
-        KERROR("Failed to reserve BIOS pages");
-    if(!mem_page_reserve("Screen", (void*)0xB8000, 1))
-        KERROR("Failed to reserve screen memory!");
-    if(!mem_page_reserve("KRNL", (void*)(intptr_t)kernel_start, kernel_pages))
-        KERROR("Failed to reserve pages for the kernel!");
-    if(!mem_page_reserve("PAGES", (void*)g_pages, mem_map_pages))
-        KERROR("Failed to reserve pages for the page map!");
+    // (256 is not a very scentific number, it just means we reserve
+    // everything loaded *below* the kernel, bios/hardware/mem mapped stuff/etc..)
+    if (!mem_page_reserve("BIOS/hardware", (void*)0x0, 256))
+        KPANIC("Failed to reserve low-memory for bios/hardware");
 
-    // And just a quick test to make sure everything words
+    if(!mem_page_reserve("Kernel", (void*)kernel_start, kernel_pages))
+        KPANIC("Unable to reserve kernel memory in page allocator");
+
+    // And just a quick test to make sure everything works
     test_allocator();
 
     terminal_write_string("Reserved ");
@@ -251,7 +250,8 @@ void mem_mgr_gdt_setup()
     g_tss.ss0 = 0x10; // Kernel data-segment selector
 
     // ISR stack is one page, might want to make bigger?
-    g_tss.esp0 = (uint32_t)(intptr_t)(mem_page_get() + PAGE_SIZE);
+    uint32_t num_stack_pages = 10;
+    g_tss.esp0 = (uint32_t)(intptr_t)(mem_page_get_many(num_stack_pages) + (PAGE_SIZE * num_stack_pages));
 
     // This is the index from the start of the TSS of the IO
     // Port Bitmap - our limit for the TSS in the GDT
@@ -316,9 +316,20 @@ void mem_print_usage()
 
 bool mem_page_reserve(const char* identifier, void* address, size_t num_pages)
 {
+    terminal_write_string("Reserving memory for '");
+    terminal_write_string(identifier);
+    terminal_write_string("' at ");
+    terminal_write_uint32_x((uint32_t)address);
+    terminal_write_char('-');
+    terminal_write_uint32_x(((uint32_t)address) + (num_pages * PAGE_SIZE));
+    terminal_write_string(" (");
+    terminal_write_uint32(num_pages * PAGE_SIZE);
+    terminal_write_string(" bytes)... ");
+
     size_t page_index = ((size_t)(intptr_t)(address)) / PAGE_SIZE;
     if(page_index < 0 || page_index > g_max_pages)
     {
+        terminal_write_string(" failed!\n");
         KWARN("An attempt was made to reserve a page outside of memory");
         terminal_write_string("The page at ");
         terminal_write_uint32_x((uint32_t)(intptr_t)address);
@@ -327,6 +338,7 @@ bool mem_page_reserve(const char* identifier, void* address, size_t num_pages)
     }
 
     if(IS_PAGE_RESERVED(g_pages[page_index].flags)) {
+        terminal_write_string(" failed!\n");
         KWARN("An attempt was made to re-reserve a page!");
         SHOWVAL_U32("The following page is already reserved: ", (uint32_t)(intptr_t)address);
         return false;
@@ -334,6 +346,7 @@ bool mem_page_reserve(const char* identifier, void* address, size_t num_pages)
 
     if(num_pages == 1) {
         g_pages[page_index].flags = PAGE_USED | PAGE_RESERVED;
+        terminal_write_string(" done!\n");
         return true;
     }
 
@@ -352,6 +365,7 @@ bool mem_page_reserve(const char* identifier, void* address, size_t num_pages)
         g_pages[page_index + i].flags = PAGE_USED | PAGE_RESERVED;
     }
 
+    terminal_write_string(" done!\n");
     return true;
 }
 
