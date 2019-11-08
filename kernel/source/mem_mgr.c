@@ -5,6 +5,7 @@
 #include <debug.h>
 
 //#define GDT_DEBUG
+#define MEM_DEBUG
 
 // -------------------------------------------------------------------------
 // Static Defines
@@ -231,11 +232,16 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     // Reserve the pages we know about right now
     // (256 is not a very scentific number, it just means we reserve
     // everything loaded *below* the kernel, bios/hardware/mem mapped stuff/etc..)
-    if (!mem_page_reserve("BIOS/hardware", (void*)0x0, 256))
-        KPANIC("Failed to reserve low-memory for bios/hardware");
+    // (Note: -1 because the first page at kernel_start belongs to the kernel)
+    uint32_t pages_before_kernel = (kernel_start / PAGE_SIZE) - 1;
+    if (kernel_start % PAGE_SIZE) pages_before_kernel++;
 
-    if(!mem_page_reserve("Kernel", (void*)kernel_start, kernel_pages))
+    if (!mem_page_reserve("BIOS/hardware", (void*)0x0, pages_before_kernel))
+        KPANIC("Failed to reserve low-memory for bios/hardware");
+    if (!mem_page_reserve("Kernel", (void*)kernel_start, kernel_pages))
         KPANIC("Unable to reserve kernel memory in page allocator");
+    if (!mem_page_reserve("PAGES", (void*)g_pages, mem_map_pages))
+        KPANIC("Failed to reserve pages for memory allocator!");
 
     // And just a quick test to make sure everything works
     test_allocator();
@@ -316,7 +322,10 @@ void mem_print_usage()
 
 bool mem_page_reserve(const char* identifier, void* address, size_t num_pages)
 {
-    terminal_write_string("Reserving memory for '");
+#ifdef MEM_DEBUG
+    terminal_write_string("Reserving ");
+    terminal_write_uint32(num_pages);
+    terminal_write_string(" pages for '");
     terminal_write_string(identifier);
     terminal_write_string("' at ");
     terminal_write_uint32_x((uint32_t)address);
@@ -324,21 +333,17 @@ bool mem_page_reserve(const char* identifier, void* address, size_t num_pages)
     terminal_write_uint32_x(((uint32_t)address) + (num_pages * PAGE_SIZE));
     terminal_write_string(" (");
     terminal_write_uint32(num_pages * PAGE_SIZE);
-    terminal_write_string(" bytes)... ");
+    terminal_write_string(" bytes)\n");
+#endif
 
     size_t page_index = ((size_t)(intptr_t)(address)) / PAGE_SIZE;
     if(page_index < 0 || page_index > g_max_pages)
     {
-        terminal_write_string(" failed!\n");
         KWARN("An attempt was made to reserve a page outside of memory");
-        terminal_write_string("The page at ");
-        terminal_write_uint32_x((uint32_t)(intptr_t)address);
-        terminal_write_string(" has already been reserved!\n");
         return false;
     }
 
     if(IS_PAGE_RESERVED(g_pages[page_index].flags)) {
-        terminal_write_string(" failed!\n");
         KWARN("An attempt was made to re-reserve a page!");
         SHOWVAL_U32("The following page is already reserved: ", (uint32_t)(intptr_t)address);
         return false;
@@ -346,7 +351,6 @@ bool mem_page_reserve(const char* identifier, void* address, size_t num_pages)
 
     if(num_pages == 1) {
         g_pages[page_index].flags = PAGE_USED | PAGE_RESERVED;
-        terminal_write_string(" done!\n");
         return true;
     }
 
@@ -354,8 +358,10 @@ bool mem_page_reserve(const char* identifier, void* address, size_t num_pages)
     for(size_t i = 0; i < num_pages; i++) {
         struct page* cur = &g_pages[page_index + 1];
 
-        if(IS_PAGE_USED(cur->flags) || IS_PAGE_RESERVED(cur->flags))
+        if(IS_PAGE_USED(cur->flags) || IS_PAGE_RESERVED(cur->flags)) {
+            KPANIC("That entire block is not available!");
             return false;
+        }
     }
 
     // We now know for a fact all is available, just mark them
@@ -365,7 +371,6 @@ bool mem_page_reserve(const char* identifier, void* address, size_t num_pages)
         g_pages[page_index + i].flags = PAGE_USED | PAGE_RESERVED;
     }
 
-    terminal_write_string(" done!\n");
     return true;
 }
 
@@ -389,13 +394,15 @@ void* mem_page_get_many(uint16_t how_many)
     for(size_t i = 0; i < g_max_pages; i++) {
         struct page* cur = &g_pages[i];
 
-        if(IS_PAGE_USED(cur->flags) || IS_FIRST_IN_ALLOCATION(cur->flags))
-            continue;
-
         // Do we have how_many free pages after this?
         size_t free_found = 0;
-        while(free_found < how_many &&  ++cur) {
-            if(!IS_PAGE_USED(cur->flags) && !IS_FIRST_IN_ALLOCATION(cur->flags)) {
+        for (int k = 0; k < how_many && i + k < g_max_pages; k++) {
+            struct page* cur2 = (cur + k);
+
+            if(IS_PAGE_USED(cur2->flags) || IS_FIRST_IN_ALLOCATION(cur2->flags)) {
+                free_found = 0;
+                break;
+            } else {
                 free_found++;
             }
         }
@@ -409,6 +416,14 @@ void* mem_page_get_many(uint16_t how_many)
         for(size_t j = 0; j < how_many; j++) {
             g_pages[i + j].flags |= PAGE_USED;
         }
+
+#ifdef MEM_DEBUG
+        terminal_write_string("Allocated ");
+        terminal_write_uint32(how_many + 1);
+        terminal_write_string(" pages @ ");
+        terminal_write_uint32_x((uint32_t)(i * PAGE_SIZE));
+        terminal_write_char('\n');
+#endif
 
         return (void*)(intptr_t)(i * PAGE_SIZE);
     }
@@ -426,6 +441,10 @@ void* mem_page_get()
         if(!IS_PAGE_USED(cur->flags) && ! IS_FIRST_IN_ALLOCATION(cur->flags)) {
             cur->flags = PAGE_USED | FIRST_IN_ALLOCATION;
 
+#ifdef MEM_DEBUG
+            SHOWVAL_U32("Allocated new page: ", (uint32_t)(intptr_t)(i * PAGE_SIZE));
+#endif
+
             return (void*)(intptr_t)(i * PAGE_SIZE);
         }
     }
@@ -435,6 +454,14 @@ void* mem_page_get()
 
 void mem_page_free(void* address)
 {
+#ifdef MEM_DEBUG
+    terminal_write_string("page_free: ");
+    terminal_write_uint32(((uint32_t)address) / PAGE_SIZE);
+    terminal_write_string(" @ " );
+    terminal_write_uint32_x((uint32_t)address);
+    terminal_write_char('\n');
+#endif
+
     if(address == NULL) {
         KWARN("NULL pointer passed to mem_page_free");
         return;
@@ -458,13 +485,22 @@ void mem_page_free(void* address)
     }
 
     size_t pages_left = cur->consecutive_pages_allocated;
-
-    // Free the first page
     cur->flags = 0;
     cur->consecutive_pages_allocated = 0;
     cur++;
+
+#ifdef MEM_DEBUG
+    terminal_write_string("Freeing ");
+    terminal_write_uint32(pages_left);
+    terminal_write_string(" pages also in allocation\n");
+#endif
+
+    // Free the first page
     // Free the consecutive pages
     for(size_t i = 0; i < pages_left; i++) {
+#ifdef MEM_DEBUG
+        SHOWVAL_U32("Freeing page: ", (page_index + i) * PAGE_SIZE);
+#endif
         g_pages[page_index + i].flags = 0;
     }
 }
@@ -563,6 +599,7 @@ static void test_allocator()
     {
         mem_page_free(allocations[i]);
     }
+
     size_t allocated_pages_after = mem_page_count(true);
 
     if(allocated_pages == allocated_pages_after) {
@@ -574,6 +611,10 @@ static void test_allocator()
         terminal_write_string(", after: ");
         terminal_write_uint32(allocated_pages_after);
         terminal_write_char('\n');
+
+        mem_print_usage();
+
+        KPANIC("mem_init_check_failed");
     }
 }
 
