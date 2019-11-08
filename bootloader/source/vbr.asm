@@ -5,6 +5,7 @@ VBR_RUN_ADDRESS            EQU 0x600
 VBR_LOAD_ADDRESS           EQU 0x7C00
 BOOTLOADER_LOAD_ADDRESS    EQU VBR_LOAD_ADDRESS
 VBR_STACK                  EQU VBR_RUN_ADDRESS
+;VBR_STACK                  EQU VBR_LOAD_ADDRESS
 READ_BUFFER_ADDRESS        EQU (VBR_LOAD_ADDRESS)
 DIR_ENTRY_SIZE             EQU 0x20
 
@@ -43,7 +44,7 @@ iend
 bootloader_name             db "BOOT    SYS" ; DO NOT EDIT, 11 character
 msg_welcome                 db "NOX", 0x0D, 0x0A, 0
 bootloader_found            db "VBR:)", 0x0D, 0x0A, 0
-bootloader_error            db "VBR:(", 0x0D, 0x0A, 0
+bootloader_error            db "BOOT.SYS not found", 0x0D, 0x0A, 0
 
 ; Structure for INT 0x13 (0x42) for reading blocks from disk
 read_packet:
