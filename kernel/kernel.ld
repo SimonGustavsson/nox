@@ -3,7 +3,7 @@ ENTRY(_start)
 SECTIONS
 {
     /* This is where kloader will put us at boot */
-	. = 0x100000;
+	. = 0xA00000;
 
     LD_KERNEL_START = .;
 

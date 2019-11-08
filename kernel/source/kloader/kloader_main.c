@@ -9,7 +9,7 @@
 #include <debug.h>
 #include <elf.h>
 
-#define KERNEL_LOAD_ADDRESS 0x100000
+#define KERNEL_LOAD_ADDRESS 0xA00000
 
 typedef void ((*kernel_entry)(struct mem_map_entry[], uint32_t));
 
