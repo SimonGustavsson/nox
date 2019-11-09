@@ -158,6 +158,7 @@ static void print_mem_entry(size_t index, uint64_t base, uint64_t length, char* 
 static void test_allocator();
 static void tss_install();
 static void gdt_install();
+static void clear_page(uint32_t* page_addr);
 
 #ifdef GDT_DEBUG
 void print_gdt()
@@ -213,8 +214,10 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     if(kernel_size % PAGE_SIZE != 0)
       kernel_pages++;
 
-    // We put the page map right after the kernel in memory
-    g_pages = (struct page*)(intptr_t)(kernel_start + (kernel_pages * PAGE_SIZE));
+    // ~We put the page map right after the kernel in memory~
+    // Put it at 10 MB, that ought to never cause any load issues (RIGHT!?)
+
+    g_pages = (struct page*)(intptr_t) 0x3200000;//(kernel_start + (kernel_pages * PAGE_SIZE));
 
     // Reserve pages for the page map itself
     size_t max_pages = g_total_available_memory / PAGE_SIZE;
@@ -223,6 +226,7 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     if(mem_map_size % PAGE_SIZE != 0)
         mem_map_pages++;
 
+
     // Zero out the memory map
     for(size_t i = 0; i < g_max_pages; i++) {
         g_pages[i].flags = 0;
@@ -230,11 +234,9 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     }
 
     // Reserve the pages we know about right now
-    // (256 is not a very scentific number, it just means we reserve
-    // everything loaded *below* the kernel, bios/hardware/mem mapped stuff/etc..)
     // (Note: -1 because the first page at kernel_start belongs to the kernel)
     uint32_t pages_before_kernel = (kernel_start / PAGE_SIZE) - 1;
-    if (kernel_start % PAGE_SIZE) pages_before_kernel++;
+    if (kernel_start % PAGE_SIZE) pages_before_kernel += 1;
 
     if (!mem_page_reserve("BIOS/hardware", (void*)0x0, pages_before_kernel))
         KPANIC("Failed to reserve low-memory for bios/hardware");
@@ -255,7 +257,7 @@ void mem_mgr_gdt_setup()
     // Set up the TSS
     g_tss.ss0 = 0x10; // Kernel data-segment selector
 
-    // ISR stack is one page, might want to make bigger?
+    // ISR stack is ten pages, might want to make bigger
     uint32_t num_stack_pages = 10;
     g_tss.esp0 = (uint32_t)(intptr_t)(mem_page_get_many(num_stack_pages) + (PAGE_SIZE * num_stack_pages));
 
@@ -328,9 +330,9 @@ bool mem_page_reserve(const char* identifier, void* address, size_t num_pages)
     terminal_write_string(" pages for '");
     terminal_write_string(identifier);
     terminal_write_string("' at ");
-    terminal_write_uint32_x((uint32_t)address);
+    terminal_write_uint32_x(((uint32_t)address / PAGE_SIZE) * PAGE_SIZE);
     terminal_write_char('-');
-    terminal_write_uint32_x(((uint32_t)address) + (num_pages * PAGE_SIZE));
+    terminal_write_uint32_x(((uint32_t)address) + (((num_pages - 1) * PAGE_SIZE)));
     terminal_write_string(" (");
     terminal_write_uint32(num_pages * PAGE_SIZE);
     terminal_write_string(" bytes)\n");
@@ -388,18 +390,22 @@ size_t mem_page_count(bool get_allocated)
 
 void* mem_page_get_many(uint16_t how_many)
 {
+    if (how_many == 1) {
+        return mem_page_get();
+    }
+
     // THe first page is a given, we knew that...
     how_many--;
 
     for(size_t i = 0; i < g_max_pages; i++) {
-        struct page* cur = &g_pages[i];
 
         // Do we have how_many free pages after this?
         size_t free_found = 0;
         for (int k = 0; k < how_many && i + k < g_max_pages; k++) {
-            struct page* cur2 = (cur + k);
+            int page_num = i + k;
+            struct page* cur = &g_pages[page_num];
 
-            if(IS_PAGE_USED(cur2->flags) || IS_FIRST_IN_ALLOCATION(cur2->flags)) {
+            if(IS_PAGE_USED(cur->flags) || IS_FIRST_IN_ALLOCATION(cur->flags)) {
                 free_found = 0;
                 break;
             } else {
@@ -415,6 +421,11 @@ void* mem_page_get_many(uint16_t how_many)
         g_pages[i].consecutive_pages_allocated = how_many;
         for(size_t j = 0; j < how_many; j++) {
             g_pages[i + j].flags |= PAGE_USED;
+
+            // SHOWVAL_U32("Marking page as used: ", i + j);
+
+            uint32_t* page_ptr = (uint32_t*) ((i+j) * PAGE_SIZE);
+            clear_page(page_ptr);
         }
 
 #ifdef MEM_DEBUG
@@ -445,7 +456,11 @@ void* mem_page_get()
             SHOWVAL_U32("Allocated new page: ", (uint32_t)(intptr_t)(i * PAGE_SIZE));
 #endif
 
-            return (void*)(intptr_t)(i * PAGE_SIZE);
+            uint32_t page_addr = i * PAGE_SIZE;
+
+            clear_page((uint32_t*)page_addr);
+
+            return (void*)page_addr;
         }
     }
 
@@ -463,7 +478,7 @@ void mem_page_free(void* address)
 #endif
 
     if(address == NULL) {
-        KWARN("NULL pointer passed to mem_page_free");
+        KPANIC("NULL pointer passed to mem_page_free");
         return;
     }
 
@@ -587,6 +602,7 @@ static void test_allocator()
     // checker though, so I'm leaving it in for now
     size_t allocated_pages = mem_page_count(true);
     void* allocations[10];
+
     allocations[9] = mem_page_get_many(14);
     if(allocations[9] == NULL) {
         KWARN("Failed to allocate 14 pages!");
@@ -615,6 +631,13 @@ static void test_allocator()
         mem_print_usage();
 
         KPANIC("mem_init_check_failed");
+    }
+}
+
+static void clear_page(uint32_t* page_addr)
+{
+    for (int i = 0; i < 1024; i++) {
+        *(page_addr + i) = 0;
     }
 }
 
