@@ -3,6 +3,7 @@
 #include <terminal.h>
 #include "pci.h"
 #include "uhci.h"
+#include "uhci_device.h"
 #include "pio.h"
 #include <pci.h>
 #include <kernel.h>
@@ -75,10 +76,18 @@ struct uhci_queue g_root_queues[16] ALIGN(16) = {
     /*  Reserved3  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
     /*  Reserved4  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
 };
+#define UHCI_MAX_DEVICES 2
+
+struct uhci_device g_devices[UHCI_MAX_DEVICES] = {
+    { 0, uhci_state_default, NULL },
+    { 1, uhci_state_default, NULL },
+};
 
 // -------------------------------------------------------------------------
 // Forward Declarations
 // -------------------------------------------------------------------------
+static void handle_fl_complete();
+static uint16_t get_cur_fp_index();
 static void enqueue_get_descriptor();
 static void enqueue_get_descriptor_with_size(uint8_t size);
 static bool is_set(uint32_t val, uint32_t num);
@@ -95,7 +104,6 @@ static void uhci_irq(uint8_t irq, struct irq_regs* regs);
 static bool enable_port(uint32_t base_addr, uint8_t port);
 static uint32_t port_count_get(uint32_t base_addr);
 static void schedule_init(uint32_t frame_list_addr);
-static void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue root);
 static void schedule_queue_remove(struct uhci_queue* queue);
 // static void poll_status_interrupt(); // Not used (yet?)
 static void print_frame_list_entry(uint32_t* entry);
@@ -131,8 +139,6 @@ static void print_status_register(uint32_t base_addr)
     if(is_set(status, uhci_status_host_system_error)) KERROR("Host System Error - Yes");
     if(is_set(status, uhci_status_resume_detected))   KINFO("Resume Detected - Yes");
     if(is_set(status, uhci_status_error_interrupt))   KERROR("Error Interrupt - Yes");
-
-
 
     if ( (status & ((uint16_t)uhci_status_error_interrupt)) == uhci_status_error_interrupt)   KERROR("Error Interrupt - Yes");
 
@@ -291,8 +297,15 @@ static void enqueue_get_descriptor()
     td2->td_token = uhci_packet_id_out | (0x7FF << 21) | td_token_data_toggle;
 
     // Step 5: Setup queue to point to first TD
+    // Switched these to maintain head_link. (HC will trash element_link!)
+    // TODO:
+    // WARNING:
+    // NOTE:
+    // SIMON:
+    // This doesn't work. used to just set elemnt_link, that worked.
+    // Setting head_link, seeminfgly just crashes everything
+    queue->head_link = ((uint32_t)td0_mem) | td_link_ptr_terminate;
     queue->element_link = ((uint32_t)td0_mem);
-    queue->head_link = td_link_ptr_terminate;
 
     // Step 6: initialize data packet to send
     struct device_request_packet* data = (struct device_request_packet*) (uint8_t*)request_packet_mem;
@@ -320,8 +333,6 @@ static void enqueue_get_descriptor_with_size(uint8_t descriptor_size)
     uint32_t q_mem = (uint32_t)(uintptr_t)mem_page_get();
     struct uhci_queue* queue = (struct uhci_queue*)(uintptr_t)q_mem;
     g_setup_queue = queue;
-
-    SHOWVAL_U32("Allocated Queue at: ", q_mem);
 
     // Zero out page (Page size = 4096 bytes = 1024 uint_32s)
     for (int i = 0; i < 1024; i++) *(((uint32_t*)q_mem) + i) = 0;
@@ -364,6 +375,7 @@ static void enqueue_get_descriptor_with_size(uint8_t descriptor_size)
     // Step 5: Setup queue to point to first TD
     queue->element_link = ((uint32_t)td0_mem);
     queue->head_link = td_link_ptr_terminate;
+    queue->first_element_link = queue->element_link;
 
     // Step 6: initialize data packet to send
     struct device_request_packet* data = (struct device_request_packet*) (uint8_t*)request_packet_mem;
@@ -544,6 +556,9 @@ void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, ui
     else {
         SHOWVAL_U32("UHCI: Initialized base address: ", g_initialized_base_addr);
 
+        SHOWVAL_U32("Root queue start: ", (uint32_t)&g_root_queues[0]);
+        SHOWVAL_U32("Root queue end: ", (uint32_t)&g_root_queues[15]);
+
         enqueue_get_descriptor();
     }
 }
@@ -599,6 +614,11 @@ static bool init_io(uint32_t base_addr, uint8_t irq)
             terminal_write_string(" is ready for use\n");
         }
     }
+
+    uint16_t fp_index = get_cur_fp_index();
+    terminal_write_string("Initial FP Index: ");
+    terminal_write_uint32(fp_index);
+    terminal_write_string("!\n");
 
     return true;
 }
@@ -709,7 +729,9 @@ static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped)
     // Allocate a stack for use by the driver
     uint32_t stack_frame = (uint32_t)(uintptr_t)mem_page_get();
 
-    // Currently - We will only have one UHCI, so it's save to store
+    SHOWVAL_U32("Allocated page for Frame List at ", stack_frame);
+
+    // Currently - We will only have one UHCI, so it's safe to store
     // some global state about it - however, this is mostly used for debugging
     // so if/when we support multiple host controllers, this can go. :-)
     g_frame_list = stack_frame;
@@ -744,11 +766,10 @@ static void start_schedule(uint16_t base_addr)
     // so just to be sure, set it to 32-byte packets
     cmd &= ~uhci_cmd_max_packet;
 
-    // Go go go!
-    cmd |= uhci_cmd_runstop;
-
     KINFO("Starting UHCI schedule");
-    OUTW(base_addr + UHCI_CMD_OFFSET, cmd);
+
+    // Go go go!
+    OUTW(base_addr + UHCI_CMD_OFFSET, cmd |= uhci_cmd_runstop);
 }
 
 static uint32_t port_count_get(uint32_t base_addr)
@@ -867,7 +888,7 @@ static void schedule_queue_remove(struct uhci_queue* queue)
     parent->head_link = td_link_ptr_queue | td_link_ptr_terminate;
 }
 
-static void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue root)
+void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue root)
 {
     struct uhci_queue* parent = &g_root_queues[root];
 
@@ -890,6 +911,7 @@ static void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue 
     // It's very important that we do this last, as as soon as
     // we set it, the Host Controller will pick it up and start processing
     parent->head_link = QUEUE_PTR_CREATE(queue);
+    parent->first_element_link = (uint32_t) queue;
 }
 
 static void schedule_init(uint32_t frame_list_addr)
@@ -900,7 +922,7 @@ static void schedule_init(uint32_t frame_list_addr)
     // Which will cause it to be executed at the desired interval
     //
     // nox_uhci_queue_1 executes every 1ms,
-    // nox_uhci_queue_2 executes every 1ms etc.
+    // nox_uhci_queue_2 executes every 2ms etc.
     // This means the first frame will point to queue_1
     // The second frame will point to queue_2, which in turn points to queue_1 etc
     //
@@ -961,14 +983,24 @@ static void initialize_root_queues()
     g_root_queues[6].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_32] | td_link_ptr_queue);
     g_root_queues[7].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_64] | td_link_ptr_queue);
 
-    SHOWVAL_U32("Queue1 head_link: ", g_root_queues[0].head_link);
-    SHOWVAL_U32("Queue2 head_link: ", g_root_queues[1].head_link);
-    SHOWVAL_U32("Queue3 head_link: ", g_root_queues[2].head_link);
-    SHOWVAL_U32("Queue4 head_link: ", g_root_queues[3].head_link);
-    SHOWVAL_U32("Queue5 head_link: ", g_root_queues[4].head_link);
-    SHOWVAL_U32("Queue6 head_link: ", g_root_queues[5].head_link);
-    SHOWVAL_U32("Queue7 head_link: ", g_root_queues[6].head_link);
-    SHOWVAL_U32("Queue8 head_link: ", g_root_queues[7].head_link);
+    // Ensure sane values (just in case memory was dirty)
+    g_root_queues[0].first_element_link = 0;
+    g_root_queues[1].first_element_link = 0;
+    g_root_queues[2].first_element_link = 0;
+    g_root_queues[3].first_element_link = 0;
+    g_root_queues[4].first_element_link = 0;
+    g_root_queues[5].first_element_link = 0;
+    g_root_queues[6].first_element_link = 0;
+    g_root_queues[7].first_element_link = 0;
+
+    SHOWVAL_U32("Root Queue 1 head_link: ", g_root_queues[0].head_link);
+    SHOWVAL_U32("Root Queue 2 head_link: ", g_root_queues[1].head_link);
+    SHOWVAL_U32("Root Queue 3 head_link: ", g_root_queues[2].head_link);
+    SHOWVAL_U32("Root Queue 4 head_link: ", g_root_queues[3].head_link);
+    SHOWVAL_U32("Root Queue 5 head_link: ", g_root_queues[4].head_link);
+    SHOWVAL_U32("Root Queue 6 head_link: ", g_root_queues[5].head_link);
+    SHOWVAL_U32("Root Queue 7 head_link: ", g_root_queues[6].head_link);
+    SHOWVAL_U32("Root Queue 8 head_link: ", g_root_queues[7].head_link);
 }
 
 /* Not yet used (can be used instead of setting IOC on TDs)
@@ -990,10 +1022,21 @@ static void uhci_irq_core(uint8_t irq, struct irq_regs* regs)
     print_status_register2();
 
     uint16_t status = INW(g_initialized_base_addr + UHCI_STATUS_OFFSET);
+
+    if ( (status & uhci_status_error_interrupt) == uhci_status_error_interrupt) {
+        KPANIC("UHCI Error interrupt - Panicking!");
+        return;
+    }
+
     if((status & uhci_status_usb_interrupt) != uhci_status_usb_interrupt) {
         KINFO("NOT a usb_interrupt, bailing..");
         return;
     }
+
+    uint16_t fp_index = get_cur_fp_index();
+
+    // Send the completed TDs to the devices
+    handle_fl_complete();
 
     // It's a usb_interrupt, clear status
     // Just blast ALL the bits (this might trash some stuff we want
@@ -1022,10 +1065,14 @@ static void uhci_irq_core(uint8_t irq, struct irq_regs* regs)
             return;
         }
 
+        if (0 == 1 ) {
         uint8_t* response = (uint8_t*) g_setup_return_data_mem;
 
         // Read out the size and enqueue a new packet to get the entire descriptor
         enqueue_get_descriptor_with_size(*response);
+        } else {
+            KWARN("Not requesting with size, debugging! :)");
+        }
     }
 }
 
@@ -1038,6 +1085,103 @@ static void uhci_irq(uint8_t irq, struct irq_regs* regs)
     pic_send_eoi(g_irq_num);
 
     KINFO("~~~~~~~~~~~~~~End IRQ~~~~~~~~~~~~~~~~~~");
+}
+
+static uint16_t get_cur_fp_index()
+{
+    uint16_t cur_frame = INW(g_initialized_base_addr + UHCI_FRAME_NUM_OFFSET);
+
+    // Bits 15:11 are reserved, mask off
+    return cur_frame & 0x3FF;
+}
+
+typedef enum {
+    lp_type_td,
+    lp_type_queue,
+    lp_type_lp
+} lp_type;
+
+static void handle_fl_complete_core(uint32_t* link_ptr, lp_type);
+
+static lp_type ptr_to_lp_type(uint32_t ptr)
+{
+    return (ptr & frame_list_ptr_queue) == frame_list_ptr_queue ?
+        lp_type_queue :
+        lp_type_td;
+}
+
+static uint32_t* lp_get_addr(uint32_t* link_ptr)
+{
+    return (uint32_t*) ((uint32_t)link_ptr & ~0xF);
+}
+
+static void handle_fl_complete_core(uint32_t* link_ptr, lp_type type)
+{
+    uint32_t* next = 0;
+    lp_type next_type;
+
+    switch (type) {
+        case lp_type_td:
+            {
+                struct transfer_descriptor* td = (struct transfer_descriptor*) lp_get_addr(link_ptr);
+
+                uint32_t td_lp = (td->link_ptr & ~0xF);
+
+                for (int i = 0; i < UHCI_MAX_DEVICES; i++) {
+                    uhci_dev_handle_td(&g_devices[i], td);
+                }
+
+                if (lp_get_addr((uint32_t*)td->link_ptr) != 0) {
+                    next_type = ptr_to_lp_type(td->link_ptr);
+                    next = (uint32_t*) td_lp;
+
+                    handle_fl_complete_core(next, next_type);
+                }
+
+            break;
+            }
+        case lp_type_queue:
+            {
+                struct uhci_queue* queue = (struct uhci_queue*) lp_get_addr(link_ptr);
+
+                if (lp_get_addr((uint32_t*)queue->head_link) != 0) {
+                    next_type = ptr_to_lp_type(queue->head_link);
+                    next = (uint32_t*)queue->head_link;
+
+                    handle_fl_complete_core(next, next_type);
+                } else {
+                    SHOWVAL_U32("Found queue that doesn't point to anything active, e.g.", queue->head_link);
+                }
+                break;
+            }
+        case lp_type_lp:
+            {
+                next = (uint32_t*)*link_ptr;
+                next_type = ptr_to_lp_type((uint32_t) next);
+
+                if ((uint32_t) next != 0)
+                    handle_fl_complete_core(next, next_type);
+
+                break;
+            }
+        default:
+            {
+                KERROR("Unhandled lp_type_");
+                break;
+            }
+    }
+}
+
+static void handle_fl_complete()
+{
+    uint16_t cur_fp_index = get_cur_fp_index();
+    cur_fp_index -= 1;
+
+    uint32_t* frame_list = (uint32_t*)g_frame_list;
+
+    uint32_t* cur_fp = frame_list + cur_fp_index;
+
+    handle_fl_complete_core(cur_fp, lp_type_lp);
 }
 
 // -------------------------------------------------------------------------

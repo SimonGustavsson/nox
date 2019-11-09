@@ -24,10 +24,6 @@
 #include <stdbool.h>
 #include "kernel.h"
 
-int32_t uhci_detect_root(uint16_t base_addr, bool io_addr);
-void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, uint8_t irq);
-void uhci_command(char** args, size_t arg_count);
-
 // -------------------------------------------------------------------------
 // Static Types
 // -------------------------------------------------------------------------
@@ -240,7 +236,10 @@ struct uhci_queue {
     // have to be aligned to 16-byte boundary, making it easy to line up
     // multiple queues, and it allows us to attach some useful information! :-)
     uint32_t* parent;
-    uint32_t padding2;
+
+    // NON-standard, Nox specific. Store the first element link so that
+    // we can traverse all TDs in a completed queue
+    uint32_t first_element_link;
 } PACKED;
 
 enum nox_uhci_queue {
@@ -262,11 +261,23 @@ enum nox_uhci_queue {
     nox_uhci_queue_reserved4, // Not used (yet)
 };
 
-// uhci_device is not in the spec, this is a Nox struct
+typedef enum {
+    uhci_state_default,
+    uhci_state_addressed
+} device_state;
+
+// uhci_device is not in the UHCI spec, this is a Nox struct
 // to keep track of connected devices
 struct uhci_device {
-    int8_t num; // (<1 = uninitialized)
+    uint8_t num; // ( < 1 = uninitialized)
+    device_state state;
     struct usb_device_descriptor* descriptor;
 } PACKED;
+
+int32_t uhci_detect_root(uint16_t base_addr, bool io_addr);
+void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, uint8_t irq);
+void uhci_command(char** args, size_t arg_count);
+void handle_td(struct uhci_device* device, struct transfer_descriptor* td);
+void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue root);
 
 #endif
