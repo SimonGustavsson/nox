@@ -1,6 +1,8 @@
 #ifndef NOX_MEM_MGR_H
 #define NOX_MEM_MGR_H
 
+#include "kernel.h"
+
 #define PAGE_SIZE (4096)
 
 #define GDT_SELECTOR(Index, PrivLevel) ((uint16_t)((Index << 3) + (0 << 2) + PrivLevel))

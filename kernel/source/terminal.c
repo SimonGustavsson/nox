@@ -4,6 +4,7 @@
 #include <string.h>
 #include <bit_utils.h>
 #include <pio.h>
+#include <kernel.h>
 
 #define BochsConsolePrintChar(c) OUTB(0xe9, c)
 
@@ -71,6 +72,12 @@ void terminal_reset_color()
 void terminal_set_color(enum vga_color fg, enum vga_color bg)
 {
 	g_current_color = screen_create_color(fg, bg);
+}
+
+void terminal_printf(char* text, ...)
+{
+    KWARN("USING PRINTF! It's not ready!");
+    terminal_write_string(text);
 }
 
 void terminal_write_string_endpadded(const char* data, size_t total_length)

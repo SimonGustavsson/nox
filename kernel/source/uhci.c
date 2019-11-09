@@ -1033,8 +1033,6 @@ static void uhci_irq_core(uint8_t irq, struct irq_regs* regs)
         return;
     }
 
-    uint16_t fp_index = get_cur_fp_index();
-
     // Send the completed TDs to the devices
     handle_fl_complete();
 
