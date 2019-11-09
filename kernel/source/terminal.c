@@ -1,4 +1,6 @@
 #include <types.h>
+#include <stdarg.h>
+#include <string.h>
 #include <screen.h>
 #include <terminal.h>
 #include <string.h>
@@ -7,6 +9,7 @@
 #include <kernel.h>
 
 #define BochsConsolePrintChar(c) OUTB(0xe9, c)
+#define MAX_PRINTF_LENGTH 256
 
 // -------------------------------------------------------------------------
 // Static defines
@@ -348,5 +351,36 @@ static uint16_t vgaentry_create(char c, uint8_t color)
 	uint16_t c16 = c;
 	uint16_t color16 = color;
 	return c16 | color16 << 8;
+}
+
+void printf(char* text, ...)
+{
+    va_list args;
+    va_start(args, text);
+
+    //
+    // TODO: If we want to do it properly, we'd do this,
+    //       but because palloc() isn't stable yet we don't
+    //
+    // First do a "dry-run" with a null buffer to see how much space
+    // we're going to need in the buffer
+    //char* buffer = NULL;
+    //int buffer_len = my_sscanf(buffer, 0, text, args);
+    //buffer = palloc(buffer_len);
+    //if (buffer == NULL) {
+    //    KERROR("Unable to allocate memory for printf()");
+    //    return;
+    //}
+
+    //if (my_sscanf(buffer, buffer_len, text, args) != buffer_len) {
+    //    KERROR("Something went wrong with printf(), didn't get as many chars");
+    //    return;
+    //}
+
+    char buffer[MAX_PRINTF_LENGTH];
+    my_sscanf2(buffer, MAX_PRINTF_LENGTH, text, args); // TODO: Check return result
+    va_end(args);
+
+    terminal_write_string(buffer);
 }
 

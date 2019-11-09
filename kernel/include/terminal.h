@@ -26,4 +26,7 @@ void terminal_printf(char* text, ...);
 
 bool terminal_erase_char_last();
 
+int my_sscanf(char* result, uint32_t result_length, char* format, ...);
+void printf(char* text, ...);
+
 #endif

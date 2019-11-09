@@ -5,7 +5,7 @@
 #include <debug.h>
 
 //#define GDT_DEBUG
-#define MEM_DEBUG
+//#define MEM_DEBUG
 
 // -------------------------------------------------------------------------
 // Static Defines

@@ -1,5 +1,6 @@
 #include <types.h>
 #include <screen.h>
+#include <memory.h>
 #include <kernel.h>
 #include <debug.h>
 #include <terminal.h>
@@ -62,15 +63,32 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
     mem_mgr_init(mem_map, mem_entry_count);
     mem_mgr_gdt_setup();
 
+    printf("TST printf(\"Hello, %%s!\", \"World\"): ");
+    printf("Hello, %s!", "World");
+    terminal_write_char('\n');
+
+    printf("TST printf(\"Wut? %%d\", 42): ");
+    printf("Wut? %d", 42);
+    terminal_write_char('\n');
+
+    terminal_write_string("mem_mgr_init done\n");
+
+    memory_init();
+    terminal_write_string("memory_init done\n");
+
     kb_init();
+    terminal_write_string("kb_init done\n");
 
     KERROR("MOO!?");
     // Let's do some hdd stuff m8
     ata_init();
+    terminal_write_string("ata_init done\n");
 
     fs_init();
+    terminal_write_string("fs_init done\n");
 
     pit_init();
+    terminal_write_string("pit_init done\n");
 
     // Re-enable interrupts, we're ready now!
     interrupt_enable_all();

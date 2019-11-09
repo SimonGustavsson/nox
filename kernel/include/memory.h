@@ -12,7 +12,7 @@
 //#define DEBUG_MEM
 
 // Initializes the allocator
-void Pallocator_Initialize(void);
+void memory_init(void);
 
 // Allocates 'size' bytes and returns a pointer to the newly allocated memory
 void* palloc(unsigned int size);

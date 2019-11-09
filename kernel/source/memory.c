@@ -11,10 +11,10 @@ unsigned char* g_memory;
 
 unsigned int g_bytes_allocated;
 
-void allocator_initialize()
+void memory_init()
 {
     g_bytes_allocated = 0;
-
+// MAX_ALLOCATED_BYTES / PAGE_SIZE)
     // TODO: alloate pages for these?
     g_bitmap = (unsigned char*)(mem_page_get_many(MAX_ALLOCATED_BYTES / PAGE_SIZE));
     g_memory = (unsigned char*)((g_bitmap) + (MAX_ALLOCATED_SLICES / 8)); // (Right after the bitmap)
