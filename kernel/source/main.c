@@ -61,7 +61,6 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
     pic_init();
 
     mem_mgr_init(mem_map, mem_entry_count);
-    mem_mgr_gdt_setup();
 
     printf("TST printf(\"Hello, %%s!\", \"World\"): ");
     printf("Hello, %s!", "World");

@@ -141,7 +141,8 @@ void uhci_dev_handle_td(struct uhci_device* device, struct transfer_descriptor* 
 
 void handle_td_default(struct uhci_device* device, struct transfer_descriptor* td)
 {
-    KINFO("handle_td_default");
+    printf("Device %d handling TD with status '%h'", device->num, td->td_ctrl_status);
+    //KINFO("handle_td_default");
 }
 
 void handle_td_addressed(struct uhci_device* device, struct transfer_descriptor* td)

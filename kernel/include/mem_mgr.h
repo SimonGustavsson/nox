@@ -33,11 +33,9 @@ struct PACKED mem_map_entry {
     uint32_t acpi_attr;
 };
 
-void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count);
-void mem_mgr_gdt_setup();
-
+void   mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count);
 size_t mem_page_count(bool get_allocated);
-bool mem_page_reserve(const char* identifier, void* address, size_t num_pages);
+bool   mem_page_reserve(const char* identifier, void* address, size_t num_pages);
 void*  mem_page_get();
 void*  mem_page_get_many(uint16_t how_many);
 void   mem_page_free(void* address);

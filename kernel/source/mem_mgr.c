@@ -21,8 +21,7 @@
 #define NYBL(TargetType, Value, AtBit) ((((TargetType)Value) >> AtBit) & 0x0F)
 #define BYTE(TargetType, Value, AtBit) ((((TargetType)Value) >> AtBit) & 0xFF)
 #define WORD(TargetType, Value, AtBit) ((((TargetType)Value) >> AtBit) & 0xFFFF)
-#define ACCESS_RESERVED (1 << 4)
-#define GDT_ENTRY(Limit, Base, Access, Flags) GDT_ENTRY_(Limit, Base, (Access | ACCESS_RESERVED), Flags)
+#define GDT_ENTRY(Limit, Base, Access, Flags) GDT_ENTRY_(Limit, Base, (Access | gdt_access_type), ((Flags | gdt_flag_4k) | gdt_flag_32bit))
 #define GDT_ENTRY_(Limit, Base, Access, Flags) ( \
             WORD(uint64_t, Limit,  0)   << 00 |  \
             WORD(uint64_t, Base,   0)   << 16 |  \
@@ -49,14 +48,16 @@ struct gtdd {
 } PACKED;
 
 enum gdt_flag {
-   gdt_flag_4k = 1 << 3,
-   gdt_flag_32bit = 1 << 2
+    // Granularity. Not set means 'limit' is in 1b blocks. Set = limit is in pages
+    gdt_flag_4k = 1 << 3,
+    gdt_flag_32bit = 1 << 2
 };
 
 enum gdt_access {
     gdt_access_present        = 1 << 7,
     gdt_access_priv_ring2     = 2 << 5,
     gdt_access_priv_ring3     = 3 << 5,
+    gdt_access_type           = 1 << 4, // Set for all code/data segments
     gdt_access_executable     = 1 << 3,
     gdt_access_direction_down = 1 << 2,
     gdt_access_rw             = 1 << 1,
@@ -133,10 +134,10 @@ static size_t g_total_available_memory;
 // Global descriptor table
 static uint64_t g_gdt[] ALIGN(8) = {
     GDT_ENTRY_(0, 0, 0, 0),
-    GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present | gdt_access_executable, gdt_flag_4k | gdt_flag_32bit),
-    GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present, gdt_flag_4k | gdt_flag_32bit),
-    GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present | gdt_access_priv_ring3 | gdt_access_executable, gdt_flag_4k | gdt_flag_32bit),
-    GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present | gdt_access_priv_ring3, gdt_flag_4k | gdt_flag_32bit),
+    GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present | gdt_access_executable, 0),
+    GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present, 0),
+    GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present | gdt_access_priv_ring3 | gdt_access_executable, 0),
+    GDT_ENTRY(0x00FFFFFF, 0x00000000, gdt_access_rw | gdt_access_present | gdt_access_priv_ring3, 0),
     // Reserved space for TSS
     GDT_ENTRY_(0, 0, 0, 0)
 };
@@ -250,6 +251,9 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
 
     terminal_write_string("Reserved ");
     mem_print_usage();
+
+    // All done with pages. Setup GDT last (as it relies on allocating pages)
+    mem_mgr_gdt_setup();
 }
 
 void mem_mgr_gdt_setup()
