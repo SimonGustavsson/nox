@@ -158,6 +158,7 @@ static void print_memory_nice(uint64_t memory_in_bytes);
 static void print_mem_entry(size_t index, uint64_t base, uint64_t length, char* description);
 static void test_allocator();
 static void tss_install();
+static void gdt_setup();
 static void gdt_install();
 static void clear_page(uint32_t* page_addr);
 
@@ -253,10 +254,10 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     mem_print_usage();
 
     // All done with pages. Setup GDT last (as it relies on allocating pages)
-    mem_mgr_gdt_setup();
+    gdt_setup();
 }
 
-void mem_mgr_gdt_setup()
+static void gdt_setup()
 {
     // Set up the TSS
     g_tss.ss0 = 0x10; // Kernel data-segment selector
@@ -305,11 +306,6 @@ void mem_mgr_gdt_setup()
     gdt_install();
 
     tss_install();
-}
-
-uint64_t gdte_create(uint32_t limit, uint32_t base, uint8_t access, enum gdt_flag flags)
-{
-    return GDT_ENTRY(limit, base, access, flags);
 }
 
 void mem_print_usage()
