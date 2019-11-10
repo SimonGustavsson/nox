@@ -249,7 +249,6 @@ static int my_sscanf_core(char* result, uint32_t result_length, char* format, va
 
     uint32_t width = 0;
     bool read_width = false;
-    char* cur_arg = NULL;
 
     do
     {
@@ -317,7 +316,7 @@ static int my_sscanf_core(char* result, uint32_t result_length, char* format, va
             }
             case 's': // String
             {
-                cur_arg = (char*)va_arg(args, int);
+                char* cur_arg = (char*)va_arg(args, int);
 
                 // Invalid string, cancel out before we attempt to read a null pointer
                 if (cur_arg == NULL)
