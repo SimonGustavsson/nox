@@ -4,7 +4,7 @@
 #include <terminal.h>
 #include <debug.h>
 
-//#define GDT_DEBUG
+#define GDT_DEBUG
 //#define MEM_DEBUG
 
 // -------------------------------------------------------------------------
@@ -644,10 +644,10 @@ static void clear_page(uint32_t* page_addr)
 static void gdt_install()
 {
 #ifdef GDT_DEBUG
-    KINFO("Installing GDT");
-    SHOWVAL_x("GTDD Address: ", (uint32_t)(intptr_t)&g_gtdd);
-    SHOWVAL("Size: ", g_gtdd.size);
-    SHOWVAL_x("GTD address: ", g_gtdd.offset);
+    printf("Installing GDT: GTDD Addr: %P Size: %d, Offset: %P\n",
+            (uint32_t)(intptr_t)&g_gtdd,
+            g_gtdd.size,
+            g_gtdd.offset);
 #endif
 
     __asm ("mov %0  ,  %%ax;    \
@@ -669,9 +669,7 @@ static void gdt_install()
 static void tss_install()
 {
 #ifdef GDT_DEBUG
-    terminal_write_string("Installing LDT: ");
-    terminal_write_uint64_x(g_gdt[TSS_GDTD_INDEX]);
-    terminal_write_char('\n');
+    printf("Installing LDR: %lP\n", g_gdt[TSS_GDTD_INDEX]);
 #endif
 
     __asm("ltr %%ax" :: "a" (0x28));
