@@ -25,6 +25,20 @@ static int int_digit_count(int n) {
     return 10;
 }
 
+static uint32_t int64_digit_count(uint64_t n)
+{
+    if (n == 0) return 1;
+
+    uint32_t top32 = (n >> 32);
+    uint32_t bottom32 = (n & 0xFFFFFFFF);
+
+    if (top32 == 0) return int_digit_count(bottom32);
+
+    int top_digits = int_digit_count(top32);
+
+    return top_digits + 10;
+}
+
 char* my_strcpy(const char* src, char* dst)
 {
     char *ptr = dst;
@@ -142,6 +156,25 @@ char* itoa(int32_t number, char* buf) {
     return buf;
 }
 
+char* ltoa(int64_t number, char* buf)
+{
+    int32_t top = number >> 32;
+    int32_t bot = number & 0xFFFFFFFF;
+
+    int top_count = int_digit_count(top);
+
+    if (top_count > 0) {
+        itoa(top, buf);
+
+        return itoa(bot, buf + top_count);
+    }
+    else
+    {
+        return itoa(bot, buf);
+    }
+}
+
+
 uint8_t nybble_to_ascii(uint8_t val)
 {
 	if (val < 0x0A)
@@ -249,18 +282,23 @@ static int my_sscanf_core(char* result, uint32_t result_length, char* format, va
 
     uint32_t width = 0;
     bool read_width = false;
+    bool next_arg_long = false;
+    bool next_format_specifier = false;
 
     do
     {
         char cur = *format;
         char next = *(format + 1);
-        if (cur != '%' && read_width != 1)
+        if (cur != '%' && read_width != 1 && !next_format_specifier)
         {
             return_value++;
 
             if (result != NULL && return_value < result_length) {
                 *result_cur++ = cur;
             }
+
+            // Not reading format anymore
+            next_arg_long = false;
         }
         else
         {
@@ -272,6 +310,13 @@ static int my_sscanf_core(char* result, uint32_t result_length, char* format, va
 
             switch (next)
             {
+            case 'l': // Format a long (uint64_t)
+            {
+                next_arg_long = true;
+                read_width = true;
+                next_format_specifier = true;
+                format--;
+            }
             case 'c': // Unsigned Character
             {
                 char char_arg = (unsigned char)va_arg(args, int);
@@ -288,6 +333,27 @@ static int my_sscanf_core(char* result, uint32_t result_length, char* format, va
             }
             case 'd': // Signed decimal int
             {
+                if (next_arg_long) {
+
+                    uint64_t long_arg = va_arg(args, uint64_t);
+
+                    char long_buffer[19];
+                    ltoa(long_arg, &long_buffer[0]);
+
+                    int long_max_len = width > 0 ? width : int64_digit_count(long_arg);
+
+                    return_value += long_max_len;
+                    if (result != NULL && return_value < result_length) {
+                        for (int i = 0; i < long_max_len; i++) {
+                            *result_cur++ = long_buffer[i];
+                        }
+                    }
+
+                    next_arg_long = false;
+                    break;
+                }
+
+                // Must be 32-bit then
                 int arg = va_arg(args, int);
 
                 char ds[12];
@@ -311,6 +377,7 @@ static int my_sscanf_core(char* result, uint32_t result_length, char* format, va
 
                 // Done with this width specifier
                 width = 0;
+                next_format_specifier = false;
 
                 break;
             }
@@ -406,6 +473,7 @@ static int my_sscanf_core(char* result, uint32_t result_length, char* format, va
                 // Done with this width specifier
                 width = 0;
                 read_width = false;
+                next_format_specifier = false;
 
                 break;
             }
@@ -423,6 +491,7 @@ static int my_sscanf_core(char* result, uint32_t result_length, char* format, va
                     *result_cur++ = cur;
                 }
                 format += 1;
+                next_format_specifier = false;
                 break;
             case '*': // Width specified in arg
             {
