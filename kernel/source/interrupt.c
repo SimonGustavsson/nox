@@ -164,7 +164,7 @@ static void idt_install(struct idt_descriptor* idt)
 
 static struct idt_descriptor idt_get()
 {
-    struct idt_descriptor addr;
+    struct idt_descriptor addr = { .limit = 0, .base = (void*)0 };
 
     __asm("SIDT %0": /* no out */ : "m"(addr));
 
