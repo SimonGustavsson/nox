@@ -68,11 +68,7 @@ code:
     ; (We don't use the values in the BPB for hidden/reserved
     ; because its a stupid idea to put those values there)
     ;
-
     ; The MBR gives us the LBA of the partition,
-    ; However, for FAT calculations, we are only interested in
-    ; where the FAT region starts, so skip past the VBR sector
-    add eax, 1
     mov [FAT0_SECTOR_ADDRESS], eax; Save the arg we got from the MBR
 
     ; Relocate ourselves so we can load the bootloader to the address
@@ -113,6 +109,9 @@ relocated:
     mov bx, [this_bpb+bpb_fat16.sectors_per_fat] ; Most likely 32
     mul bx                                       ; (fat_sz * fat_cnt)
     add eax, [FAT0_SECTOR_ADDRESS]               ; + fat0_start
+
+    add ax, [this_bpb+bpb_fat16.reserved_sector_count]
+
     mov [ROOT_DIR_SECTOR_ADDRESS], eax
 
     xor ax, ax
