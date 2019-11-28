@@ -46,7 +46,7 @@ void print_welcome()
     KWARN("Welcome to the glorious wunderkind of Philip & Simon!");
 }
 
-SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
+void cmain()
 {
     screen_init();
     screen_cursor_hide();
@@ -55,12 +55,14 @@ SECTION_BOOT void _start(struct mem_map_entry mem_map[], uint32_t mem_entry_coun
 
     print_welcome();
 
+    while(1);
+
     interrupt_init_system();
     interrupt_receive_trap(0x80, isr_syscall);
 
     pic_init();
 
-    mem_mgr_init(mem_map, mem_entry_count);
+    //mem_mgr_init(mem_map, mem_entry_count);
 
     printf("TST printf(\"Hello, %%s!\", \"World\"): ");
     printf("Hello, %s!", "World");

@@ -87,7 +87,7 @@ KLOADER_OBJECTS := $(subst $(CSOURCE_DIR), $(OBJ_DIR), $(KLOADER_OBJECTS))
 KLOADER_OBJECTS := $(subst $(ASOURCE_DIR), $(OBJ_DIR), $(KLOADER_OBJECTS))
 
 $(BUILD_DIR)/BOOT.SYS: $(BUILD_DIR)/boot.elf
-	@echo "$(TIME) OBJCOPY  $<"
+	@echo "$(TIME) OBJCOPY  $< > $@"
 	@$(TOOL)-objcopy $^ -O binary --set-section-flags .bss=alloc,load,contents $@
 
 $(BUILD_DIR)/boot.elf: $(KLOADER_OBJECTS) $(KLOADER_LINKER_SCRIPT)

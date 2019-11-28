@@ -74,5 +74,36 @@ fire:
 clean:
 	rm -f -r $(CLEAN_DIRS)
 
-.PHONY: nox directories clean
+LOOP_DEV_0=
+LOOP_DEV_1=
+FINAL_IMAGE_PATH=build/nox-with-grub.img
+
+withgrub: dev0 dev1
+	@echo "Using loopback devices  '$(LOOP_DEV_0)' and '$(LOOP_DEV_1)'"
+	@sudo mke2fs $(LOOP_DEV_1)
+	@sudo mkdosfs -F32 -f 2 $(LOOP_DEV_1)
+	@mkdir -p build/final
+	@sudo mount $(LOOP_DEV_1) build/final
+	sudo grub-install --root-directory=/home/simon/src/nox/build/final --no-floppy --modules="normal part_msdos ext2 multiboot" $(LOOP_DEV_0)
+	@sudo cp grub.cfg build/final/boot/grub/grub.cfg
+	@sudo cp build/kernel.elf build/final/boot/nox-kernel.elf
+	@sync
+	@sudo losetup -d $(LOOP_DEV_0)
+	@sudo losetup -d $(LOOP_DEV_1)
+	@sudo umount build/final
+
+dev0: $(FINAL_IMAGE_PATH)
+	$(eval LOOP_DEV_0=$(shell sudo losetup -f))
+	$(shell sudo losetup $(LOOP_DEV_0) $(FINAL_IMAGE_PATH))
+
+dev1: $(FINAL_IMAGE_PATH)
+	$(eval LOOP_DEV_1=$(shell sudo losetup -f))
+	$(shell sudo losetup $(LOOP_DEV_1) $(FINAL_IMAGE_PATH) -o 1048576)
+
+$(FINAL_IMAGE_PATH):
+	@rm -f $(FINAL_IMAGE_PATH)
+	@dd if=/dev/zero of=$(FINAL_IMAGE_PATH) bs=512 count=131072
+	@echo "n\np\n1\n\n\na\nw" | fdisk $(FINAL_IMAGE_PATH) > /dev/null 2>&1
+
+.PHONY: nox directories clean final test dev0 dev1 $(FINAL_IMAGE_PATH)
 

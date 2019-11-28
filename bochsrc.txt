@@ -18,14 +18,14 @@ ata3: enabled=0, ioaddr1=0x168, ioaddr2=0x360, irq=9
 port_e9_hack: enabled=1
 magic_break: enabled=1
 
-ata0-master: type=disk, path="build/nox-disk.img", mode=flat
+ata0-master: type=disk, path="build/nox-with-grub.img", mode=flat
 # Examples:
 #   boot: floppy
 #   boot: cdrom, disk
 #   boot: network, disk
 #   boot: cdrom, floppy, disk
 #=======================================================================
-ata0-master: type=disk, path="build/nox-disk.img", mode=flat
+ata0-master: type=disk, path="build/nox-with-grub.img", mode=flat
 boot: disk
 
 floppy_bootsig_check: disabled=0

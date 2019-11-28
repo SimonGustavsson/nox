@@ -8,8 +8,10 @@ SECTIONS
     LD_KERNEL_START = .;
 
     /* Kernel code */
-	.text :
-	{
+    .text :
+    {
+        . = ALIGN(8);
+        KEEP(*(.multiboot))
         *(.text.boot)
 		*(.text)
 	}
