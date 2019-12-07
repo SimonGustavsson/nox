@@ -538,7 +538,7 @@ void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, ui
 #endif
 
     bool result = false;
-    if((base_addr | 0x1) == 0) {
+    if((base_addr & 0x1) == 0) {
         //uint32_t size = prepare_pci_device(addr, 9, true);
 
         result = init_mm(dev, base_addr, irq);
