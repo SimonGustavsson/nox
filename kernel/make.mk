@@ -9,7 +9,6 @@ INCLUDE_DIR := $(MODULE)include
 DEP_DIR := $(MODULE)deps
 
 KERNEL_LINKER_SCRIPT := $(MODULE)kernel.ld
-KLOADER_LINKER_SCRIPT := $(MODULE)kloader.ld
 
 # Find all candidates for compiling
 ASOURCE := $(shell find $(ASOURCE_DIR) -name '*.asm')
@@ -43,7 +42,7 @@ CFLAGS=-std=c11 \
 CINCLUDE := $(patsubst %,-I%, $(shell find $(INCLUDE_DIR) -type d))
 
 # Tell the main makefile which files to copy to the harddisk image
-FS_FILES += $(FS_DIR)/kernel.elf $(FS_DIR)/BOOT.SYS
+FS_FILES += $(FS_DIR)/kernel.elf
 
 # Tell the main makefile to remove our object dir on clean
 CLEAN_DIRS += $(OBJ_DIR) $(DEP_DIR)
@@ -72,26 +71,5 @@ $(OBJ_DIR)/%.o : $(ASOURCE_DIR)/%.asm
 	@mkdir -p $(dir $@)
 	@echo "$(TIME) AS       $<"
 	@nasm $< -o $@ -f elf32 -i $(INCLUDE_DIR)
-
-#################################################################################
-#
-# Kloader
-#
-################################################################################
-KLOADER_CSOURCES := $(CSOURCE_DIR)/ata.c $(CSOURCE_DIR)/fat.c $(CSOURCE_DIR)/fs.c $(CSOURCE_DIR)/kloader/kloader_main.c $(CSOURCE_DIR)/mem_mgr.c $(CSOURCE_DIR)/pio.c $(CSOURCE_DIR)/screen.c $(CSOURCE_DIR)/terminal.c $(CSOURCE_DIR)/string.c $(CSOURCE_DIR)/elf.c $(CSOURCE_DIR)/pci.c
-KLOADER_ASOURCES := $(CSOURCE_DIR)/kloader/kloader_start.asm
-
-KLOADER_OBJECTS := $(KLOADER_CSOURCES:.c=.o)
-KLOADER_OBJECTS += $(KLOADER_ASOURCES:.asm=.o)
-KLOADER_OBJECTS := $(subst $(CSOURCE_DIR), $(OBJ_DIR), $(KLOADER_OBJECTS))
-KLOADER_OBJECTS := $(subst $(ASOURCE_DIR), $(OBJ_DIR), $(KLOADER_OBJECTS))
-
-$(BUILD_DIR)/BOOT.SYS: $(BUILD_DIR)/boot.elf
-	@echo "$(TIME) OBJCOPY  $< > $@"
-	@$(TOOL)-objcopy $^ -O binary --set-section-flags .bss=alloc,load,contents $@
-
-$(BUILD_DIR)/boot.elf: $(KLOADER_OBJECTS) $(KLOADER_LINKER_SCRIPT)
-	@echo "$(TIME) LD       $@"
-	@$(TOOL)-ld -T $(KLOADER_LINKER_SCRIPT) $(filter-out $(KLOADER_LINKER_SCRIPT),$^) -o $@
 
 .PHONY:

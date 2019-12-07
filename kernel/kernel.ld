@@ -3,7 +3,7 @@ ENTRY(_start)
 SECTIONS
 {
     /* This is where kloader will put us at boot */
-	. = 0xA00000;
+	. = 1M;
 
     LD_KERNEL_START = .;
 
@@ -15,6 +15,13 @@ SECTIONS
         *(.text.boot)
 		*(.text)
 	}
+
+	LD_KERNEL_CODE_END = .;
+
+	/* Page align data for easy permission setup */
+	. = ALIGN(4096);
+
+	LD_KERNEL_DATA_START = .;
 
 	/* Read-only data. */
 	.rodata ALIGN(4):
@@ -35,6 +42,9 @@ SECTIONS
 	{
 		*(COMMON)
 		*(.bss)
+
+        LD_KERNEL_STACK_START = .;
+
 		*(.bootstrap_stack)
 	}
 

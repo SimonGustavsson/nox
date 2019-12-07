@@ -4,7 +4,7 @@
 #include <terminal.h>
 #include <debug.h>
 
-#define GDT_DEBUG
+//#define GDT_DEBUG
 //#define MEM_DEBUG
 
 // -------------------------------------------------------------------------
@@ -217,9 +217,10 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
       kernel_pages++;
 
     // ~We put the page map right after the kernel in memory~
-    // Put it at 10 MB, that ought to never cause any load issues (RIGHT!?)
+    g_pages = (struct page*)(intptr_t) (kernel_start + (kernel_pages * PAGE_SIZE));
 
-    g_pages = (struct page*)(intptr_t) 0x3200000;//(kernel_start + (kernel_pages * PAGE_SIZE));
+    // Number of pages taken up by the g_pages structure
+    uint32_t g_pages_pages = (g_max_pages * sizeof(struct page)) / PAGE_SIZE;
 
     // Reserve pages for the page map itself
     size_t max_pages = g_total_available_memory / PAGE_SIZE;
@@ -244,7 +245,7 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
         KPANIC("Failed to reserve low-memory for bios/hardware");
     if (!mem_page_reserve("Kernel", (void*)kernel_start, kernel_pages))
         KPANIC("Unable to reserve kernel memory in page allocator");
-    if (!mem_page_reserve("PAGES", (void*)g_pages, mem_map_pages))
+    if (!mem_page_reserve("PAGES", (void*)g_pages, g_pages_pages))
         KPANIC("Failed to reserve pages for memory allocator!");
 
     // And just a quick test to make sure everything works
@@ -651,12 +652,12 @@ static void gdt_install()
 #endif
 
     __asm ("mov %0  ,  %%ax;    \
+            lgdt (%1);          \
             mov %%ax,  %%ds;    \
             mov %%ax,  %%es;    \
             mov %%ax,  %%fs;    \
             mov %%ax,  %%gs;    \
             mov %%ax,  %%ss;    \
-            lgdt (%1);          \
             ljmp %2, $_gdt_loaded; \
             _gdt_loaded:"
             :

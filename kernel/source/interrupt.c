@@ -3,6 +3,7 @@
 #include <types.h>
 #include <interrupt.h>
 #include <terminal.h>
+#include <mem_mgr.h>
 
 struct PACKED idt_descriptor
 {
@@ -233,7 +234,7 @@ static void idt_entry_setup(struct idt_entry* entry, uint8_t irq, gate_type type
 
     entry->offset_low = (uint16_t)(handler_ptr & 0xFFFF);
     entry->offset_high = (uint16_t)((handler_ptr >> 16) & 0xFFFF);
-    entry->selector = 0x08;
+    entry->selector = KERNEL_CODE_SEGMENT;
     entry->type_attr.bits.present = 1;
     entry->type_attr.bits.priv_level = priv_level;
     entry->type_attr.bits.segment = 0;
@@ -352,7 +353,30 @@ static void double_fault(uint8_t irq, struct irq_regs* regs)
 
 void invalid_opcode(uint8_t irq, struct irq_regs* regs)
 {
-    KERROR("INvalid opcode!");
+    // When we enter an ISR, the stack stack looks like this:
+    //  ____________
+    // |EFlags     | +12
+    // |CS         | +8
+    // |EIP        | +4
+    // |Error code | +0   <---- ESP
+
+    // Because we save all registers in this handy dandy irq_regs
+    // struct upon entering an ISR in assembly, we can now extract
+    // those values!
+
+    // Assume 32-bit stack :(
+    uint32_t* esp = (uint32_t*)(intptr_t)(regs->esp);
+
+    //uint32_t error_code = esp[0];
+    uint32_t eip =        esp[1];
+    //uint32_t cs =         esp[2];
+    //uint32_t eflags =     esp[3];
+
+
+    KERROR("Invalid opcode!");
+    terminal_write_string("Instruction loc: ");
+    terminal_write_uint32_x(eip);
+    terminal_write_char('\n');
 
     BREAK();
 }
