@@ -25,20 +25,6 @@ static int int_digit_count(int n) {
     return 10;
 }
 
-static uint32_t int64_digit_count(uint64_t n)
-{
-    if (n == 0) return 1;
-
-    uint32_t top32 = (n >> 32);
-    uint32_t bottom32 = (n & 0xFFFFFFFF);
-
-    if (top32 == 0) return int_digit_count(bottom32);
-
-    int top_digits = int_digit_count(top32);
-
-    return top_digits + 10;
-}
-
 char* my_strcpy(const char* src, char* dst)
 {
     char *ptr = dst;
@@ -155,25 +141,6 @@ char* itoa(int32_t number, char* buf) {
 
     return buf;
 }
-
-char* ltoa(int64_t number, char* buf)
-{
-    int32_t top = number >> 32;
-    int32_t bot = number & 0xFFFFFFFF;
-
-    int top_count = int_digit_count(top);
-
-    if (top_count > 0) {
-        itoa(top, buf);
-
-        return itoa(bot, buf + top_count);
-    }
-    else
-    {
-        return itoa(bot, buf);
-    }
-}
-
 
 uint8_t nybble_to_ascii(uint8_t val)
 {
@@ -335,6 +302,8 @@ static int my_sscanf_core(char* result, uint32_t result_length, char* format, va
             {
                 if (next_arg_long) {
 
+					/*
+					// TODO: 64-bit support
                     uint64_t long_arg = va_arg(args, uint64_t);
 
                     char long_buffer[19];
@@ -349,6 +318,7 @@ static int my_sscanf_core(char* result, uint32_t result_length, char* format, va
                         }
                     }
 
+					*/
                     next_arg_long = false;
                     break;
                 }
