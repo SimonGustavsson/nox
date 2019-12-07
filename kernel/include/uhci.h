@@ -240,7 +240,7 @@ struct uhci_queue {
     // NON-standard, Nox specific. Store the first element link so that
     // we can traverse all TDs in a completed queue
     uint32_t first_element_link;
-} PACKED;
+} ALIGN(16);
 
 enum nox_uhci_queue {
     nox_uhci_queue_1,        // Executed every 1ms
