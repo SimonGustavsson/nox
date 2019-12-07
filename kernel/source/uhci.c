@@ -14,6 +14,7 @@
 #include <cli.h>
 #include <pic.h>
 #include <debug.h>
+#include <util.h>
 
 #define USB_DEBUG
 
@@ -76,11 +77,11 @@ struct uhci_queue g_root_queues[16] ALIGN(16) = {
     /*  Reserved3  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
     /*  Reserved4  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
 };
-#define UHCI_MAX_DEVICES 2
+#define UHCI_MAX_HCS 2
 
-struct uhci_device g_devices[UHCI_MAX_DEVICES] = {
-    { 0, uhci_state_default, NULL },
-    { 1, uhci_state_default, NULL },
+struct uhci_hc g_host_controllers[UHCI_MAX_HCS] = {
+    { false, false, 0, uhci_hc_state_default },
+    { false, false, 0, uhci_hc_state_default },
 };
 
 // -------------------------------------------------------------------------
@@ -88,7 +89,7 @@ struct uhci_device g_devices[UHCI_MAX_DEVICES] = {
 // -------------------------------------------------------------------------
 static void handle_fl_complete();
 static uint16_t get_cur_fp_index();
-static void enqueue_get_descriptor();
+static void get_device_descriptor_dev0();
 static void enqueue_get_descriptor_with_size(uint8_t size);
 static bool is_set(uint32_t val, uint32_t num);
 static bool init_io(uint32_t base_addr, uint8_t irq);
@@ -236,11 +237,11 @@ void uhci_command(char** args, size_t arg_count)
         terminal_write_char('\n');
     }
     else if(kstrcmp(args[1], "insert")) {
-        enqueue_get_descriptor();
+        get_device_descriptor_dev0();
     }
 }
 
-static void enqueue_get_descriptor()
+static void get_device_descriptor_dev0()
 {
     // This is a bit of a strange one. As far as I can tell,
     // you don't address the GET_DESCRIPTOR to any particular device
@@ -288,6 +289,7 @@ static void enqueue_get_descriptor()
     td1->td_ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_lowspeed;
     td1->td_token = uhci_packet_id_in | (0x7 << 21) | td_token_data_toggle;
     td1->buffer_ptr = (uint32_t)return_data_mem;
+    td1->software_use0 = (uint32_t) td0;
 
     // Step 4:  The OUT packet to acknowledge transfer
     struct transfer_descriptor* td2 = (struct transfer_descriptor*)td2_mem;
@@ -311,7 +313,7 @@ static void enqueue_get_descriptor()
     struct device_request_packet* data = (struct device_request_packet*) (uint8_t*)request_packet_mem;
     g_get_desc_data = data;
     data->type = usb_request_type_standard | usb_request_type_device_to_host;
-    data->request = 0x06; // GET_DESCRIPTOR
+    data->request = UHCI_REQUEST_GET_DESCRIPTOR;
 
     // High byte = 0x01 for DEVICE. Low byte = 0. The two bytes are written
     // as a 16-bit word in little-endian
@@ -558,8 +560,6 @@ void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, ui
 
         SHOWVAL_U32("Root queue start: ", (uint32_t)&g_root_queues[0]);
         SHOWVAL_U32("Root queue end: ", (uint32_t)&g_root_queues[15]);
-
-        enqueue_get_descriptor();
     }
 }
 
@@ -574,9 +574,7 @@ static bool init_io(uint32_t base_addr, uint8_t irq)
     g_initialized_base_addr = io_addr;
 
 #ifdef USB_DEBUG
-    terminal_write_string("I/O port: ");
-    terminal_write_uint32_x(io_addr);
-    terminal_write_string("\n");
+    printf("UHCI init_io (addr: %P)\n", io_addr);
 #endif
 
     if(0 != detect_root(io_addr, false)) {
@@ -588,37 +586,59 @@ static bool init_io(uint32_t base_addr, uint8_t irq)
 
     uint32_t port_count = port_count_get(io_addr);
 
+#ifdef USB_DEBUG
     SHOWVAL_U32("UHCI Done detecting ports. Found ", port_count);
+#endif
 
-    for(size_t i = 0; i < port_count; i++) {
+    uint8_t cur_hc_index = 0;
+    bool found_hc = false;
+    for (size_t i = 0; i < port_count; i++) {
+        if (cur_hc_index > UHCI_MAX_HCS - 1) {
+            KWARN("Detected more available IO ports for HCs than we support (2)");
+            break;
+        }
 
         // Ports are 1-based
         uint8_t port_num = i + 1;
 
         if(enable_port(io_addr, port_num)) {
+            found_hc = true;
+
+            struct uhci_hc* hc = &g_host_controllers[cur_hc_index];
+            hc->active = true;
+            hc->io = true;
+            hc->addr = port_num;
+
+            // Next port, next device
+            cur_hc_index++;
+
+            printf("UHCI: Found HC on IO port %d\n", port_num);
 
             // Initialize our schedule skeleton
             uint32_t frame_list_addr = IND(io_addr + UHCI_FRAME_BASEADDR_OFFSET);
 
-            terminal_write_string("Initializing FL at: ");
-            terminal_write_uint32_x(frame_list_addr);
-            terminal_write_char('\n');
+#ifdef USB_DEBUG
+            printf("Initializing FL at %P\n", frame_list_addr);
+#endif
 
             schedule_init(frame_list_addr);
 
             start_schedule(io_addr);
 
-            // Happy days :-)
-            terminal_write_string("Device on port ");
-            terminal_write_uint8_x(port_num);
-            terminal_write_string(" is ready for use\n");
+            printf("UHCI HC on IO port %d is now ready.", port_num);
         }
     }
 
+    // Get the device descriptor of the first device we found
+    // NOTE: Host Controllers in the default state will respond to device number "0".
+    //       Valid addresses are all non-zero. So we can only retrieve the device descriptor
+    //       of one HC at the time
+    if (found_hc) {
+        get_device_descriptor_dev0();
+    }
+
     uint16_t fp_index = get_cur_fp_index();
-    terminal_write_string("Initial FP Index: ");
-    terminal_write_uint32(fp_index);
-    terminal_write_string("!\n");
+    printf("Initial FP Index: %d\n", fp_index);
 
     return true;
 }
@@ -1113,6 +1133,74 @@ static uint32_t* lp_get_addr(uint32_t* link_ptr)
     return (uint32_t*) ((uint32_t)link_ptr & ~0xF);
 }
 
+static bool uhci_hc_handle_td_default(struct uhci_hc* hc, struct transfer_descriptor* td)
+{
+    if ( (td->td_token & uhci_packet_id_in) != uhci_packet_id_in) {
+        // In default mode, we only care about the "in" TD containing the buffer
+        // to the received data, and just silently ignore the other TDs that are
+        // a part of the setup procedure
+        return true;
+    }
+
+    // By convention, all "in" packages have the TD that is associated
+    // with the "in" request in software_use0
+    if (td->software_use0 == 0) {
+        KERROR("missing link for 'in' data package");
+        return true;
+    }
+
+    struct transfer_descriptor* request_td = (struct transfer_descriptor*) td->software_use0;
+    if ( (request_td->td_token & uhci_packet_id_setup) != uhci_packet_id_setup) {
+        KERROR("Linked TD is *not* setup packet.");
+        return true;
+    }
+
+    // Max buffer size stored in 31:21 (upper 10 bits)
+    uint16_t buffer_size = ((request_td->td_token >> 21) & 0x3FF);
+    if (buffer_size > 0) {
+        // UHCI requires size-1 in request, add 1 to get real size
+        buffer_size += 1;
+    }
+
+    my_memcpy((void*) &hc->desc, (void*) td->buffer_ptr, buffer_size);
+
+    if (buffer_size == 0x8) {
+        // TODO: Request descriptor again, but now using
+        // usb_device_descriptor->max_packet_size as buffer size to get entire descriptor
+        KINFO("Got small INITIAL device desc.");
+
+        // Save the descriptor
+    } else {
+        // TODO: Proceed to give this HC an address
+        printf("Got full size descriptor, woo! (size: %d)", buffer_size);
+    }
+
+    struct usb_device_descriptor* desc = (struct usb_device_descriptor*)td->buffer_ptr;
+
+    printf("Device descriptor size: %d, type: %d, release num: %P\n",
+            desc->desc_length,
+            desc->type,
+            desc->release_num);
+
+    printf("HC Device descriptor size: %d, type: %d, release num: %P\n",
+            hc->desc.desc_length,
+            hc->desc.type,
+            hc->desc.release_num);
+
+    return true;
+}
+
+static bool uhci_hc_handle_td(struct uhci_hc* hc, struct transfer_descriptor* td)
+{
+    if (hc->state == uhci_hc_state_default) {
+        return uhci_hc_handle_td_default(hc, td);
+    }
+
+    KERROR("TODO: UHCI handle non-default states");
+
+    return false;
+}
+
 static void handle_fl_complete_core(uint32_t* link_ptr, lp_type type)
 {
     uint32_t* next = 0;
@@ -1125,8 +1213,17 @@ static void handle_fl_complete_core(uint32_t* link_ptr, lp_type type)
 
                 uint32_t td_lp = (td->link_ptr & ~0xF);
 
-                for (int i = 0; i < UHCI_MAX_DEVICES; i++) {
-                    uhci_dev_handle_td(&g_devices[i], td);
+                bool handled = false;
+                for (int i = 0; i < UHCI_MAX_HCS; i++) {
+                    struct uhci_hc* hc = &g_host_controllers[i];
+                    if (hc->active && uhci_hc_handle_td(hc, td)) {
+                        handled = true;
+                        break;
+                    }
+                }
+
+                if (!handled) {
+                    KERROR("Encountered TD that went unhandled");
                 }
 
                 if (lp_get_addr((uint32_t*)td->link_ptr) != 0) {

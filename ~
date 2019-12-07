@@ -1,0 +1,25 @@
+image_path=disk.img
+loop_dev_0=loop20
+loop_dev_1=loop21
+
+
+dd if=/dev/zero of=$image_path bs=512 count=131072
+
+
+fdisk disk.img
+
+sudo losetup /dev/$loop_dev_0 $image_path
+sudo losetup /dev/$loop_dev_1 $image_path -o 1048576
+
+sudo mke2fs /dev/$loop_dev_1
+sudo mkdosfs -F32 -f 2 /dev/$loop_dev_1
+
+sudo mount /dev/$loop_dev_1 /mnt/nox-grub
+
+sudo grub-install --root-directory=/mnt --no-floppy --modules="normal part_msdos ext2 multiboot biosdev" /dev/$loop_dev_0
+
+sudo unmount /mnt/nox-grub
+
+sudo losetup -d /dev/$loop_dev_0 $image_path
+sudo losetup -d /dev/$loop_dev_1 $image_path
+

@@ -171,13 +171,28 @@ struct uhci_string_descriptor {
 #define LANG_ID_GER   0x407
 
 struct usb_device_descriptor {
-    uint8_t  desc_length;        // Size of this struct (should be 18-bytes)
-    uint8_t  type;               // For standard descriptors, this should be 1
+    // Size of this struct (should be 18-bytes)
+    uint8_t  desc_length;
+
+    // Constant - Always 1 for device descriptors
+    uint8_t  type;
+
+    // Binary coded decimal version of USB spec this device complies with
+    // e.g. v2.10 - 0x210
     uint16_t release_num;        // Version of USB spec this device complies with
+
+    // If this field is reset to zero, each interface within a configuration specifies its own
+    // class information and the various interfaces operate independently
+    //
+    // If this field is set to a value between 1 and FEH, the device supports different class
+    // specifications on different interfaces and the interfaces may not operate independently
     uint8_t  device_class;
     uint8_t  sub_class;
     uint8_t  protocol;
     uint8_t  max_packet_size;    // Max packet size for endpoint 0 (possible values: 8, 16, 32, 64)
+
+    // -------- END 8 first bytes (size of initial request) ----------
+
     uint16_t vendor_id;
     uint16_t product_id;
     uint16_t device_rel;
@@ -227,6 +242,19 @@ struct device_request_packet {
 // Address occupies everything but the low 4 bits
 #define QUEUE_HEAD_LINK_ADDR_MASK (0xFFFFFFF0)
 
+enum uhci_hc_state {
+    uhci_hc_state_default,
+    uhci_hc_state_addressed
+};
+
+struct uhci_hc {
+    bool active;
+    bool io;
+    uint32_t addr;
+    enum uhci_hc_state state;
+    struct usb_device_descriptor desc;
+};
+
 struct uhci_queue {
     uint32_t head_link;
     uint32_t element_link;
@@ -270,6 +298,7 @@ typedef enum {
 // to keep track of connected devices
 struct uhci_device {
     uint8_t num; // ( < 1 = uninitialized)
+    int8_t port; // which pci port it resides on
     device_state state;
     struct usb_device_descriptor* descriptor;
 } PACKED;
