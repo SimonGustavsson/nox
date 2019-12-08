@@ -129,15 +129,7 @@ static bool is_slice_aligned(uint32_t slice, uint8_t alignment)
     // Make sure that the *final* pointer is aligned
     addr += 4;
 
-    bool is_aligned = (addr % alignment) == 0;
-
-    printf("Checking slice %d, addr: %P is %d-aligned. True? %d\n",
-            slice,
-            addr,
-            alignment,
-            is_aligned ? 1 : 0);
-
-    return is_aligned;
+    return (addr % alignment) == 0;
 }
 
 static int get_first_available_slice(unsigned int requested_size, uint8_t alignment)
