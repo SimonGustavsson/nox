@@ -85,7 +85,7 @@ void init_memory_map(uint32_t addr)
                     uint32_t num_entries = (mmap->size - 16) / mmap->entry_size;
 
                     if (num_entries > MAX_MMAP_ENTRIES) {
-                        terminal_write_string("WARNING. SOME MMAP ENTRIES WILL BE DROPPED!\n");
+                        KWARN("WARNING. SOME MMAP ENTRIES WILL BE DROPPED!\n");
                     }
 
                     for (int i = 0; i <= num_entries; i++) {
@@ -93,12 +93,9 @@ void init_memory_map(uint32_t addr)
 
                         g_mmap_entries++;
 
-						// Entries are really 64-bit, but we're 32-bit only for now
-						// TODO: Add full 64-bit support for the future
-                        g_mmap[i].base = (uint32_t)(cur->addr & 0xFFFFFFFF);
-                        g_mmap[i].length = (uint32_t)(cur->len & 0xFFFFFFFF);
-                        g_mmap[i].type = mem_type_from_multiboot(cur->type);
-						printf("Mem: %P, size: %d\n", g_mmap[i].base, g_mmap[i].length);
+                        g_mmap[i].base = cur->addr;
+                        g_mmap[i].length = cur->len;
+                        g_mmap[i].type = (uint32_t) mem_type_from_multiboot(cur->type);
                     }
                 }
                 break;
