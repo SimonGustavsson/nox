@@ -76,7 +76,6 @@ struct uhci_hc g_host_controllers[UHCI_MAX_HCS] = {
 static void handle_fl_complete();
 static uint16_t get_cur_fp_index();
 static void get_initial_device_descriptor_dev0();
-static bool is_set(uint32_t val, uint32_t num);
 static bool init_io(uint32_t base_addr, uint8_t irq);
 static bool init_mm(pci_device* dev, uint32_t base_addr, uint8_t irq);
 static bool init_mm32(uint32_t base_addr, uint8_t irq, bool below_1mb);
@@ -352,11 +351,6 @@ static void print_td(struct transfer_descriptor* td)
     printf("\nBuffer: %P\n", td->buffer_ptr);
 
     KINFO("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-}
-
-static bool is_set(uint32_t val, uint32_t num)
-{
-    return (val & (num)) == (num);
 }
 
 static void print_frame_list_entry_core(uint32_t* entry, uint8_t indent)
