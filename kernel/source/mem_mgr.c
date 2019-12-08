@@ -191,7 +191,7 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
         return;
     }
 
-    terminal_write_string("Calculating total memory...");
+    terminal_write_string("Calculating total memory...\n");
     for (int i = 0; i < mem_entry_count; i++) {
         struct mem_map_entry* entry = &mem_map[i];
 
@@ -201,6 +201,7 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
 
         print_mem_entry(i, entry->base, entry->length, get_mem_type(entry->type));
     }
+    printf("Total memory available: %d bytes\n", g_total_available_memory);
 
     g_max_pages = g_total_available_memory / PAGE_SIZE;
 
@@ -228,7 +229,6 @@ void mem_mgr_init(struct mem_map_entry mem_map[], uint32_t mem_entry_count)
     size_t mem_map_pages = mem_map_size / PAGE_SIZE;
     if(mem_map_size % PAGE_SIZE != 0)
         mem_map_pages++;
-
 
     // Zero out the memory map
     for(size_t i = 0; i < g_max_pages; i++) {
@@ -572,7 +572,6 @@ static void print_mem_entry(size_t index, uint64_t base, uint64_t length, char* 
         terminal_write_string(" -> ");
         terminal_write_uint64_x(end_address);
     }
-
     terminal_write_string(" (");
     terminal_write_string(description);
     terminal_write_string(")\n");
