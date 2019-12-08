@@ -142,11 +142,9 @@ static int get_first_available_slice(unsigned int requested_size)
             if (clear_bits_start == -1) {
                 clear_bits_start = i * (sizeof(char) * 8); // Found a new start
                 clear_bits_found = sizeof(char) * 8;
-                printf("Found a clear byte, new start. Found: %d requested: %d\n", clear_bits_found, requested_size);
             }
             else {
                 clear_bits_found += sizeof(char) * 8; // Add to the pile
-                printf("Found a clear byte, found: %d, requested size: %d\n", clear_bits_found, requested_size);
             }
         }
         else {
