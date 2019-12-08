@@ -31,7 +31,6 @@
 // -------------------------------------------------------------------------
 // Static Defines
 // -------------------------------------------------------------------------
-// TODO: Allocate mem for frame stack
 #define IS_TERMINATE(link) ((((uint32_t)(uintptr_t)link) & td_link_ptr_terminate) == td_link_ptr_terminate)
 #define GET_LINK_QUEUE(link) ((struct uhci_queue*) (uintptr_t) ((uint32_t)(uintptr_t)link & QUEUE_HEAD_LINK_ADDR_MASK))
 #define QUEUE_PTR_CREATE(queue_ptr) (uint32_t)(uintptr_t) ((uint32_t)(uintptr_t)queue_ptr | td_link_ptr_queue);
@@ -43,21 +42,7 @@
 uint8_t g_irq_num;
 
 uint32_t g_initialized_base_addr;
-uint32_t g_foo[sizeof(struct uhci_queue)];
 uint32_t g_frame_list;
-
-struct uhci_queue* g_setup_queue;
-struct transfer_descriptor* g_setup_td0;
-struct transfer_descriptor* g_setup_td1;
-struct transfer_descriptor* g_setup_td2;
-struct device_request_packet* g_get_desc_data;
-uint32_t g_setup_return_data_mem;
-
-struct transfer_descriptor* g_td0_sized;
-struct transfer_descriptor* g_td1_sized;
-struct transfer_descriptor* g_td2_sized;
-uintptr_t g_ret_mem_sized;
-bool g_is_size_request_in_flight;
 
 // Note: The head_link gets set up in a function, because, constant expressions SUCK
 struct uhci_queue g_root_queues[16] ALIGN(16) = {
@@ -140,25 +125,8 @@ static void print_status_register(uint32_t base_addr)
     if(is_set(status, uhci_status_host_system_error)) KERROR("Host System Error - Yes");
     if(is_set(status, uhci_status_resume_detected))   KINFO("Resume Detected - Yes");
     if(is_set(status, uhci_status_error_interrupt))   KERROR("Error Interrupt - Yes");
-
-    if ( (status & ((uint16_t)uhci_status_error_interrupt)) == uhci_status_error_interrupt)   KERROR("Error Interrupt - Yes");
-
-    if((status & uhci_status_usb_interrupt) == uhci_status_usb_interrupt)
-    {
-        KINFO("USB interrupt - Yes");
-
-        if( *((uint32_t*)g_setup_return_data_mem) != 0)
-        {
-            struct usb_device_descriptor* descriptor = (struct usb_device_descriptor*)( (uint32_t*)g_setup_return_data_mem);
-
-            KINFO("GET_DESCRIPTOR response");
-            SHOWVAL_U8("Descriptor size: ", descriptor->desc_length);
-            SHOWVAL_U8("Type: ", descriptor->type);
-            SHOWVAL_U16("USB Ver: ", descriptor->release_num);
-            SHOWVAL_U8("Device Class:", descriptor->device_class);
-            SHOWVAL_U8("Sub Class:", descriptor->sub_class);
-        }
-    }
+    if(is_set(status, uhci_status_usb_interrupt))     KINFO("USB interrupt - Yes");
+    terminal_write_string("___________________\n");
 }
 
 void print_queue_type(enum nox_uhci_queue type)
