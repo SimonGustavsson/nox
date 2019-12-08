@@ -2,6 +2,8 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
+#include <types.h>
+
 #define BYTES_PER_SLICE 4
 #define MAX_BYTES_PER_SIZE_BYTE ((2^7) - 1)
 #define MAX_ALLOCATED_BYTES 104857600 // 100 MB, TODO: Don't hardcode this
@@ -14,10 +16,16 @@
 void memory_init(void);
 
 // Allocates 'size' bytes and returns a pointer to the newly allocated memory
+// Warning: does not zero out memory
 void* palloc(unsigned int size);
+
+// Same as palloc() but with a custom alignment.
+// Alignment must be a multiple of 2
+void* aligned_palloc(unsigned int size, uint8_t alignment);
 
 // Allocates memory for an array of 'size' with elements of 'itemSize'
 // Example: pcalloc(sizeof(int), 4); // Allocates an array of 4 ints
+// NOTE: Memory is zeroed out
 void* pcalloc(unsigned int itemSize, unsigned int size);
 
 void phree(void* pointer);

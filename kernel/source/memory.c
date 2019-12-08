@@ -5,6 +5,7 @@
 #include "terminal.h"
 
 // #define DEBUG_MEM
+#define DEFAULT_ALLOC_ALIGNMENT (2)
 
 unsigned char* g_bitmap;
 unsigned char* g_memory;
@@ -120,7 +121,26 @@ static void mark_slices(unsigned int start, unsigned int count, bool used)
     }
 }
 
-static int get_first_available_slice(unsigned int requested_size)
+static bool is_slice_aligned(uint32_t slice, uint8_t alignment)
+{
+    uint32_t addr = (uint32_t) (g_memory + (slice * BYTES_PER_SLICE));
+
+    // We will prepend 4 bytes to the address before it is returned
+    // Make sure that the *final* pointer is aligned
+    addr += 4;
+
+    bool is_aligned = (addr % alignment) == 0;
+
+    printf("Checking slice %d, addr: %P is %d-aligned. True? %d\n",
+            slice,
+            addr,
+            alignment,
+            is_aligned ? 1 : 0);
+
+    return is_aligned;
+}
+
+static int get_first_available_slice(unsigned int requested_size, uint8_t alignment)
 {
     unsigned int i, j;
     int clear_bits_start = -1;
@@ -138,10 +158,15 @@ static int get_first_available_slice(unsigned int requested_size)
             clear_bits_start = -1;
             clear_bits_found = 0;
         }
-        else if (g_bitmap[i] == 0) {
+        else if (g_bitmap[i] == 0 && is_slice_aligned(i * sizeof(char) * 8, alignment)) {
+            uint32_t start_candidate = i * (sizeof(char) * 8);
             if (clear_bits_start == -1) {
-                clear_bits_start = i * (sizeof(char) * 8); // Found a new start
-                clear_bits_found = sizeof(char) * 8;
+                if (is_slice_aligned(start_candidate, alignment)) {
+                    clear_bits_start = start_candidate; // Found a new start
+                    clear_bits_found = sizeof(char) * 8;
+                } else {
+                    // Go fish
+                }
             }
             else {
                 clear_bits_found += sizeof(char) * 8; // Add to the pile
@@ -152,8 +177,14 @@ static int get_first_available_slice(unsigned int requested_size)
             for (j = sizeof(char)* 8 - 1; j > 0; j--) {
                 if ((g_bitmap[i] & (1 << j)) == 0) {
                     // j contains the shifted offset from the right, set start to be the 0 based index from the left
-                    if (clear_bits_start == -1)
-                        clear_bits_start = ((i * (sizeof(char)* 8)) + (8 - j)) - 1;
+                    uint32_t start_candidate = ((i * (sizeof(char)* 8)) + (8 - j)) - 1;
+                    if (clear_bits_start == -1) {
+                        if (is_slice_aligned(start_candidate, alignment)) {
+                            clear_bits_start = start_candidate;
+                        } else {
+                            continue; // Go fish
+                        }
+                    }
 
                     clear_bits_found += 1;
 
@@ -249,11 +280,16 @@ void* realloc(void* ptr, unsigned int size)
     }
 }
 
-void* palloc(unsigned int size)
+static void* palloc_core(unsigned int size, uint8_t alignment)
 {
 #ifdef DEBUG_MEM
     printf("Palloc(%d) (%d/%d)\n", size, g_bytes_allocated, MAX_ALLOCATED_BYTES);
 #endif
+
+    if (alignment % 2 != 0) {
+        KERROR("AN attempt was made to use palloc() with an alignment that isn't a multiple of 2");
+        return NULL;
+    }
 
     int start_slice = -1;
 
@@ -268,7 +304,7 @@ void* palloc(unsigned int size)
         return NULL; // TODO: Support larger allocations?
 
     // Now find slice_count clear consecutive bits in the bitmap
-    start_slice = get_first_available_slice(slice_count);
+    start_slice = get_first_available_slice(slice_count, alignment);
 
     // Did we manage to locate a free block of slices?
     if (start_slice == -1) {
@@ -297,13 +333,27 @@ void* palloc(unsigned int size)
     return ptr;
 }
 
+void* aligned_palloc(unsigned int size, uint8_t alignment)
+{
+    // TODO: No addresses we allocate will ever be 32-bit+ aligned
+    // right now, because of the combination of prefix bytes + byte per slice
+    if (alignment > 16) return NULL;
+
+    return palloc_core(size, alignment);
+}
+
+void* palloc(unsigned int size)
+{
+    return palloc_core(size, DEFAULT_ALLOC_ALIGNMENT);
+}
+
 void* pcalloc(unsigned int item_size, unsigned int size)
 {
     // Allocate the memory
     void* mem = palloc(item_size * size);
 
-    if(mem == 0)
-        return 0;
+    if(mem == NULL)
+        return NULL;
 
     // Zero it out
     my_memset(mem, 0, item_size * size);
