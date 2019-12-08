@@ -4,6 +4,8 @@
 #include "mem_mgr.h"
 #include "terminal.h"
 
+// #define DEBUG_MEM
+
 unsigned char* g_bitmap;
 unsigned char* g_memory;
 
@@ -13,17 +15,27 @@ void memory_init()
 {
     g_bytes_allocated = 0;
 
+    // TODO: Remove hardcoded max-memory limit
+    uint32_t pages_to_allocate = MAX_ALLOCATED_BYTES / PAGE_SIZE;
+
+    // 1 page for the bitmap
+    pages_to_allocate += 1;
+
     // Allocate all of the pages we can, and store the bitmap in the first page
-    g_bitmap = (unsigned char*)(mem_page_get_many( (MAX_ALLOCATED_BYTES / PAGE_SIZE) - 1));
+    g_bitmap = (unsigned char*) mem_page_get_many(pages_to_allocate);
 
     // ... and the rest of the pages is free for allocation!
-    g_memory = (unsigned char*)((g_bitmap) + (MAX_ALLOCATED_SLICES / 8));
+    uint32_t bitmap_size = (MAX_ALLOCATED_SLICES / 8); // 8 = bits per byte
+    g_memory = (unsigned char*)((g_bitmap) + bitmap_size);
+
+    // Ensure memory map is clear (note that allocated memory might be dirty)
+    my_memset((void*) g_gitmap, 0, bitmap_size);
 }
 
 static void mark_slices(unsigned int start, unsigned int count, bool used)
 {
 #ifdef DEBUG_MEM
-    //terminal_printf("Marking slices between %d and %d as %d\n\r", start, start + count, used);
+    printf("Marking slices between %d and %d as %d\n\r", start, start + count, used);
 #endif
 
     // Find bit to set it
@@ -91,15 +103,15 @@ static void mark_slices(unsigned int start, unsigned int count, bool used)
             unsigned int i;
 
 #ifdef DEBUG_MEM
-            //terminal_printf("Setting %d bits between start and end.\n", num_bytes_spanned * 8);
+            printf("Setting %d bits between start and end.\n", num_bytes_spanned * 8);
 #endif
             // start byte has already been set, and last byte has been set if it doesn't fill entire byte
             unsigned int last_byte_to_set = start_byte + 1 + num_bytes_spanned;
 
 #ifdef DEBUG_MEM
-            /*terminal_printf("I'm asked to set %d bytes as used. first = %d, last = %d\n",
+            printf("I'm asked to set %d bytes as used. first = %d, last = %d\n",
                 last_byte_to_set - (start_byte + 1),
-                start_byte + 1, last_byte_to_set - 1);*/
+                start_byte + 1, last_byte_to_set - 1);
 #endif
 
             for (i = start_byte + 1; i < last_byte_to_set; i++)
@@ -115,50 +127,44 @@ static int get_first_available_slice(unsigned int requested_size)
     int clear_bits_found = 0;
 
 #ifdef DEBUG_MEM
-    //terminal_printf("Searching for first block of %d available slices. Max allocated: %d\n", requested_size, MAX_ALLOCATED_SLICES);
+    printf("Searching for first block of %d available slices. Max allocated: %d\n", requested_size, MAX_ALLOCATED_SLICES);
 #endif
 
-    int found_bits = 0;
+    bool found_bits = 0;
     for (i = 0; i < MAX_ALLOCATED_SLICES / sizeof(char); i++)
     {
-        if ((g_bitmap[i] & 0xFF) == 0xFF) // No free in this byte, skip
-        {
+        //printf("CHecking byte %d, value: %d\n", i, g_bitmap[i]);
+        if ((g_bitmap[i] & 0xFF) == 0xFF) { // No free in this byte, skip
             clear_bits_start = -1;
             clear_bits_found = 0;
         }
-        else if (g_bitmap[i] == 0)
-        {
-            if (clear_bits_start == -1)
-            {
-                clear_bits_start = i * (sizeof(char)* 8); // Found a new start
-                clear_bits_found = sizeof(char)* 8;
+        else if (g_bitmap[i] == 0) {
+            if (clear_bits_start == -1) {
+                clear_bits_start = i * (sizeof(char) * 8); // Found a new start
+                clear_bits_found = sizeof(char) * 8;
+                printf("Found a clear byte, new start. Found: %d requested: %d\n", clear_bits_found, requested_size);
             }
-            else
-            {
-                clear_bits_found += sizeof(char)* 8; // Add to the pile
+            else {
+                clear_bits_found += sizeof(char) * 8; // Add to the pile
+                printf("Found a clear byte, found: %d, requested size: %d\n", clear_bits_found, requested_size);
             }
         }
-        else
-        {
+        else {
             // OK - well that sucked, just loop and see how many clear bits we can find
-            for (j = sizeof(char)* 8 - 1; j > 0; j--)
-            {
-                if ((g_bitmap[i] & (1 << j)) == 0)
-                {
+            for (j = sizeof(char)* 8 - 1; j > 0; j--) {
+                if ((g_bitmap[i] & (1 << j)) == 0) {
                     // j contains the shifted offset from the right, set start to be the 0 based index from the left
                     if (clear_bits_start == -1)
                         clear_bits_start = ((i * (sizeof(char)* 8)) + (8 - j)) - 1;
 
                     clear_bits_found += 1;
 
-                    if (clear_bits_found >= requested_size)
-                    {
-                        found_bits = 1;
+                    if (clear_bits_found >= requested_size) {
+                        found_bits = true;
                         break; // Found a free block
                     }
                 }
-                else
-                {
+                else {
                     clear_bits_start = -1;
                     clear_bits_found = 0;
                 }
@@ -166,19 +172,32 @@ static int get_first_available_slice(unsigned int requested_size)
         }
 
         // Did we find a free block?
-        if (clear_bits_start != -1 && (unsigned int)clear_bits_found >= requested_size)
+        if (clear_bits_start >= 0 && (unsigned int)clear_bits_found >= requested_size)
         {
-            found_bits = 1;
+            found_bits = true;
             break;
         }
     }
 
-    assert2(clear_bits_start < 0, "Invalid slice start\n");
-    assert2(found_bits == 1, "Went through entire bitmap and did not find enough memory.\n");
+    if (!found_bits) {
+#ifdef DEBUG_MEM
+        printf("Could not find enough free memory\n");
+#endif
+        return -1;
+    }
+
+    if (clear_bits_start == -1) {
+#ifdef DEBUG_MEM
+        printf("Invalid slice start\n");
+#endif
+        return -1;
+    }
 
     if (clear_bits_found < requested_size)
     {
-        //terminal_printf("Couldn't locate enough slices\n");
+#ifdef DEBUG_MEM
+        printf("Couldn't locate enough slices\n");
+#endif
         return -1;
     }
 
@@ -213,7 +232,7 @@ void* realloc(void* ptr, unsigned int size)
                 *(char_ptr - 1);
 
             unsigned int allocated_bytes = num_slices / BYTES_PER_SLICE;
-            terminal_printf("realloc: Old size: %d - New Size: %d\n", allocated_bytes, size);
+            printf("realloc: Old size: %d - New Size: %d\n", allocated_bytes, size);
 
             // Copy over the old data
             unsigned int bytes_to_copy = 0;
@@ -223,7 +242,7 @@ void* realloc(void* ptr, unsigned int size)
             else
                 bytes_to_copy = allocated_bytes;
 
-            terminal_printf("Copying %d bytes from previous allocation.\n", bytes_to_copy);
+            printf("Copying %d bytes from previous allocation.\n", bytes_to_copy);
 
             my_memcpy(new_ptr, char_ptr, bytes_to_copy);
         }
@@ -235,7 +254,7 @@ void* realloc(void* ptr, unsigned int size)
 void* palloc(unsigned int size)
 {
 #ifdef DEBUG_MEM
-    terminal_printf("Palloc(%d) (%d/%d)\n", size, g_bytes_allocated, MAX_ALLOCATED_BYTES);
+    printf("Palloc(%d) (%d/%d)\n", size, g_bytes_allocated, MAX_ALLOCATED_BYTES);
 #endif
 
     int start_slice = -1;
@@ -248,14 +267,16 @@ void* palloc(unsigned int size)
 
     // Do we need an extended size byte?
     if (slice_count > 2147483647)// (Uint32 max value) - Invalid allocation size
-        return 0; // TODO: Support larger allocations?
+        return NULL; // TODO: Support larger allocations?
 
     // Now find slice_count clear consecutive bits in the bitmap
     start_slice = get_first_available_slice(slice_count);
 
     // Did we manage to locate a free block of slices?
-    if (start_slice == -1)
-        return 0; // BOO! Could not find a slice large enough
+    if (start_slice == -1) {
+        printf("PALLOC FAILED. Allocated memory: %d bytes\n", g_bytes_allocated);
+        return NULL; // BOO! Could not find a slice large enough
+    }
 
     // Calculate the address to the memory, and offset the size bytes
     unsigned char* ptr = g_memory + (start_slice * BYTES_PER_SLICE);
@@ -272,8 +293,7 @@ void* palloc(unsigned int size)
     g_bytes_allocated += size + 1; // 1 for size bytes
 
 #ifdef DEBUG_MEM
-    //terminal_printf("Allocated %d bytes at 0x%h. %d left.\n", size + 1, ptr, MAX_ALLOCATED_BYTES - g_bytes_allocated);
-    terminal_printf("Success\n");
+    printf("Allocated %d bytes at 0x%h. %d left.\n", size + 1, ptr, MAX_ALLOCATED_BYTES - g_bytes_allocated);
 #endif
 
     return ptr;
@@ -300,7 +320,7 @@ void phree(void* pointer)
     int num_slices = -1;
 
 #ifdef DEBUG_MEM
-    terminal_printf("phree(ptr: %d)\n", ptr);
+    printf("phree(ptr: %d)\n", ptr);
 #endif
 
     // Get slice count (Stored in 4 bytes preceeding the pointer)
@@ -325,7 +345,7 @@ void phree(void* pointer)
     g_bytes_allocated -= num_slices * 4;
 
 #ifdef DEBUG_MEM
-    //terminal_printf("Freed %d bytes, %d allocated.\n", num_slices * 4, g_bytes_allocated);
+    printf("Freed %d bytes, %d allocated.\n", num_slices * 4, g_bytes_allocated);
 #endif
 }
 

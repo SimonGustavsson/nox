@@ -1,7 +1,6 @@
 // memory.h
 #ifndef MEMORY_H
 #define MEMORY_H
-//#include "memory_map.h"
 
 #define BYTES_PER_SLICE 4
 #define MAX_BYTES_PER_SIZE_BYTE ((2^7) - 1)
