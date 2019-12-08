@@ -257,6 +257,10 @@ struct uhci_hc {
     uint32_t addr;
     enum uhci_hc_state state;
     struct usb_device_descriptor desc;
+
+    // Device number, statically assigned by Nox
+    // This will be the address we set the HC to
+    uint8_t num;
 };
 
 struct uhci_queue {

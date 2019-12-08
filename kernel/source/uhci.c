@@ -66,8 +66,8 @@ struct uhci_queue g_root_queues[16] ALIGN(16) = {
 #define UHCI_MAX_HCS 2
 
 struct uhci_hc g_host_controllers[UHCI_MAX_HCS] = {
-    { false, false, 0, uhci_hc_state_default },
-    { false, false, 0, uhci_hc_state_default },
+    { false, false, 0, uhci_hc_state_default, {}, 1 },
+    { false, false, 0, uhci_hc_state_default, {}, 2 },
 };
 
 // -------------------------------------------------------------------------
@@ -263,7 +263,7 @@ static void get_device_descriptor_core(uint32_t max_packet_size)
     // Step 2: Initial SETUP packet
     struct transfer_descriptor* td0 = (struct transfer_descriptor*)td0_mem;
     td0->link_ptr = td1_mem | (td_link_ptr_depth_first);
-    td0->td_ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_lowspeed;
+    td0->td_ctrl_status = td_ctrl_3errors | td_status_active;
 
     // Note: We don't use max_packet_size here as we're only sending 8 bytes
     td0->td_token = (0x7 << 21) | uhci_packet_id_setup;
@@ -272,7 +272,7 @@ static void get_device_descriptor_core(uint32_t max_packet_size)
     // Step 3: Follow-up IN packet to read data from the device
     struct transfer_descriptor* td1 = (struct transfer_descriptor*)td1_mem;
     td1->link_ptr = td2_mem | td_link_ptr_depth_first;
-    td1->td_ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_lowspeed;
+    td1->td_ctrl_status = td_ctrl_3errors | td_status_active;
 
     // - 1 because that's how the UHCI HC takes it
     td1->td_token = uhci_packet_id_in | ((max_packet_size - 1) << 21) | td_token_data_toggle;
@@ -283,7 +283,7 @@ static void get_device_descriptor_core(uint32_t max_packet_size)
     // Step 4:  The OUT packet to acknowledge transfer
     struct transfer_descriptor* td2 = (struct transfer_descriptor*)td2_mem;
     td2->link_ptr = td_link_ptr_terminate;
-    td2->td_ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_ioc | td_ctrl_lowspeed;
+    td2->td_ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_ioc;
     td2->td_token = uhci_packet_id_out | (0x7FF << 21) | td_token_data_toggle;
 
     // Step 5: Setup queue to point to first TD
