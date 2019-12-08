@@ -243,7 +243,11 @@ struct device_request_packet {
 #define QUEUE_HEAD_LINK_ADDR_MASK (0xFFFFFFF0)
 
 enum uhci_hc_state {
+    // No device descriptor obtained
     uhci_hc_state_default,
+    // Have received initial 8-byte sized device descriptor
+    uhci_hc_state_initial_dev,
+    // We have a device descriptor and have assigned an address to HC
     uhci_hc_state_addressed
 };
 
