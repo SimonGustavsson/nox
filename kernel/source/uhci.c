@@ -288,13 +288,6 @@ static void get_device_descriptor_core(uint32_t max_packet_size)
     td2->td_token = uhci_packet_id_out | (0x7FF << 21) | td_token_data_toggle;
 
     // Step 5: Setup queue to point to first TD
-    // Switched these to maintain head_link. (HC will trash element_link!)
-    // TODO:
-    // WARNING:
-    // NOTE:
-    // SIMON:
-    // This doesn't work. used to just set elemnt_link, that worked.
-    // Setting head_link, seeminfgly just crashes everything
     queue->head_link = (td0_mem | td_link_ptr_terminate);
     queue->element_link = td0_mem;
 
