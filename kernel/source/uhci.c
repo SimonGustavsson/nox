@@ -321,31 +321,23 @@ static void print_queue(struct uhci_queue* queue)
 static void print_td(struct transfer_descriptor* td)
 {
     KINFO("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-    terminal_write_string("TD [");
 
-    terminal_write_uint32_x((uint32_t)(uintptr_t)td);
-    terminal_write_string("] (");
+    printf("TD [%P] (", (uint32_t)(uintptr_t)td);
 
-    if((td->td_ctrl_status & td_status_active) == td_status_active)
-        terminal_write_string("Active)");
+    if(is_set(td->td_ctrl_status, td_status_active))
+        terminal_write_string("Active)\n");
     else
-        terminal_write_string("Inactive)");
-    terminal_write_char('\n');
+        terminal_write_string("Inactive)\n");
 
-    terminal_write_string("Link: ");
-    terminal_write_uint32_x(td->link_ptr);
-    terminal_write_char('\n');
+    printf("Link: %P\n", td->link_ptr);
+    printf("Token: %P\n", td->td_token);
 
-    terminal_write_string("Token: ");
-    terminal_write_uint32_x(td->td_token);
-    if(is_set(td->td_token, td_token_data_toggle)) terminal_write_string(" (DataToggle)");
-    terminal_write_string(" Length: ");
-    terminal_write_uint32_x(td->td_token >> 21);
-    terminal_write_char('\n');
+    if(is_set(td->td_token, td_token_data_toggle))
+        terminal_write_string(" (DataToggle)");
 
-    terminal_write_string("Status: ");
-    terminal_write_uint32_x(td->td_ctrl_status);
-    terminal_write_char(' ');
+    printf(" Length: %P\n", td->td_token >> 21);
+
+    printf("Status: %P ", td->td_ctrl_status);
     if (is_set(td->td_ctrl_status, td_ctrl_ioc))                 terminal_write_string(" IOC ");
     if (is_set(td->td_ctrl_status, td_ctrl_ios))                 terminal_write_string(" IOS ");
     if (is_set(td->td_ctrl_status, td_ctrl_lowspeed))            terminal_write_string(" LowSpeed ");
@@ -357,17 +349,7 @@ static void print_td(struct transfer_descriptor* td)
     if (is_set(td->td_ctrl_status, td_status_data_buffer_error)) terminal_write_string(" BUF_ERR ");
     if (is_set(td->td_ctrl_status, td_status_bitstuff_error))    terminal_write_string(" BITSTUFF_ERR ");
 
-    terminal_write_char('\n');
-
-    if ( (td->td_ctrl_status & td_status_bitstuff_error) == td_status_bitstuff_error) {
-        KWARN("BIT STUFF");
-    }
-
-    terminal_write_string("Buffer: ");
-    terminal_write_uint32_x(td->buffer_ptr);
-    terminal_write_string(" (Contents: ");
-    terminal_write_uint32_x(*((uint32_t*)(uintptr_t)td->buffer_ptr));
-    terminal_write_string(")\n");
+    printf("\nBuffer: %P\n", td->buffer_ptr);
 
     KINFO("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 }
