@@ -29,7 +29,7 @@ void memory_init()
     g_memory = (unsigned char*)((g_bitmap) + bitmap_size);
 
     // Ensure memory map is clear (note that allocated memory might be dirty)
-    my_memset((void*) g_gitmap, 0, bitmap_size);
+    my_memset((void*) g_bitmap, 0, bitmap_size);
 }
 
 static void mark_slices(unsigned int start, unsigned int count, bool used)
