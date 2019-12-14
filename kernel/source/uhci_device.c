@@ -76,7 +76,7 @@ static void uhci_device_get_descriptor(struct uhci_device* device)
                                               uhci_packet_id_in,
                                               (uint32_t)td2_mem | td_link_ptr_depth_first,
                                               return_data_mem);
-    td1->td_token |= td_token_data_toggle;
+    td1->token |= td_token_data_toggle;
 
     // Step 4: The OUT packet to acknowledge transfer
     struct transfer_descriptor* td2 = init_td(device,
@@ -84,7 +84,7 @@ static void uhci_device_get_descriptor(struct uhci_device* device)
                                               uhci_packet_id_out,
                                               td_link_ptr_terminate,
                                               (uint8_t*)0);
-    td2->td_token |= TD_TOKEN_SIZE(0x7FF) | td_token_data_toggle;
+    td2->token |= TD_TOKEN_SIZE(0x7FF) | td_token_data_toggle;
 
     // Step 5: Setup queue to point to first TD
     queue->element_link = ((uint32_t)td0_mem);
@@ -116,9 +116,9 @@ struct transfer_descriptor* init_td(struct uhci_device* device, uintptr_t td_mem
         8 :
         device->descriptor->max_packet_size;
 
-    td->td_token = (TD_TOKEN_SIZE(max_packet_size) | packet_id);
+    td->token = (TD_TOKEN_SIZE(max_packet_size) | packet_id);
     td->link_ptr = td_link_ptr_terminate;
-    td->td_ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_lowspeed;
+    td->ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_lowspeed;
     td->buffer_ptr = (uint32_t)buf;
 
     return td;
@@ -140,7 +140,7 @@ void uhci_dev_handle_td(struct uhci_device* device, struct transfer_descriptor* 
 
 void handle_td_default(struct uhci_device* device, struct transfer_descriptor* td)
 {
-    printf("Device %d handling TD with status '%h'", device->num, td->td_ctrl_status);
+    printf("Device %d handling TD with status '%h'", device->num, td->ctrl_status);
 }
 
 void handle_td_addressed(struct uhci_device* device, struct transfer_descriptor* td)

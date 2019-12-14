@@ -143,8 +143,8 @@ enum td_token {
 
 struct transfer_descriptor {
     uint32_t link_ptr;
-    uint32_t td_ctrl_status;
-    uint32_t td_token;
+    uint32_t ctrl_status;
+    uint32_t token;
     uint32_t buffer_ptr;    // 32-bit pointer to data of this transfer
     uint32_t software_use0;
     uint32_t software_use1;

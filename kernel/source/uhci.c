@@ -273,8 +273,8 @@ static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_pa
     data->response_buffer = (uint8_t*) response_buffer_ptr;
 
     data->setup.link_ptr = td_link_ptr_depth_first | ((uint32_t) in_td_ptr) ;
-    data->setup.td_ctrl_status = td_ctrl_3errors | td_status_active;
-    data->setup.td_token = ( (UHCI_GET_DEVICE_DESCRIPTOR_REQUEST_SIZE - 1) << 21) | uhci_packet_id_setup;
+    data->setup.ctrl_status = td_ctrl_3errors | td_status_active;
+    data->setup.token = ( (UHCI_GET_DEVICE_DESCRIPTOR_REQUEST_SIZE - 1) << 21) | uhci_packet_id_setup;
     data->setup.buffer_ptr = (uint32_t)&data->request_packet;
 
     // !important - set up a link from the setup TD so we can
@@ -284,8 +284,8 @@ static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_pa
     printf("[SETUP PACKAGE] %P, link: %P, status: %P, token: %P, buffer: %P\n",
             (uint32_t) &data->setup,
             data->setup.link_ptr,
-            data->setup.td_ctrl_status,
-            data->setup.td_token,
+            data->setup.ctrl_status,
+            data->setup.token,
             data->setup.buffer_ptr);
 
     // Populate these requests backwards for ease of link ptr setup
@@ -304,7 +304,7 @@ static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_pa
             : 0;
 
         cur_td->link_ptr = link_ptr | td_link_ptr_depth_first;
-        cur_td->td_ctrl_status = td_ctrl_3errors | td_status_active;
+        cur_td->ctrl_status = td_ctrl_3errors | td_status_active;
 
         printf("Wot\n");
         uint32_t bytes_to_read;
@@ -315,7 +315,7 @@ static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_pa
             bytes_left_to_read -= max_packet_size;
         }
 
-        cur_td->td_token = uhci_packet_id_in | ((bytes_to_read - 1) << 21) | data_toggle;
+        cur_td->token = uhci_packet_id_in | ((bytes_to_read - 1) << 21) | data_toggle;
 
         uint32_t buf_offset = i == 0 ? 0 : bytes_to_read * i;
         printf("Buf offset, i=%d,offset=%d,read:%d bytes\n", i, buf_offset, bytes_to_read);
@@ -325,21 +325,21 @@ static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_pa
                 i,
                 (uint32_t) cur_td,
                 cur_td->link_ptr,
-                cur_td->td_ctrl_status,
-                cur_td->td_token,
+                cur_td->ctrl_status,
+                cur_td->token,
                 cur_td->buffer_ptr);
     }
 
     // Step 4: the OUT package to acknowledge transfer
     data->ack.link_ptr = td_link_ptr_terminate;
-    data->ack.td_ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_ioc;
-    data->ack.td_token = uhci_packet_id_out | (0x7FF << 21) | td_token_data_toggle;
+    data->ack.ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_ioc;
+    data->ack.token = uhci_packet_id_out | (0x7FF << 21) | td_token_data_toggle;
 
     printf("ACK TD: %P, Link:%P, Ctrl:%P, Token:%P, Buffer:%P\n",
             (uint32_t) &data->ack,
             data->ack.link_ptr,
-            data->ack.td_ctrl_status,
-            data->ack.td_token,
+            data->ack.ctrl_status,
+            data->ack.token,
             data->ack.buffer_ptr);
 
     // Step 5: Setup queue to point to first TD
@@ -383,30 +383,30 @@ static void print_td(struct transfer_descriptor* td)
 
     printf("TD [%P] (", (uint32_t)(uintptr_t)td);
 
-    if(is_set(td->td_ctrl_status, td_status_active))
+    if(is_set(td->ctrl_status, td_status_active))
         terminal_write_string("Active)\n");
     else
         terminal_write_string("Inactive)\n");
 
     printf("Link: %P\n", td->link_ptr);
-    printf("Token: %P\n", td->td_token);
+    printf("Token: %P\n", td->token);
 
-    if(is_set(td->td_token, td_token_data_toggle))
+    if(is_set(td->token, td_token_data_toggle))
         terminal_write_string(" (DataToggle)");
 
-    printf(" Length: %P\n", td->td_token >> 21);
+    printf(" Length: %P\n", td->token >> 21);
 
-    printf("Status: %P ", td->td_ctrl_status);
-    if (is_set(td->td_ctrl_status, td_ctrl_ioc))                 terminal_write_string(" IOC ");
-    if (is_set(td->td_ctrl_status, td_ctrl_ios))                 terminal_write_string(" IOS ");
-    if (is_set(td->td_ctrl_status, td_ctrl_lowspeed))            terminal_write_string(" LowSpeed ");
-    if (is_set(td->td_ctrl_status, td_ctrl_short_packet))        terminal_write_string(" SPS ");
-    if (is_set(td->td_ctrl_status, td_status_stalled))           terminal_write_string(" Stalled ");
-    if (is_set(td->td_ctrl_status, td_status_crc_timeout))       terminal_write_string(" CRCTimeout ");
-    if (is_set(td->td_ctrl_status, td_status_nak_received))      terminal_write_string(" NAK ");
-    if (is_set(td->td_ctrl_status, td_status_babble_detected))   terminal_write_string(" BABBLE ");
-    if (is_set(td->td_ctrl_status, td_status_data_buffer_error)) terminal_write_string(" BUF_ERR ");
-    if (is_set(td->td_ctrl_status, td_status_bitstuff_error))    terminal_write_string(" BITSTUFF_ERR ");
+    printf("Status: %P ", td->ctrl_status);
+    if (is_set(td->ctrl_status, td_ctrl_ioc))                 terminal_write_string(" IOC ");
+    if (is_set(td->ctrl_status, td_ctrl_ios))                 terminal_write_string(" IOS ");
+    if (is_set(td->ctrl_status, td_ctrl_lowspeed))            terminal_write_string(" LowSpeed ");
+    if (is_set(td->ctrl_status, td_ctrl_short_packet))        terminal_write_string(" SPS ");
+    if (is_set(td->ctrl_status, td_status_stalled))           terminal_write_string(" Stalled ");
+    if (is_set(td->ctrl_status, td_status_crc_timeout))       terminal_write_string(" CRCTimeout ");
+    if (is_set(td->ctrl_status, td_status_nak_received))      terminal_write_string(" NAK ");
+    if (is_set(td->ctrl_status, td_status_babble_detected))   terminal_write_string(" BABBLE ");
+    if (is_set(td->ctrl_status, td_status_data_buffer_error)) terminal_write_string(" BUF_ERR ");
+    if (is_set(td->ctrl_status, td_status_bitstuff_error))    terminal_write_string(" BITSTUFF_ERR ");
 
     printf("\nBuffer: %P\n", td->buffer_ptr);
 
@@ -1063,7 +1063,7 @@ static uint32_t* lp_get_addr(uint32_t* link_ptr)
 
 static bool uhci_hc_handle_td_default(struct uhci_hc* hc, struct transfer_descriptor* td)
 {
-    if ( (td->td_token & uhci_packet_id_setup) != uhci_packet_id_setup) {
+    if ( (td->token & uhci_packet_id_setup) != uhci_packet_id_setup) {
         // We only care about the SETUP packet initially
         // Might as well flag as handled, saves us needlessly processing this for every HC
         return true;
@@ -1091,7 +1091,7 @@ static bool uhci_hc_handle_td_default(struct uhci_hc* hc, struct transfer_descri
 
     // Max buffer size stored in 31:21 (upper 10 bits)
     struct transfer_descriptor* first_in = (struct transfer_descriptor*) data->request;
-    uint16_t buffer_size = ((first_in->td_token >> 21) & 0x3FF);
+    uint16_t buffer_size = ((first_in->token >> 21) & 0x3FF);
     if (buffer_size > 0) {
         // UHCI requires size-1 in request, add 1 to get real size
         buffer_size += 1;
