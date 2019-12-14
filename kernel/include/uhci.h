@@ -297,6 +297,22 @@ enum nox_uhci_queue {
     nox_uhci_queue_reserved4, // Not used (yet)
 };
 
+struct get_device_desc_data {
+    struct uhci_queue queue;
+    struct transfer_descriptor setup;
+
+    uint32_t num_in_descriptors;
+    uint8_t padding[8]; // Packing to align the request :)
+    struct transfer_descriptor* request;
+
+    struct transfer_descriptor ack;
+    struct device_request_packet request_packet;
+    uint32_t response_buffer_size;
+    uint8_t* response_buffer;
+};
+
+#define UHCI_GET_DEVICE_DESCRIPTOR_REQUEST_SIZE (0x8)
+
 typedef enum {
     uhci_state_default,
     uhci_state_addressed
