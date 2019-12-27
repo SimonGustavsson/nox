@@ -8,7 +8,9 @@
 #include <pio.h>
 #include <kernel.h>
 
-#define BochsConsolePrintChar(c) OUTB(0xe9, c)
+#define ignore(x, y)
+#define BochsConsolePrintChar(c) ignore(0xe9, c)
+//#define BochsConsolePrintChar(c) OUTB(0xe9, c)
 #define MAX_PRINTF_LENGTH 256
 
 // -------------------------------------------------------------------------

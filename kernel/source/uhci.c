@@ -43,6 +43,7 @@ uint8_t g_irq_num;
 
 uint32_t g_initialized_base_addr;
 uint32_t g_frame_list;
+struct get_device_desc_data* g_last_request = NULL;
 
 // Note: The head_link gets set up in a function, because, constant expressions SUCK
 struct uhci_queue g_root_queues[16] ALIGN(16) = {
@@ -70,6 +71,12 @@ struct uhci_hc g_host_controllers[UHCI_MAX_HCS] = {
     { false, false, 0, uhci_hc_state_default, {}, 2 },
 };
 
+typedef enum {
+    lp_type_td,
+    lp_type_queue,
+    lp_type_lp
+} lp_type;
+
 // -------------------------------------------------------------------------
 // Forward Declarations
 // -------------------------------------------------------------------------
@@ -90,6 +97,7 @@ static bool enable_port(uint32_t base_addr, uint8_t port);
 static uint32_t port_count_get(uint32_t base_addr);
 static void schedule_init(uint32_t frame_list_addr);
 static void schedule_queue_remove(struct uhci_queue* queue);
+static void handle_fl_complete_core(uint32_t* link_ptr, lp_type);
 // static void poll_status_interrupt(); // Not used (yet?)
 static void print_frame_list_entry(uint32_t* entry);
 static void print_td(struct transfer_descriptor* td);
@@ -152,6 +160,22 @@ void uhci_command(char** args, size_t arg_count)
         for(size_t i = 0; i < 20; i++) {
             print_frame_list_entry(fl++);
         }
+    }
+    else if(kstrcmp(args[1], "tds")) {
+        if (g_last_request == NULL) {
+            KERROR("No request in flight\n");
+            return;
+        }
+
+        KINFO("Showing inflight TDS");
+        print_td(&g_last_request->setup);
+
+        for (int i = 0; i < g_last_request->num_in_descriptors; i++) {
+            struct transfer_descriptor* td = (g_last_request->request + i);
+            print_td(td);
+        }
+
+        print_td(&g_last_request->ack);
     }
     else if(kstrcmp(args[1], "status")) {
        print_status_register2();
@@ -227,7 +251,7 @@ static void get_full_device_descriptor_dev0(uint32_t max_packet_size)
 
 static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_packet_size)
 {
-    printf("get_device_descriptor_newCORE()");
+    printf("get_device_descriptor_newCORE(%d, %d)", descriptor_size, max_packet_size);
 
     if (max_packet_size > 0x3FF) {
         // We only have 10 bits to store the value, so clamp it
@@ -267,6 +291,9 @@ static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_pa
     }
 
     struct get_device_desc_data* data = (struct get_device_desc_data*) data_ptr;
+
+    g_last_request = data;
+
     data->num_in_descriptors = num_packages;
     data->request = (struct transfer_descriptor*) in_td_ptr;
     data->response_buffer_size = descriptor_size;
@@ -274,7 +301,7 @@ static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_pa
 
     data->setup.link_ptr = td_link_ptr_depth_first | ((uint32_t) in_td_ptr) ;
     data->setup.ctrl_status = td_ctrl_3errors | td_status_active;
-    data->setup.token = ( (UHCI_GET_DEVICE_DESCRIPTOR_REQUEST_SIZE - 1) << 21) | uhci_packet_id_setup;
+    data->setup.token = ( (8 - 1) << 21) | uhci_packet_id_setup; // SETUP pkt is always 8 bytes
     data->setup.buffer_ptr = (uint32_t)&data->request_packet;
 
     // !important - set up a link from the setup TD so we can
@@ -290,44 +317,48 @@ static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_pa
 
     // Populate these requests backwards for ease of link ptr setup
     uint32_t bytes_left_to_read = descriptor_size;
-    for (int i = num_packages - 1; i >= 0; i--) {
-        struct transfer_descriptor* first_td = data->request;
-
-        struct transfer_descriptor* cur_td = first_td + i;
-
-        uint32_t link_ptr = i == num_packages - 1
-            ? (uint32_t)&data->ack
-            : (uint32_t)(cur_td + 1);
+    uint32_t bytes_read = 0;
+    for (int i = 0; i < num_packages; i++) {
+        struct transfer_descriptor* cur = data->request + i;
 
         uint32_t data_toggle = i % 2 == 0
             ? td_token_data_toggle
             : 0;
 
-        cur_td->link_ptr = link_ptr | td_link_ptr_depth_first;
-        cur_td->ctrl_status = td_ctrl_3errors | td_status_active;
+        uint32_t bytes_to_read = bytes_left_to_read < max_packet_size
+            ? bytes_left_to_read
+            :max_packet_size;
+        bytes_left_to_read -= bytes_to_read;
 
-        printf("Wot\n");
-        uint32_t bytes_to_read;
-        if (bytes_left_to_read < max_packet_size) {
-            bytes_to_read = bytes_left_to_read;
-        } else {
-            bytes_to_read = bytes_left_to_read - max_packet_size;
-            bytes_left_to_read -= max_packet_size;
-        }
+        uint32_t buffer_offset = bytes_read;
+        bytes_read += bytes_to_read;
 
-        cur_td->token = uhci_packet_id_in | ((bytes_to_read - 1) << 21) | data_toggle;
+        printf("Buf offset, i=%d,offset=%d,toRead:%d bytes (total left: %d)\n",
+                i, buffer_offset, bytes_to_read, bytes_left_to_read);
 
-        uint32_t buf_offset = i == 0 ? 0 : bytes_to_read * i;
-        printf("Buf offset, i=%d,offset=%d,read:%d bytes\n", i, buf_offset, bytes_to_read);
-        cur_td->buffer_ptr = ((uint32_t)data->response_buffer) + buf_offset;
+        cur->link_ptr = td_link_ptr_depth_first; // link_ptr populated later
+        cur->ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_ioc;
+        cur->token = uhci_packet_id_in | ((bytes_to_read - 1) << 21) | data_toggle;
+        cur->buffer_ptr = ((uint32_t)data->response_buffer) + buffer_offset;
 
         printf("IN TD[%d] %P, link: %P, status: %P, token: %P, buffer: %P\n",
                 i,
-                (uint32_t) cur_td,
-                cur_td->link_ptr,
-                cur_td->ctrl_status,
-                cur_td->token,
-                cur_td->buffer_ptr);
+                (uint32_t) cur,
+                cur->link_ptr,
+                cur->ctrl_status,
+                cur->token,
+                cur->buffer_ptr);
+    }
+
+    for (int i = num_packages - 1; i >= 0; i--) {
+        struct transfer_descriptor* cur = data->request + i;
+
+        if (i == num_packages - 1) {
+            cur->link_ptr |= (uint32_t) &data->ack;
+        } else {
+            struct transfer_descriptor* next = data->request + i + 1;
+            cur->link_ptr |= (uint32_t) next;
+        }
     }
 
     // Step 4: the OUT package to acknowledge transfer
@@ -358,7 +389,13 @@ static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_pa
     // High byte = 0x01 for DEVICE. Low byte = 0. The two bytes are written
     // as a 16-bit word in little-endian
     data->request_packet.value = 0x1 << 8; // Device
-    data->request_packet.length = max_packet_size;
+    data->request_packet.length = descriptor_size;// max_packet_size;
+
+    print_td(&data->setup);
+    for (int i = 0; i < data->num_in_descriptors; i++) {
+        print_td(data->request + i);
+    }
+    print_td(&data->ack);
 
     // Step 7: Add queue too root queue to schedule for execution
     //         we'll have to wait for an interrupt now
@@ -389,10 +426,22 @@ static void print_td(struct transfer_descriptor* td)
         terminal_write_string("Inactive)\n");
 
     printf("Link: %P\n", td->link_ptr);
-    printf("Token: %P\n", td->token);
+    printf("Token: %P ", td->token);
+
+    switch ( (td->token & 0xFF) ) {
+        case uhci_packet_id_setup:
+            printf(" SETUP");
+            break;
+        case uhci_packet_id_in:
+            printf(" IN");
+            break;
+        case uhci_packet_id_out:
+            printf(" OUT");
+            break;
+    }
 
     if(is_set(td->token, td_token_data_toggle))
-        terminal_write_string(" (DataToggle)");
+        terminal_write_string(" DT");
 
     printf(" Length: %P\n", td->token >> 21);
 
@@ -997,8 +1046,7 @@ static void poll_status_interrupt()
 // -------------------------------------------------------------------------
 static void uhci_irq_core(uint8_t irq, struct irq_regs* regs)
 {
-    print_status_register2();
-
+    //print_status_register2();
     uint16_t status = INW(g_initialized_base_addr + UHCI_STATUS_OFFSET);
 
     if(is_set(status, uhci_status_process_error)) {
@@ -1012,9 +1060,7 @@ static void uhci_irq_core(uint8_t irq, struct irq_regs* regs)
     }
 
     // Send the completed TDs to the devices
-    printf("handle_fl_complete...\n");
     handle_fl_complete();
-    printf("Assuming TD handled, returning from IRQ...\n");
 
     // It's a usb_interrupt, clear status
     // Just blast ALL the bits (this might trash some stuff we want
@@ -1040,14 +1086,6 @@ static uint16_t get_cur_fp_index()
     // Bits 15:11 are reserved, mask off
     return cur_frame & 0x3FF;
 }
-
-typedef enum {
-    lp_type_td,
-    lp_type_queue,
-    lp_type_lp
-} lp_type;
-
-static void handle_fl_complete_core(uint32_t* link_ptr, lp_type);
 
 static lp_type ptr_to_lp_type(uint32_t ptr)
 {
@@ -1078,6 +1116,12 @@ static bool uhci_hc_handle_td_default(struct uhci_hc* hc, struct transfer_descri
 
     struct get_device_desc_data* data = (struct get_device_desc_data*) td->software_use0;
 
+    print_td(&data->setup);
+    for (int i = 0; i < data->num_in_descriptors; i++) {
+        print_td(data->request + i);
+    }
+    print_td(&data->ack);
+
     // First things first - make sure the HC forgets about this queue
     // We don't want to free the memory, repurpose the address, and have the HC
     // pick up on random bytes as if it was a TD and fire a bunch of errors.
@@ -1090,30 +1134,29 @@ static bool uhci_hc_handle_td_default(struct uhci_hc* hc, struct transfer_descri
     hc->state = uhci_hc_state_initial_dev;
 
     // Max buffer size stored in 31:21 (upper 10 bits)
-    struct transfer_descriptor* first_in = (struct transfer_descriptor*) data->request;
-    uint16_t buffer_size = ((first_in->token >> 21) & 0x3FF);
-    if (buffer_size > 0) {
-        // UHCI requires size-1 in request, add 1 to get real size
-        buffer_size += 1;
-    }
+    uint8_t* response_buffer = (uint8_t*)data->response_buffer;
 
     // Save device descriptor on device
-    my_memcpy((void*) &hc->desc, (void*) first_in->buffer_ptr, buffer_size);
+    my_memcpy((void*) &hc->desc, (void*) response_buffer, data->response_buffer_size);
 
     // Free *all* memory allocated to achieve the request for the initial descriptor
     phree((void*) data);
 
     // Request descriptor again, but now using
     // usb_device_descriptor->max_packet_size as buffer size to get entire descriptor
-    printf("Got small INITIAL device desc (first %d bytes, @ %P).\n", buffer_size, first_in->buffer_ptr);
+    printf("Got small INITIAL device desc (first %d bytes, @ %P).\n", data->response_buffer_size, data->response_buffer);
 
-    struct usb_device_descriptor* desc = (struct usb_device_descriptor*)first_in->buffer_ptr;
+    struct usb_device_descriptor* desc = (struct usb_device_descriptor*)response_buffer;
 
     printf("Device descriptor size: %d, type: %d, release num: %P, max packet: %d\n",
             desc->desc_length,
             desc->type,
             desc->release_num,
             desc->max_packet_size);
+
+    if (desc->desc_length < 18) {
+        KPANIC("UNexpected descriptor size! PANICING");
+    }
 
     printf("Thanks for the initial device descriptor, getting the full one (size: %d)...\n",
             hc->desc.max_packet_size);
@@ -1125,7 +1168,77 @@ static bool uhci_hc_handle_td_default(struct uhci_hc* hc, struct transfer_descri
 
 static bool uhci_hc_handle_td_initial(struct uhci_hc* hc, struct transfer_descriptor* td)
 {
-    printf("Got full descriptor. TODO: Addressing\n");
+    if ( (td->token & uhci_packet_id_setup) != uhci_packet_id_setup) {
+        // We only care about the SETUP packet
+        // Might as well flag as handled, saves us needlessly processing this for every HC
+        // printf("UHCI - Initial State: Ignoring non-setup packet\n");
+        return true;
+    }
+
+    printf("Got full descriptor setup response\n");
+
+    // Success transfer =
+    //  act_len = 7 for setup packet
+    //  act_len = x CORRECT for the number of ins, descriptor size?
+    //  act_len = 0x7FF for OUT packet
+    //  TODO check status bits (see td_ctrL-status enum)
+
+    struct get_device_desc_data* data = (struct get_device_desc_data*) td->software_use0;
+
+    schedule_queue_remove(&data->queue);
+
+    uint32_t setup_len = data->setup.token >> 21;
+    if (setup_len != 7) {
+        KERROR("UHCI: SETUP packet length for full descriptor was not 7.\n");
+        return true;
+    }
+
+    uint32_t ack_len = data->ack.token >> 21;
+    if (ack_len != 0x7FF) {
+        KERROR("UHCI: ACK packet length for full descriptor was not 0x7FF.\n");
+        return true;
+    }
+
+    // All IN transfers point to the same buffer, but different positions within it
+    // find the lowest address (= start of buffer)
+    uint32_t response_buffer_addr = 0xFFFFFFFF;
+    uint32_t buffer_size = 0;
+    for (int i = 0; i < data->num_in_descriptors; i++) {
+        struct transfer_descriptor* in_td = data->request + i;
+
+        if (in_td->buffer_ptr < response_buffer_addr) {
+            response_buffer_addr = in_td->buffer_ptr;
+        }
+
+        // + 1 because the size - 1 is stored in the TDs
+        buffer_size += (in_td->token >> 21) + 1;
+    }
+
+    struct usb_device_descriptor* desc = (struct usb_device_descriptor*) response_buffer_addr;
+
+    printf("::FULL Device Desc:: (Buf len: %d)\n", buffer_size);
+    printf("len=%d,type=%d,rel=%d,class=%d,sub class=%d,protocol=%d,max pkt sz=%d\n",
+            desc->desc_length,
+            desc->type,
+            desc->release_num,
+            desc->device_class,
+            desc->sub_class,
+            desc->protocol,
+            desc->max_packet_size);
+    printf("vendor=%d,product=%d,dev_rel=%d,manufacturer=%d,product=%d,serial=%d,num_configs=%d\n",
+            desc->vendor_id,
+            desc->product_id,
+            desc->device_rel,
+            desc->manufacturer,
+            desc->product,
+            desc->serial_num,
+            desc->num_configurations);
+
+    // Save device descriptor on device
+    my_memcpy((void*) &hc->desc, (void*) response_buffer_addr, buffer_size);
+
+    // Free *all* memory allocated to achieve the request for the initial descriptor
+    phree((void*) data);
 
     // TODO: Assign address to hc
     return true;

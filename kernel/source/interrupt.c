@@ -244,7 +244,7 @@ static void idt_entry_setup(struct idt_entry* entry, uint8_t irq, gate_type type
 static enum kresult idt_entry_verify(struct idt_entry const * const entry, uint8_t const irq, gate_type type, uint8_t const priv_level)
 {
     const bool is_valid =
-        entry->selector == 0x08 &&
+        entry->selector == KERNEL_CODE_SEGMENT &&
         entry->type_attr.bits.present == 1 &&
         entry->type_attr.bits.segment == 0 &&
         entry->type_attr.bits.priv_level == priv_level &&
@@ -288,6 +288,7 @@ static void print_error_code(uint32_t error_code)
 
 static void gpf(uint8_t irq, struct irq_regs* regs)
 {
+    BREAK();
     // When we enter an ISR, the stack stack looks like this:
     //  ____________
     // |EFlags     | +12
@@ -323,26 +324,26 @@ static void gpf(uint8_t irq, struct irq_regs* regs)
 
 static void page_fault(uint8_t irq, struct irq_regs* regs)
 {
-    KERROR("FAULT: Page fault!");
     BREAK();
+    KERROR("FAULT: Page fault!");
 }
 
 static void stack_segment_fault(uint8_t irq, struct irq_regs* regs)
 {
-    KERROR("FAULT: Stack segment fault!");
     BREAK();
+    KERROR("FAULT: Stack segment fault!");
 }
 
 static void invalid_tss(uint8_t irq, struct irq_regs* regs)
 {
-    KERROR("FAULT: Invalid-TSS!");
     BREAK();
+    KERROR("FAULT: Invalid-TSS!");
 }
 
 static void segment_not_present(uint8_t irq, struct irq_regs* regs)
 {
-    KERROR("FAULT: Segment not present");
     BREAK();
+    KERROR("FAULT: Segment not present");
 }
 
 static void double_fault(uint8_t irq, struct irq_regs* regs)
