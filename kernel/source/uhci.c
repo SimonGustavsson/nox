@@ -1240,6 +1240,9 @@ static bool uhci_hc_handle_td_initial(struct uhci_hc* hc, struct transfer_descri
     // Free *all* memory allocated to achieve the request for the initial descriptor
     phree((void*) data);
 
+    // Store the fact that we got the full descriptor
+    hc->state = uhci_hc_state_full_dev;
+
     // TODO: Assign address to hc
     return true;
 }
