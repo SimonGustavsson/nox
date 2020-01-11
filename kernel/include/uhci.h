@@ -249,11 +249,11 @@ enum uhci_hc_state {
     // Have received initial 8-byte sized device descriptor
     uhci_hc_state_initial_dev,
 
-    // Have received the full device descriptor
-    uhci_hc_state_full_dev,
+    // uhci_hc_state_initial_dev + have assigned an address to HC
+    uhci_hc_state_addressed,
 
-    // We have a device descriptor and have assigned an address to HC
-    uhci_hc_state_addressed
+    // HC is addressed and we have received the full device descriptor
+    uhci_hc_state_full_dev
 };
 
 struct uhci_hc {
@@ -314,6 +314,13 @@ struct get_device_desc_data {
     struct device_request_packet request_packet;
     uint32_t response_buffer_size;
     uint8_t* response_buffer;
+};
+
+struct uhci_set_addr_data {
+    struct uhci_queue queue;
+    struct transfer_descriptor setup;
+    struct transfer_descriptor ack;
+    struct device_request_packet request;
 };
 
 #define UHCI_GET_DEVICE_DESCRIPTOR_REQUEST_SIZE (0x8)

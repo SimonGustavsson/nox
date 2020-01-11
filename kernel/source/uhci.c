@@ -1030,6 +1030,47 @@ static void initialize_root_queues()
     SHOWVAL_U32("Root Queue 8 head_link: ", g_root_queues[7].head_link);
 }
 
+static void uhci_set_hc_addr(struct uhci_hc* hc, uint8_t addr)
+{
+    intptr_t mem = (intptr_t) aligned_palloc(sizeof(struct uhci_set_addr_data), 16);
+    if (mem <= 0) {
+        KPANIC("Failed to allocate memory when setting UHCI HC address");
+    }
+
+    my_memset((void*) mem, 0, sizeof(struct uhci_set_addr_data));
+
+    struct uhci_set_addr_data* data = (struct uhci_set_addr_data*) mem;
+
+    data->setup.link_ptr = td_link_ptr_depth_first | (uint32_t) &data->ack;
+    data->setup.ctrl_status = td_ctrl_3errors | td_status_active;
+    data->setup.token = ( (8 - 1) << 21) | uhci_packet_id_setup;
+    data->setup.buffer_ptr = (uint32_t)&data->request;
+    data->setup.software_use0 = (uint32_t) data; // Store ptr for retrieval on response
+
+    data->ack.link_ptr = td_link_ptr_terminate;
+    data->ack.ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_ioc;
+    data->ack.token = ((0x7FF<< 21) | uhci_packet_id_in) | td_token_data_toggle;
+    data->ack.buffer_ptr = 0;
+
+    data->request.request = UHCI_REQUEST_SET_ADDRESS;
+    data->request.value = addr;
+
+    data->queue.head_link = (uint32_t) &data->setup | td_link_ptr_terminate;
+    data->queue.element_link = (uint32_t) &data->setup;
+
+    schedule_queue_insert(&data->queue, nox_uhci_queue_1);
+    /*
+    printf("Queue: %P\n", &data->queue);
+    printf("%P\n%P\n\n", data->queue.head_link, data->queue.element_link);
+
+    printf("TD0: %P\n", &data->setup);
+    printf("%P\n%P\n%P\n%P\n\n", data->setup.link_ptr, data->setup.ctrl_status, data->setup.token, data->setup.buffer_ptr);
+
+    printf("TD1: %P\n", &data->ack);
+    printf("%P\n%P\n%P\n%P\n", data->ack.link_ptr, data->ack.ctrl_status, data->ack.token, data->ack.buffer_ptr);
+    */
+}
+
 /* Not yet used (can be used instead of setting IOC on TDs)
 static void poll_status_interrupt()
 {
@@ -1161,12 +1202,34 @@ static bool uhci_hc_handle_td_default(struct uhci_hc* hc, struct transfer_descri
     printf("Thanks for the initial device descriptor, getting the full one (size: %d)...\n",
             hc->desc.max_packet_size);
 
-    get_full_device_descriptor_dev0(hc->desc.max_packet_size);
+    uhci_set_hc_addr(hc, hc->num);
 
     return true;
 }
 
 static bool uhci_hc_handle_td_initial(struct uhci_hc* hc, struct transfer_descriptor* td)
+{
+    // We've got the initial descriptor, and we've sent SET_ADDRESS.
+    // Here we will react to the response to the SET_ADDRESS
+
+    if ( (td->token & uhci_packet_id_setup) != uhci_packet_id_setup) {
+        // We only care about the SETUP packet
+        // Might as well flag as handled, saves us needlessly processing this for every HC
+        return true;
+    }
+
+    printf("UHCI HC with address '%d' has now been addressed\n", hc->num);
+
+    hc->state = uhci_hc_state_addressed;
+
+    // TODO: Check the bits and stuff to make sure this is indeed a SET_ADDR request response
+    // For now, just assume all is fine and dandy (uhci_hc already has the device addr)
+    get_full_device_descriptor_dev0(hc->desc.max_packet_size);
+
+    return true;
+}
+
+static bool uhci_hc_handle_td_addressed(struct uhci_hc* hc, struct transfer_descriptor* td)
 {
     if ( (td->token & uhci_packet_id_setup) != uhci_packet_id_setup) {
         // We only care about the SETUP packet
@@ -1243,7 +1306,6 @@ static bool uhci_hc_handle_td_initial(struct uhci_hc* hc, struct transfer_descri
     // Store the fact that we got the full descriptor
     hc->state = uhci_hc_state_full_dev;
 
-    // TODO: Assign address to hc
     return true;
 }
 
@@ -1255,6 +1317,8 @@ static bool uhci_hc_handle_td(struct uhci_hc* hc, struct transfer_descriptor* td
         return uhci_hc_handle_td_default(hc, td);
     } else if (hc->state == uhci_hc_state_initial_dev) {
         return uhci_hc_handle_td_initial(hc, td);
+    } else if (hc->state == uhci_hc_state_addressed) {
+        return uhci_hc_handle_td_addressed(hc, td);
     }
 
     KERROR("TODO: UHCI handle non-default states");
