@@ -232,7 +232,11 @@ void uhci_command(char** args, size_t arg_count)
     }
 }
 
-static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_packet_size);
+static void ctrl_read(uint32_t bytes_to_read,
+        uint32_t max_packet_size,
+        uint8_t device_addr,
+        struct device_request_packet* request);
+static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_packet_size, uint8_t device_addr);
 
 static void get_initial_device_descriptor_dev0()
 {
@@ -241,17 +245,34 @@ static void get_initial_device_descriptor_dev0()
     // * Request first 8 bytes of the descriptor
     // * Get max_packet_size from response (n)
     // * Request n bytes of the descriptor
-    get_device_descriptor_core(8, 8);
+    get_device_descriptor_core(8, 8, 0);
 }
 
-static void get_full_device_descriptor_dev0(uint32_t max_packet_size)
+static void get_full_device_descriptor_dev0(uint32_t max_packet_size, uint8_t device_addr)
 {
-    get_device_descriptor_core(sizeof(struct usb_device_descriptor), max_packet_size);
+    get_device_descriptor_core(sizeof(struct usb_device_descriptor), max_packet_size, device_addr);
 }
 
-static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_packet_size)
+static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_packet_size, uint8_t device_addr)
 {
-    printf("get_device_descriptor_newCORE(%d, %d)", descriptor_size, max_packet_size);
+    struct device_request_packet request;
+    request.type = usb_request_type_standard | usb_request_type_device_to_host;
+    request.request = UHCI_REQUEST_GET_DESCRIPTOR;
+
+    // High byte = 0x01 for DEVICE. Low byte = 0. The two bytes are written
+    // as a 16-bit word in little-endian
+    request.value = 0x1 << 8; // Device
+    request.length = descriptor_size;// max_packet_size;
+
+    ctrl_read(descriptor_size, max_packet_size, device_addr, &request);
+}
+
+static void ctrl_read(uint32_t bytes_to_read,
+        uint32_t max_packet_size,
+        uint8_t device_addr,
+        struct device_request_packet* request)
+{
+    printf("ctrl_read(%d, %d)", bytes_to_read, max_packet_size);
 
     if (max_packet_size > 0x3FF) {
         // We only have 10 bits to store the value, so clamp it
@@ -268,10 +289,10 @@ static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_pa
 
     my_memset((void*) data_ptr, 0, sizeof(struct get_device_desc_data));
 
-    uint32_t num_packages = max_packet_size >= descriptor_size
+    uint32_t num_packages = max_packet_size >= bytes_to_read
         ? 1
-        : ( (descriptor_size / max_packet_size) +
-                (descriptor_size % max_packet_size ? 1 : 0));
+        : ( (bytes_to_read / max_packet_size) +
+                (bytes_to_read % max_packet_size ? 1 : 0));
 
     intptr_t in_td_ptr = (intptr_t) aligned_palloc(sizeof(struct transfer_descriptor) * num_packages, 16);
     if (in_td_ptr == NULL) {
@@ -282,9 +303,9 @@ static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_pa
 
     my_memset((void*) in_td_ptr, 0, sizeof(struct transfer_descriptor) * num_packages);
 
-    intptr_t response_buffer_ptr = (intptr_t) pcalloc(sizeof(uint8_t), descriptor_size);
+    intptr_t response_buffer_ptr = (intptr_t) pcalloc(sizeof(uint8_t), bytes_to_read);
     if (response_buffer_ptr == NULL) {
-        KERROR("UHCI Get Device Desc: Failed to allocate memory for response buffer");
+        KERROR("UHCI ctrl_read: Failed to allocate memory for response buffer");
         phree((void*) data_ptr);
         phree((void*)in_td_ptr);
         return;
@@ -296,7 +317,7 @@ static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_pa
 
     data->num_in_descriptors = num_packages;
     data->request = (struct transfer_descriptor*) in_td_ptr;
-    data->response_buffer_size = descriptor_size;
+    data->response_buffer_size = bytes_to_read;
     data->response_buffer = (uint8_t*) response_buffer_ptr;
 
     data->setup.link_ptr = td_link_ptr_depth_first | ((uint32_t) in_td_ptr) ;
@@ -316,7 +337,7 @@ static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_pa
             data->setup.buffer_ptr);
 
     // Populate these requests backwards for ease of link ptr setup
-    uint32_t bytes_left_to_read = descriptor_size;
+    uint32_t bytes_left_to_read = bytes_to_read;
     uint32_t bytes_read = 0;
     for (int i = 0; i < num_packages; i++) {
         struct transfer_descriptor* cur = data->request + i;
@@ -325,20 +346,20 @@ static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_pa
             ? td_token_data_toggle
             : 0;
 
-        uint32_t bytes_to_read = bytes_left_to_read < max_packet_size
+        uint32_t total_bytes_to_read = bytes_left_to_read < max_packet_size
             ? bytes_left_to_read
             :max_packet_size;
-        bytes_left_to_read -= bytes_to_read;
+        bytes_left_to_read -= total_bytes_to_read;
 
         uint32_t buffer_offset = bytes_read;
-        bytes_read += bytes_to_read;
+        bytes_read += total_bytes_to_read;
 
         printf("Buf offset, i=%d,offset=%d,toRead:%d bytes (total left: %d)\n",
-                i, buffer_offset, bytes_to_read, bytes_left_to_read);
+                i, buffer_offset, total_bytes_to_read, bytes_left_to_read);
 
         cur->link_ptr = td_link_ptr_depth_first; // link_ptr populated later
         cur->ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_ioc;
-        cur->token = uhci_packet_id_in | ((bytes_to_read - 1) << 21) | data_toggle;
+        cur->token = uhci_packet_id_in | ((total_bytes_to_read - 1) << 21) | data_toggle;
         cur->buffer_ptr = ((uint32_t)data->response_buffer) + buffer_offset;
 
         printf("IN TD[%d] %P, link: %P, status: %P, token: %P, buffer: %P\n",
@@ -383,13 +404,19 @@ static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_pa
             data->queue.element_link);
 
     // Step 6: initialize data packet to send
+    data->request_packet.type = request->type;
+    data->request_packet.request = request->request;
+    data->request_packet.value = request->value;
+    data->request_packet.length = bytes_to_read;
+
+
     data->request_packet.type = usb_request_type_standard | usb_request_type_device_to_host;
     data->request_packet.request = UHCI_REQUEST_GET_DESCRIPTOR;
 
     // High byte = 0x01 for DEVICE. Low byte = 0. The two bytes are written
     // as a 16-bit word in little-endian
     data->request_packet.value = 0x1 << 8; // Device
-    data->request_packet.length = descriptor_size;// max_packet_size;
+    data->request_packet.length = bytes_to_read;
 
     print_td(&data->setup);
     for (int i = 0; i < data->num_in_descriptors; i++) {
@@ -1224,7 +1251,7 @@ static bool uhci_hc_handle_td_initial(struct uhci_hc* hc, struct transfer_descri
 
     // TODO: Check the bits and stuff to make sure this is indeed a SET_ADDR request response
     // For now, just assume all is fine and dandy (uhci_hc already has the device addr)
-    get_full_device_descriptor_dev0(hc->desc.max_packet_size);
+    get_full_device_descriptor_dev0(hc->desc.max_packet_size, hc->num);
 
     return true;
 }
