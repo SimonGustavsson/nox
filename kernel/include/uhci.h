@@ -175,12 +175,6 @@ struct uhci_string_descriptor {
 #define LANG_ID_EN_US 0x0409
 #define LANG_ID_GER   0x407
 
-#define DESCRIPTOR_TYPE_DEVICE    (0x01)
-#define DESCRIPTOR_TYPE_CONFIG    (0x02)
-#define DESCRIPTOR_TYPE_STRING    (0x03)
-#define DESCRIPTOR_TYPE_INTERFACE (0x04)
-#define DESCRIPTOR_TYPE_ENDPOINT  (0x05)
-
 // Bit 7 and 4:0 are reserved
 #define UHCI_CONF_ATTR_SELF_POWERED (1 << 6)
 #define UHCI_CONF_ATTR_REMOTE_WKUP (1 << 5)
@@ -188,12 +182,16 @@ struct uhci_string_descriptor {
 struct configuration_descriptor {
     uint8_t length; // Size of this descriptor
     uint8_t type; // Should be 0x02 for this
-    uint16_t total_length; // Total length of all data
+    // Total length of all data, including interface and endpoint
+    // descriptors that follows this in memory
+    uint16_t total_length;
     uint8_t num_interfaces;
     uint8_t config_val; // Value for this config
     uint8_t config_string_index; // String descriptor index of config
     uint8_t attributes; // See UHCI_CONF_ATTR
     uint8_t max_power; // Maximum power consumption
+
+    // Interface/Endpoint descriptors go here
 };
 
 struct interface_descriptor {
@@ -283,8 +281,12 @@ enum usb_request_type {
 #define UHCI_REQUEST_SET_INTERFACE     (0x11)
 #define UHCI_REQUEST_SYNC_FRAME        (0x12)
 
-#define DESCRIPTOR_TYPE_DEVICE  (1)
-#define DESCRIPTOR_TYPE_STRING  (3)
+#define DESCRIPTOR_TYPE_DEVICE    (0x01)
+#define DESCRIPTOR_TYPE_CONFIG    (0x02)
+#define DESCRIPTOR_TYPE_STRING    (0x03)
+#define DESCRIPTOR_TYPE_INTERFACE (0x04)
+#define DESCRIPTOR_TYPE_ENDPOINT  (0x05)
+
 
 struct device_request_packet {
     uint8_t  type;    // See usb_request_type

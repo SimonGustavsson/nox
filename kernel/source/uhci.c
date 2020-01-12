@@ -1521,10 +1521,16 @@ static bool uhci_hc_handle_td_has_lang(struct uhci_hc* hc, struct transfer_descr
     char* initial_desc = (char*) palloc(9);
 
     // Null terminate it
+    uint32_t str_max_index = desc->desc_length < 7 ? desc->desc_length - 1 : 7;
     *(initial_desc + (desc->desc_length < 7 ? desc->desc_length - 1 : 7) ) = 0;
 
     my_memcpy((void*) initial_desc, (void*)description_utf8, 8);
-    printf("String description: \"%s\"\n", initial_desc);
+    printf("String description: \"%s\" (", initial_desc);
+    for (int i = 0; i <= str_max_index; i++) {
+        terminal_write_uint8_x(*(initial_desc + i));
+        terminal_write_char(' ');
+    }
+    terminal_write_string(")\n");
 
     phree((void*) data);
 
