@@ -1398,6 +1398,9 @@ static bool uhci_hc_handle_td_full_dev(struct uhci_hc* hc, struct transfer_descr
     //  act_len = 0x7FF for OUT packet
     //  TODO check status bits (see td_ctrL-status enum)
 
+    // More critical TODO: We should go ahead and retrieve the entire list here.
+    // If a device's LANG ids list is > 8 bytes we're in for a bad time right now
+    // as we only retrieve the first 8 bytes
     struct get_device_desc_data* data = (struct get_device_desc_data*) td->software_use0;
 
     struct uhci_string_descriptor* desc = (struct uhci_string_descriptor*) data->response_buffer;
