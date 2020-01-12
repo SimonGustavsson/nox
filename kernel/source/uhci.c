@@ -329,12 +329,14 @@ static void ctrl_read(uint32_t bytes_to_read,
     //              find this struct again (to free it) once it's all done
     data->setup.software_use0 = (uint32_t) data;
 
+    /*
     printf("[SETUP PACKAGE] %P, link: %P, status: %P, token: %P, buffer: %P\n",
             (uint32_t) &data->setup,
             data->setup.link_ptr,
             data->setup.ctrl_status,
             data->setup.token,
             data->setup.buffer_ptr);
+    */
 
     // Populate these requests backwards for ease of link ptr setup
     uint32_t bytes_left_to_read = bytes_to_read;
@@ -354,14 +356,17 @@ static void ctrl_read(uint32_t bytes_to_read,
         uint32_t buffer_offset = bytes_read;
         bytes_read += total_bytes_to_read;
 
+        /*
         printf("Buf offset, i=%d,offset=%d,toRead:%d bytes (total left: %d)\n",
                 i, buffer_offset, total_bytes_to_read, bytes_left_to_read);
+        */
 
         cur->link_ptr = td_link_ptr_depth_first; // link_ptr populated later
         cur->ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_ioc;
         cur->token = uhci_packet_id_in | ((total_bytes_to_read - 1) << 21) | data_toggle;
         cur->buffer_ptr = ((uint32_t)data->response_buffer) + buffer_offset;
 
+        /*
         printf("IN TD[%d] %P, link: %P, status: %P, token: %P, buffer: %P\n",
                 i,
                 (uint32_t) cur,
@@ -369,6 +374,7 @@ static void ctrl_read(uint32_t bytes_to_read,
                 cur->ctrl_status,
                 cur->token,
                 cur->buffer_ptr);
+        */
     }
 
     for (int i = num_packages - 1; i >= 0; i--) {
@@ -387,21 +393,25 @@ static void ctrl_read(uint32_t bytes_to_read,
     data->ack.ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_ioc;
     data->ack.token = uhci_packet_id_out | (0x7FF << 21) | td_token_data_toggle;
 
+    /*
     printf("ACK TD: %P, Link:%P, Ctrl:%P, Token:%P, Buffer:%P\n",
             (uint32_t) &data->ack,
             data->ack.link_ptr,
             data->ack.ctrl_status,
             data->ack.token,
             data->ack.buffer_ptr);
+    */
 
     // Step 5: Setup queue to point to first TD
     data->queue.head_link = ( ((uint32_t) &data->setup) | td_link_ptr_terminate);
     data->queue.element_link = (uint32_t) &data->setup;
 
+    /*
     printf("Queue is @ %P, head: %P, element: %P\n",
             &data->queue,
             data->queue.head_link,
             data->queue.element_link);
+    */
 
     // Step 6: initialize data packet to send
     data->request_packet.type = request->type;
@@ -1287,6 +1297,8 @@ static bool uhci_hc_handle_td_initial(struct uhci_hc* hc, struct transfer_descri
 
     printf("UHCI HC with address '%d' has now been addressed\n", hc->num);
 
+    phree((void*) data);
+
     hc->state = uhci_hc_state_addressed;
 
     // TODO: Check the bits and stuff to make sure this is indeed a SET_ADDR request response
@@ -1456,6 +1468,8 @@ static bool uhci_hc_handle_td_full_dev(struct uhci_hc* hc, struct transfer_descr
         hc->lang_id = *langs;
     }
 
+    phree((void*) data);
+
     hc->state = uhci_hc_state_has_lang;
 
     // Read first 8 bytes to get size
@@ -1490,6 +1504,8 @@ static bool uhci_hc_handle_td_has_lang(struct uhci_hc* hc, struct transfer_descr
 
     struct get_device_desc_data* data = (struct get_device_desc_data*) td->software_use0;
 
+    schedule_queue_remove(&data->queue);
+
     // Skip past desc_length and 'type'.
     // TODO: Nox has no Unicode support
     uint8_t* description_utf8 = data->response_buffer + 2;
@@ -1510,7 +1526,7 @@ static bool uhci_hc_handle_td_has_lang(struct uhci_hc* hc, struct transfer_descr
     my_memcpy((void*) initial_desc, (void*)description_utf8, 8);
     printf("String description: \"%s\"\n", initial_desc);
 
-    schedule_queue_remove(&data->queue);
+    phree((void*) data);
 
     return true;
 }
