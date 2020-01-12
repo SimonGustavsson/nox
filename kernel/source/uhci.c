@@ -67,8 +67,8 @@ struct uhci_queue g_root_queues[16] ALIGN(16) = {
 #define UHCI_MAX_HCS 2
 
 struct uhci_hc g_host_controllers[UHCI_MAX_HCS] = {
-    { false, false, 0, uhci_hc_state_default, {}, 1 },
-    { false, false, 0, uhci_hc_state_default, {}, 2 },
+    { false, false, 0, uhci_hc_state_default, {}, 1, 0 },
+    { false, false, 0, uhci_hc_state_default, {}, 2, 0 },
 };
 
 typedef enum {
@@ -407,23 +407,7 @@ static void ctrl_read(uint32_t bytes_to_read,
     data->request_packet.type = request->type;
     data->request_packet.request = request->request;
     data->request_packet.value = request->value;
-    data->request_packet.length = bytes_to_read;
-
-    data->request_packet.type = usb_request_type_standard | usb_request_type_device_to_host;
-    data->request_packet.request = UHCI_REQUEST_GET_DESCRIPTOR;
-
-    // High byte = 0x01 for DEVICE. Low byte = 0. The two bytes are written
-    // as a 16-bit word in little-endian
-    data->request_packet.value = 0x1 << 8; // Device
-    data->request_packet.length = bytes_to_read;
-
-    /*
-    print_td(&data->setup);
-    for (int i = 0; i < data->num_in_descriptors; i++) {
-        print_td(data->request + i);
-    }
-    print_td(&data->ack);
-    */
+    data->request_packet.length = request->length;
 
     // Step 7: Add queue too root queue to schedule for execution
     //         we'll have to wait for an interrupt now
@@ -1395,7 +1379,65 @@ static bool uhci_hc_handle_td_addressed(struct uhci_hc* hc, struct transfer_desc
 
 static bool uhci_hc_handle_td_full_dev(struct uhci_hc* hc, struct transfer_descriptor* td)
 {
-    KERROR("Full dev state not implemented yet ----- TODO: Read Language Ids");
+    if ( (td->token & uhci_packet_id_setup) != uhci_packet_id_setup) {
+        // We only care about the SETUP packet
+        // Might as well flag as handled, saves us needlessly processing this for every HC
+        return true;
+    }
+
+    if (td->software_use0 == 0) {
+        printf("UHCI::handle::full::td: Ignoring secondary TD\n");
+        return true;
+    }
+
+    printf("Got string descriptor 0 setup response\n");
+
+    // Success transfer =
+    //  act_len = 7 for setup packet
+    //  act_len = x CORRECT for the number of ins, descriptor size?
+    //  act_len = 0x7FF for OUT packet
+    //  TODO check status bits (see td_ctrL-status enum)
+
+    struct get_device_desc_data* data = (struct get_device_desc_data*) td->software_use0;
+
+    struct uhci_string_descriptor* desc = (struct uhci_string_descriptor*) data->response_buffer;
+
+    uint32_t num_supported_langs = (desc->desc_length - 2) / 2;
+    printf("String desc! Len=%d,type=%P,supported languages=%d\n",
+            desc->desc_length, desc->type, num_supported_langs);
+
+    // Note: We only care about english
+    printf("Supported languages: ");
+    uint16_t* langs = (uint16_t*) (data->response_buffer + 2);
+    for (uint32_t i = 0; i < num_supported_langs; i++) {
+        uint16_t current = *(langs + i);
+        uint16_t primary = (current & 0x3FF); // 0:9 primary
+        uint16_t sub = (current >> 10); // 10:15 sub language
+
+        if (i == 0) {
+            // Save the first English one, this is what we'll use
+            hc->lang_id = current;
+        }
+
+        if (primary == LANG_ENGLISH) {
+            printf("English (");
+            switch (sub) {
+                case LANG_REGION_US: printf("USA) "); break;
+                case LANG_REGION_UK: printf("UK) "); break;
+                case LANG_REGION_AUS: printf("Australia) "); break;
+                case LANG_REGION_CAN: printf("Canada) "); break;
+                default: printf("%d) ", sub);
+            }
+        } else {
+            printf("%d ", *(langs + i));
+        }
+    }
+    printf("\n");
+
+    if (hc->lang_id == 0) {
+        KWARN("Device does not support any English languages, things are about to get weird");
+        hc->lang_id = *langs;
+    }
 
     return true;
 }

@@ -167,6 +167,11 @@ struct uhci_string_descriptor {
     uint8_t first_byte; // The remaining bytes follow this
 } PACKED;
 
+#define LANG_ENGLISH (0x09)
+#define LANG_REGION_US (0x01)
+#define LANG_REGION_UK (0x02)
+#define LANG_REGION_AUS (0x03)
+#define LANG_REGION_CAN (0x04)
 #define LANG_ID_EN_US 0x0409
 #define LANG_ID_GER   0x407
 
@@ -272,6 +277,8 @@ struct uhci_hc {
     // Device number, statically assigned by Nox
     // This will be the address we set the HC to
     uint8_t num;
+
+    uint16_t lang_id;
 };
 
 struct uhci_queue {
