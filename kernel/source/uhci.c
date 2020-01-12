@@ -1537,25 +1537,33 @@ static bool uhci_hc_handle_td_has_lang(struct uhci_hc* hc, struct transfer_descr
     return true;
 }
 
+static bool uhci_hc_handle_td_has_string_desc(struct uhci_hc* hc, struct transfer_descriptor* td)
+{
+    return true;
+}
+
+static bool uhci_hc_handle_td_has_config(struct uhci_hc* hc, struct transfer_descriptor* td)
+{
+    KPANIC("TODO! handle_td_has_config");
+    return true;
+}
+
 static bool uhci_hc_handle_td(struct uhci_hc* hc, struct transfer_descriptor* td)
 {
     if (1 == 0) print_td(td); // "unused" warnings meh
 
-    if (hc->state == uhci_hc_state_default) {
-        return uhci_hc_handle_td_default(hc, td);
-    } else if (hc->state == uhci_hc_state_initial_dev) {
-        return uhci_hc_handle_td_initial(hc, td);
-    } else if (hc->state == uhci_hc_state_addressed) {
-        return uhci_hc_handle_td_addressed(hc, td);
-    } else if (hc->state == uhci_hc_state_full_dev) {
-        return uhci_hc_handle_td_full_dev(hc, td);
-    } else if (hc->state == uhci_hc_state_has_lang) {
-        return uhci_hc_handle_td_has_lang(hc, td);
+    switch (hc->state) {
+        case uhci_hc_state_default:          return uhci_hc_handle_td_default(hc, td);
+        case uhci_hc_state_initial_dev:      return uhci_hc_handle_td_initial(hc, td);
+        case uhci_hc_state_addressed:        return uhci_hc_handle_td_addressed(hc, td);
+        case uhci_hc_state_full_dev:         return uhci_hc_handle_td_full_dev(hc, td);
+        case uhci_hc_state_has_lang:         return uhci_hc_handle_td_has_lang(hc, td);
+        case uhci_hc_state_has_string_desc:  return uhci_hc_handle_td_has_string_desc(hc, td);
+        case uhci_hc_state_has_config:       return uhci_hc_handle_td_has_config(hc, td);
+        default:
+            KERROR("TODO: UHCI handle non-default states");
+            return false;
     }
-
-    KERROR("TODO: UHCI handle non-default states");
-
-    return false;
 }
 
 static void handle_fl_complete_core(uint32_t* link_ptr, lp_type type)

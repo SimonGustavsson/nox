@@ -316,7 +316,10 @@ enum uhci_hc_state {
     uhci_hc_state_has_lang,
 
     // We have retrieved a string description of the device
-    uhci_hc_state_has_string_desc
+    uhci_hc_state_has_string_desc,
+
+    // We have retrieved device configuration
+    uhci_hc_state_has_config
 };
 
 struct uhci_hc {
