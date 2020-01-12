@@ -175,6 +175,53 @@ struct uhci_string_descriptor {
 #define LANG_ID_EN_US 0x0409
 #define LANG_ID_GER   0x407
 
+#define DESCRIPTOR_TYPE_DEVICE    (0x01)
+#define DESCRIPTOR_TYPE_CONFIG    (0x02)
+#define DESCRIPTOR_TYPE_STRING    (0x03)
+#define DESCRIPTOR_TYPE_INTERFACE (0x04)
+#define DESCRIPTOR_TYPE_ENDPOINT  (0x05)
+
+// Bit 7 and 4:0 are reserved
+#define UHCI_CONF_ATTR_SELF_POWERED (1 << 6)
+#define UHCI_CONF_ATTR_REMOTE_WKUP (1 << 5)
+
+struct configuration_descriptor {
+    uint8_t length; // Size of this descriptor
+    uint8_t type; // Should be 0x02 for this
+    uint16_t total_length; // Total length of all data
+    uint8_t num_interfaces;
+    uint8_t config_val; // Value for this config
+    uint8_t config_string_index; // String descriptor index of config
+    uint8_t attributes; // See UHCI_CONF_ATTR
+    uint8_t max_power; // Maximum power consumption
+};
+
+struct interface_descriptor {
+    uint8_t length; // Size of this descriptor
+    uint8_t type; // 0x4
+    uint8_t interface_num; // Number of the interface
+    uint8_t alternate_set; // Used to select alt. setting.
+    uint8_t num_endpoints; // Number of endpoints in config
+    uint8_t class_code;
+    uint8_t sub_class;
+    uint8_t protocol;
+    uint8_t interface_string_index; // String Descriptor index of interface
+};
+
+struct endpoint_descriptor {
+    uint8_t length;
+    uint8_t type; // 0x05
+    uint8_t addr; // Address. 3:0=endpoint num, 6:4=reserved, [7] 0==out, 1==in
+
+    // 1:0 = Transfer type (00=control,01=isochronous,10=bulk,11=interrupt)
+    // 3:2 = For ISO endpoints only (00=no sync,01=async,10=adaptive,11=sync)
+    // 5:4 = For ISO endpoints only (00=data,01=feedback,10=explicit feedback, 11=reserved)
+    // 7:6 = Reserved
+    //
+    uint8_t attributes;
+    uint16_t max_packet_size;
+};
+
 struct usb_device_descriptor {
     // Size of this struct (should be 18-bytes)
     uint8_t  desc_length;
