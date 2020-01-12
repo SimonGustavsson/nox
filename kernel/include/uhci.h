@@ -264,7 +264,10 @@ enum uhci_hc_state {
     uhci_hc_state_full_dev,
 
     // We have retrieved the supported language ids
-    uhci_hc_state_has_lang
+    uhci_hc_state_has_lang,
+
+    // We have retrieved a string description of the device
+    uhci_hc_state_has_string_desc
 };
 
 struct uhci_hc {

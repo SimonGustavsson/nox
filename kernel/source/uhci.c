@@ -1114,6 +1114,18 @@ static void request_lang_ids_core(struct uhci_hc* hc, uint32_t size)
     ctrl_read(size, hc->desc.max_packet_size, hc->num, &request);
 }
 
+static void get_device_string_descriptor(struct uhci_hc* hc, uint32_t str_len)
+{
+    struct device_request_packet request;
+    request.type = usb_request_type_standard | usb_request_type_device_to_host;
+    request.request = UHCI_REQUEST_GET_DESCRIPTOR;
+    request.value = DESCRIPTOR_TYPE_STRING << 8;
+    request.index = hc->lang_id;
+
+    printf("Requesting device (string) descriptor");
+    ctrl_read(str_len, hc->desc.max_packet_size, hc->num, &request);
+}
+
 /* Not yet used (can be used instead of setting IOC on TDs)
 static void poll_status_interrupt()
 {
@@ -1403,7 +1415,9 @@ static bool uhci_hc_handle_td_full_dev(struct uhci_hc* hc, struct transfer_descr
     // as we only retrieve the first 8 bytes
     struct get_device_desc_data* data = (struct get_device_desc_data*) td->software_use0;
 
-    struct uhci_string_descriptor* desc = (struct uhci_string_descriptor*) data->response_buffer;
+    schedule_queue_remove(&data->queue);
+
+    struct uhci_string_lang_descriptor* desc = (struct uhci_string_lang_descriptor*) data->response_buffer;
 
     uint32_t num_supported_langs = (desc->desc_length - 2) / 2;
     printf("String desc! Len=%d,type=%P,supported languages=%d\n",
@@ -1442,6 +1456,62 @@ static bool uhci_hc_handle_td_full_dev(struct uhci_hc* hc, struct transfer_descr
         hc->lang_id = *langs;
     }
 
+    hc->state = uhci_hc_state_has_lang;
+
+    // Read first 8 bytes to get size
+    get_device_string_descriptor(hc, 8);
+
+    return true;
+}
+
+static bool uhci_hc_handle_td_has_lang(struct uhci_hc* hc, struct transfer_descriptor* td)
+{
+    // At this stage, we have a LANG ID set on the hc, and we're expecting
+    // a string description of the device
+
+    if ( (td->token & uhci_packet_id_setup) != uhci_packet_id_setup) {
+        // We only care about the SETUP packet
+        // Might as well flag as handled, saves us needlessly processing this for every HC
+        return true;
+    }
+
+    if (td->software_use0 == 0) {
+        printf("UHCI::handle::has_lang::td: Ignoring secondary TD\n");
+        return true;
+    }
+
+    printf("Got string descriptor setup response\n");
+
+    // Success transfer =
+    //  act_len = 7 for setup packet
+    //  act_len = x CORRECT for the number of ins, descriptor size?
+    //  act_len = 0x7FF for OUT packet
+    //  TODO check status bits (see td_ctrL-status enum)
+
+    struct get_device_desc_data* data = (struct get_device_desc_data*) td->software_use0;
+
+    // Skip past desc_length and 'type'.
+    // TODO: Nox has no Unicode support
+    uint8_t* description_utf8 = data->response_buffer + 2;
+
+    struct uhci_string_descriptor* desc = (struct uhci_string_descriptor*) data->response_buffer;
+    printf("string descriptor is %d bytes long!\n", desc->desc_length);
+
+    if (desc->desc_length > 8) {
+        // TODO: retrieve full string (just make the same request again with the proper size)
+        KWARN("Only retrieved partial device descriptor string");
+    }
+
+    char* initial_desc = (char*) palloc(9);
+
+    // Null terminate it
+    *(initial_desc + (desc->desc_length < 7 ? desc->desc_length - 1 : 7) ) = 0;
+
+    my_memcpy((void*) initial_desc, (void*)description_utf8, 8);
+    printf("String description: \"%s\"\n", initial_desc);
+
+    schedule_queue_remove(&data->queue);
+
     return true;
 }
 
@@ -1457,6 +1527,8 @@ static bool uhci_hc_handle_td(struct uhci_hc* hc, struct transfer_descriptor* td
         return uhci_hc_handle_td_addressed(hc, td);
     } else if (hc->state == uhci_hc_state_full_dev) {
         return uhci_hc_handle_td_full_dev(hc, td);
+    } else if (hc->state == uhci_hc_state_has_lang) {
+        return uhci_hc_handle_td_has_lang(hc, td);
     }
 
     KERROR("TODO: UHCI handle non-default states");
