@@ -231,6 +231,9 @@ enum usb_request_type {
 #define UHCI_REQUEST_SET_INTERFACE     (0x11)
 #define UHCI_REQUEST_SYNC_FRAME        (0x12)
 
+#define DESCRIPTOR_TYPE_DEVICE  (1)
+#define DESCRIPTOR_TYPE_STRING  (3)
+
 struct device_request_packet {
     uint8_t  type;    // See usb_request_type
     uint8_t  request; // The desired request
@@ -253,7 +256,10 @@ enum uhci_hc_state {
     uhci_hc_state_addressed,
 
     // HC is addressed and we have received the full device descriptor
-    uhci_hc_state_full_dev
+    uhci_hc_state_full_dev,
+
+    // We have retrieved the supported language ids
+    uhci_hc_state_has_lang
 };
 
 struct uhci_hc {
