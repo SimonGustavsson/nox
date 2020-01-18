@@ -92,7 +92,7 @@ typedef enum {
 // -------------------------------------------------------------------------
 static void handle_fl_complete();
 static uint16_t get_cur_fp_index(struct uhci_hc* hc);
-static struct get_device_desc_data* get_initial_device_descriptor_dev0();
+static struct get_descriptor_data* get_initial_device_descriptor_dev0();
 static bool init_io(struct uhci_hc* hc, uint32_t base_addr, uint8_t irq);
 static bool init_mm(struct uhci_hc* hc, pci_device* dev, uint32_t base_addr, uint8_t irq);
 static bool init_mm32(struct uhci_hc* hc, uint32_t base_addr, uint8_t irq, bool below_1mb);
@@ -243,20 +243,20 @@ void uhci_command(char** args, size_t arg_count)
     */
 }
 
-static struct get_device_desc_data* ctrl_read(
+static struct get_descriptor_data* ctrl_read(
         struct uhci_hc* hc,
         uint32_t bytes_to_read,
         uint32_t max_packet_size,
         uint8_t device_addr,
         struct device_request_packet* request);
 
-static struct get_device_desc_data* get_device_descriptor_core(
+static struct get_descriptor_data* get_device_descriptor_core(
         struct uhci_hc* hc,
         uint32_t descriptor_size,
         uint32_t max_packet_size,
         uint8_t device_addr);
 
-static struct get_device_desc_data* get_initial_device_descriptor_dev0(struct uhci_hc* hc)
+static struct get_descriptor_data* get_initial_device_descriptor_dev0(struct uhci_hc* hc)
 {
     // Ensure status is CLEAN as a whistle to begin with
     OUTW(hc->base_addr + UHCI_STATUS_OFFSET, 0x00FF);
@@ -266,7 +266,7 @@ static struct get_device_desc_data* get_initial_device_descriptor_dev0(struct uh
     // * Request first 8 bytes of the descriptor
     // * Get max_packet_size from response (n)
     // * Request n bytes of the descriptor
-    struct get_device_desc_data* data = get_device_descriptor_core(hc, 8, 8, 0);
+    struct get_descriptor_data* data = get_device_descriptor_core(hc, 8, 8, 0);
     if (data == NULL) {
         return NULL;
     }
@@ -281,12 +281,12 @@ static struct get_device_desc_data* get_initial_device_descriptor_dev0(struct uh
     return NULL;
 }
 
-static struct get_device_desc_data* get_full_device_descriptor_dev0(struct uhci_hc* hc, uint32_t max_packet_size, uint8_t device_addr)
+static struct get_descriptor_data* get_full_device_descriptor_dev0(struct uhci_hc* hc, uint32_t max_packet_size, uint8_t device_addr)
 {
     return get_device_descriptor_core(hc, sizeof(struct usb_device_descriptor), max_packet_size, device_addr);
 }
 
-static struct get_device_desc_data* get_device_descriptor_core(struct uhci_hc* hc, uint32_t descriptor_size, uint32_t max_packet_size, uint8_t device_addr)
+static struct get_descriptor_data* get_device_descriptor_core(struct uhci_hc* hc, uint32_t descriptor_size, uint32_t max_packet_size, uint8_t device_addr)
 {
     struct device_request_packet request;
     request.type = usb_request_type_standard | usb_request_type_device_to_host;
@@ -300,7 +300,7 @@ static struct get_device_desc_data* get_device_descriptor_core(struct uhci_hc* h
     return ctrl_read(hc, descriptor_size, max_packet_size, device_addr, &request);
 }
 
-static struct get_device_desc_data* ctrl_read(struct uhci_hc* hc, uint32_t bytes_to_read,
+static struct get_descriptor_data* ctrl_read(struct uhci_hc* hc, uint32_t bytes_to_read,
         uint32_t max_packet_size,
         uint8_t device_addr,
         struct device_request_packet* request)
@@ -314,13 +314,13 @@ static struct get_device_desc_data* ctrl_read(struct uhci_hc* hc, uint32_t bytes
     }
 
     // Note: Queue needs to be 16-bit aligned
-    intptr_t data_ptr = (intptr_t) aligned_palloc(sizeof(struct get_device_desc_data), 16);
+    intptr_t data_ptr = (intptr_t) aligned_palloc(sizeof(struct get_descriptor_data), 16);
     if (data_ptr == NULL) {
         KERROR("UHCI Get Device Desc: Failed to allocate memory for data");
         return NULL;
     }
 
-    my_memset((void*) data_ptr, 0, sizeof(struct get_device_desc_data));
+    my_memset((void*) data_ptr, 0, sizeof(struct get_descriptor_data));
 
     uint32_t num_packages = max_packet_size >= bytes_to_read
         ? 1
@@ -344,7 +344,7 @@ static struct get_device_desc_data* ctrl_read(struct uhci_hc* hc, uint32_t bytes
         return NULL;
     }
 
-    struct get_device_desc_data* data = (struct get_device_desc_data*) data_ptr;
+    struct get_descriptor_data* data = (struct get_descriptor_data*) data_ptr;
 
     data->num_in_descriptors = num_packages;
     data->request = (struct transfer_descriptor*) in_td_ptr;
@@ -672,7 +672,7 @@ static bool init_io(struct uhci_hc* hc, uint32_t base_addr, uint8_t irq)
     }
 
     printf("Retrieving initial device descriptor for first HC\n");
-    struct get_device_desc_data* data = get_initial_device_descriptor_dev0(hc);
+    struct get_descriptor_data* data = get_initial_device_descriptor_dev0(hc);
 
     if (data == NULL) {
         return false;

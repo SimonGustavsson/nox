@@ -360,7 +360,7 @@ enum nox_uhci_queue {
     nox_uhci_queue_reserved4, // Not used (yet)
 };
 
-struct get_device_desc_data {
+struct get_descriptor_data {
     struct uhci_queue queue;
     struct transfer_descriptor setup;
 
