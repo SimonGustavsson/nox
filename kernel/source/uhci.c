@@ -82,7 +82,7 @@ typedef enum {
 // -------------------------------------------------------------------------
 static void handle_fl_complete();
 static uint16_t get_cur_fp_index();
-static void get_initial_device_descriptor_dev0();
+static struct get_device_desc_data* get_initial_device_descriptor_dev0();
 static bool init_io(uint32_t base_addr, uint8_t irq);
 static bool init_mm(pci_device* dev, uint32_t base_addr, uint8_t irq);
 static bool init_mm32(uint32_t base_addr, uint8_t irq, bool below_1mb);
@@ -98,7 +98,7 @@ static uint32_t port_count_get(uint32_t base_addr);
 static void schedule_init(uint32_t frame_list_addr);
 static void schedule_queue_remove(struct uhci_queue* queue);
 static void handle_fl_complete_core(uint32_t* link_ptr, lp_type);
-// static void poll_status_interrupt(); // Not used (yet?)
+static void poll_status_interrupt();
 static void print_frame_list_entry(uint32_t* entry);
 static void print_td(struct transfer_descriptor* td);
 static void initialize_root_queues();
@@ -232,28 +232,41 @@ void uhci_command(char** args, size_t arg_count)
     }
 }
 
-static void ctrl_read(uint32_t bytes_to_read,
+static struct get_device_desc_data* ctrl_read(uint32_t bytes_to_read,
         uint32_t max_packet_size,
         uint8_t device_addr,
         struct device_request_packet* request);
-static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_packet_size, uint8_t device_addr);
 
-static void get_initial_device_descriptor_dev0()
+static struct get_device_desc_data* get_device_descriptor_core(
+        uint32_t descriptor_size,
+        uint32_t max_packet_size,
+        uint8_t device_addr);
+
+static struct get_device_desc_data* get_initial_device_descriptor_dev0()
 {
     // We don't know the max packet size of un-addressed devices so:
     //
     // * Request first 8 bytes of the descriptor
     // * Get max_packet_size from response (n)
     // * Request n bytes of the descriptor
-    get_device_descriptor_core(8, 8, 0);
+    struct get_device_desc_data* data = get_device_descriptor_core(8, 8, 0);
+    if (data == NULL) {
+        return NULL;
+    }
+
+    printf("Waiting for interrupt on status... ");
+    poll_status_interrupt();
+    printf("done!\n");
+
+    return data;
 }
 
-static void get_full_device_descriptor_dev0(uint32_t max_packet_size, uint8_t device_addr)
+static struct get_device_desc_data* get_full_device_descriptor_dev0(uint32_t max_packet_size, uint8_t device_addr)
 {
-    get_device_descriptor_core(sizeof(struct usb_device_descriptor), max_packet_size, device_addr);
+    return get_device_descriptor_core(sizeof(struct usb_device_descriptor), max_packet_size, device_addr);
 }
 
-static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_packet_size, uint8_t device_addr)
+static struct get_device_desc_data* get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_packet_size, uint8_t device_addr)
 {
     struct device_request_packet request;
     request.type = usb_request_type_standard | usb_request_type_device_to_host;
@@ -264,10 +277,10 @@ static void get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_pa
     request.value = DESCRIPTOR_TYPE_DEVICE << 8;
     request.length = descriptor_size;
 
-    ctrl_read(descriptor_size, max_packet_size, device_addr, &request);
+    return ctrl_read(descriptor_size, max_packet_size, device_addr, &request);
 }
 
-static void ctrl_read(uint32_t bytes_to_read,
+static struct get_device_desc_data* ctrl_read(uint32_t bytes_to_read,
         uint32_t max_packet_size,
         uint8_t device_addr,
         struct device_request_packet* request)
@@ -284,7 +297,7 @@ static void ctrl_read(uint32_t bytes_to_read,
     intptr_t data_ptr = (intptr_t) aligned_palloc(sizeof(struct get_device_desc_data), 16);
     if (data_ptr == NULL) {
         KERROR("UHCI Get Device Desc: Failed to allocate memory for data");
-        return;
+        return NULL;
     }
 
     my_memset((void*) data_ptr, 0, sizeof(struct get_device_desc_data));
@@ -298,7 +311,7 @@ static void ctrl_read(uint32_t bytes_to_read,
     if (in_td_ptr == NULL) {
         KERROR("UHCI Get Device Desc: Failed to allocate memory for IN tds");
         phree((void*) data_ptr);
-        return;
+        return NULL;
     }
 
     my_memset((void*) in_td_ptr, 0, sizeof(struct transfer_descriptor) * num_packages);
@@ -308,7 +321,7 @@ static void ctrl_read(uint32_t bytes_to_read,
         KERROR("UHCI ctrl_read: Failed to allocate memory for response buffer");
         phree((void*) data_ptr);
         phree((void*)in_td_ptr);
-        return;
+        return NULL;
     }
 
     struct get_device_desc_data* data = (struct get_device_desc_data*) data_ptr;
@@ -362,7 +375,7 @@ static void ctrl_read(uint32_t bytes_to_read,
         */
 
         cur->link_ptr = td_link_ptr_depth_first; // link_ptr populated later
-        cur->ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_ioc;
+        cur->ctrl_status = td_ctrl_3errors | td_status_active; // | td_ctrl_ioc;
         cur->token = uhci_packet_id_in | ((total_bytes_to_read - 1) << 21) | data_toggle;
         cur->buffer_ptr = ((uint32_t)data->response_buffer) + buffer_offset;
 
@@ -390,7 +403,7 @@ static void ctrl_read(uint32_t bytes_to_read,
 
     // Step 4: the OUT package to acknowledge transfer
     data->ack.link_ptr = td_link_ptr_terminate;
-    data->ack.ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_ioc;
+    data->ack.ctrl_status = td_ctrl_3errors | td_status_active; // | td_ctrl_ioc;
     data->ack.token = uhci_packet_id_out | (0x7FF << 21) | td_token_data_toggle;
 
     /*
@@ -422,6 +435,8 @@ static void ctrl_read(uint32_t bytes_to_read,
     // Step 7: Add queue too root queue to schedule for execution
     //         we'll have to wait for an interrupt now
     schedule_queue_insert(&data->queue, nox_uhci_queue_1);
+
+    return data;
 }
 
 /*
@@ -658,10 +673,38 @@ static bool init_io(uint32_t base_addr, uint8_t irq)
     // NOTE: Host Controllers in the default state will respond to device number "0".
     //       Valid addresses are all non-zero. So we can only retrieve the device descriptor
     //       of one HC at the time
-    if (found_hc) {
-        printf("Retrieving initial device descriptor for first HC\n");
-        get_initial_device_descriptor_dev0();
+    if (!found_hc) {
+        return true;
     }
+
+    printf("Retrieving initial device descriptor for first HC\n");
+    struct get_device_desc_data* data = get_initial_device_descriptor_dev0();
+
+    print_td(&data->setup);
+    for (int i = 0; i < data->num_in_descriptors; i++) {
+        print_td(data->request + i);
+    }
+    print_td(&data->ack);
+
+    // First things first - make sure the HC forgets about this queue
+    // We don't want to free the memory, repurpose the address, and have the HC
+    // pick up on random bytes as if it was a TD and fire a bunch of errors.
+    // Not that this has happened...
+    schedule_queue_remove(&data->queue);
+
+    // Max buffer size stored in 31:21 (upper 10 bits)
+    uint8_t* response_buffer = (uint8_t*)data->response_buffer;
+
+    // Request descriptor again, but now using
+    // usb_device_descriptor->max_packet_size as buffer size to get entire descriptor
+    printf("Got small INITIAL device desc (first %d bytes, @ %P).\n", data->response_buffer_size, data->response_buffer);
+
+    struct usb_device_descriptor* desc = (struct usb_device_descriptor*)response_buffer;
+    printf("Device descriptor size: %d, type: %d, release num: %P, max packet: %d\n",
+            desc->desc_length,
+            desc->type,
+            desc->release_num,
+            desc->max_packet_size);
 
     return true;
 }
@@ -1136,16 +1179,19 @@ static void get_device_string_descriptor(struct uhci_hc* hc, uint32_t str_len)
     ctrl_read(str_len, hc->desc.max_packet_size, hc->num, &request);
 }
 
-/* Not yet used (can be used instead of setting IOC on TDs)
 static void poll_status_interrupt()
 {
   uint16_t status = 0;
-  do {
+  while (true) {
     status = INW(g_initialized_base_addr + UHCI_STATUS_OFFSET);
 
-  } while ((status & uhci_status_usb_interrupt) != uhci_status_usb_interrupt);
+    if ((status & uhci_status_usb_interrupt) != uhci_status_usb_interrupt) {
+        return;
+    }
+
+    pit_wait(10);
+  }
 }
-*/
 
 // -------------------------------------------------------------------------
 // IRQ Handler
