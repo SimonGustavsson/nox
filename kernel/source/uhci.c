@@ -39,36 +39,46 @@
 // -------------------------------------------------------------------------
 // Global Variables
 // -------------------------------------------------------------------------
-uint8_t g_irq_num;
+uint8_t num_hcs = 0;
 
-uint32_t g_initialized_base_addr;
-uint32_t g_frame_list;
-struct get_device_desc_data* g_last_request = NULL;
-
-// Note: The head_link gets set up in a function, because, constant expressions SUCK
-struct uhci_queue g_root_queues[16] ALIGN(16) = {
-    /*   1ms Queue */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
-    /*   2ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
-    /*   4ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
-    /*   8ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
-    /*  16ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
-    /*  32ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
-    /*  64ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
-    /* 128ms Queue */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
-    /*  Low speed  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
-    /*  Full speed */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
-    /*     ISO     */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
-    /*  Reserved0  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
-    /*  Reserved1  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
-    /*  Reserved2  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
-    /*  Reserved3  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
-    /*  Reserved4  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
-};
 #define UHCI_MAX_HCS 2
 
+// Note: The head_links gets set up in a function, because, constant expressions SUCK
 struct uhci_hc g_host_controllers[UHCI_MAX_HCS] = {
-    { false, false, 0, uhci_hc_state_default, {}, 1, 0 },
-    { false, false, 0, uhci_hc_state_default, {}, 2, 0 },
+    { false, false, 0, 0, 0, {}, {
+        /*   1ms Queue */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+        /*   2ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+        /*   4ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+        /*   8ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+        /*  16ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+        /*  32ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+        /*  64ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+        /* 128ms Queue */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+        /*  Low speed  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+        /*  Full speed */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+        /*     ISO     */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+        /*  Reserved0  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+        /*  Reserved1  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+        /*  Reserved2  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+        /*  Reserved3  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+        /*  Reserved4  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0}} },
+    { false, false, 0, 0, 0, {}, {
+        /*   1ms Queue */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+        /*   2ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+        /*   4ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+        /*   8ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+        /*  16ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+        /*  32ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+        /*  64ms Queue */ {0, td_link_ptr_terminate, NULL, 0},
+        /* 128ms Queue */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+        /*  Low speed  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+        /*  Full speed */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+        /*     ISO     */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+        /*  Reserved0  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+        /*  Reserved1  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+        /*  Reserved2  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+        /*  Reserved3  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0},
+        /*  Reserved4  */ {td_link_ptr_terminate, td_link_ptr_terminate, NULL, 0}} }
 };
 
 typedef enum {
@@ -81,45 +91,41 @@ typedef enum {
 // Forward Declarations
 // -------------------------------------------------------------------------
 static void handle_fl_complete();
-static uint16_t get_cur_fp_index();
+static uint16_t get_cur_fp_index(struct uhci_hc* hc);
 static struct get_device_desc_data* get_initial_device_descriptor_dev0();
-static bool init_io(uint32_t base_addr, uint8_t irq);
-static bool init_mm(pci_device* dev, uint32_t base_addr, uint8_t irq);
-static bool init_mm32(uint32_t base_addr, uint8_t irq, bool below_1mb);
-static bool init_mm64(uint64_t base_addr, uint8_t irq);
+static bool init_io(struct uhci_hc* hc, uint32_t base_addr, uint8_t irq);
+static bool init_mm(struct uhci_hc* hc, pci_device* dev, uint32_t base_addr, uint8_t irq);
+static bool init_mm32(struct uhci_hc* hc, uint32_t base_addr, uint8_t irq, bool below_1mb);
+static bool init_mm64(struct uhci_hc* hc, uint64_t base_addr, uint8_t irq);
 #ifdef USB_DEBUG
 static void print_init_info(struct pci_address* addr, uint32_t base_addr);
 #endif
 static int32_t detect_root(uint16_t base_addr, bool memory_mapped);
-static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped);
+static void setup(struct uhci_hc* hc, uint32_t base_addr, uint8_t irq, bool memory_mapped);
 static void uhci_irq(uint8_t irq, struct irq_regs* regs);
 static bool enable_port(uint32_t base_addr, uint8_t port);
 static uint32_t port_count_get(uint32_t base_addr);
-static void schedule_init(uint32_t frame_list_addr);
+static void schedule_init(struct uhci_hc* hc, uint32_t frame_list_addr);
 static void schedule_queue_remove(struct uhci_queue* queue);
-static void handle_fl_complete_core(uint32_t* link_ptr, lp_type);
-static void poll_status_interrupt();
-static void print_frame_list_entry(uint32_t* entry);
+static void handle_fl_complete_core(struct uhci_hc* hc, uint32_t* link_ptr, lp_type);
+static bool poll_status_interrupt();
+static void print_frame_list_entry(struct uhci_hc* hc, uint32_t* entry);
 static void print_td(struct transfer_descriptor* td);
-static void initialize_root_queues();
+static void initialize_root_queues(struct uhci_hc* hc);
 static void start_schedule(uint16_t base_addr);
 
 // -------------------------------------------------------------------------
 // Public Contract
 // -------------------------------------------------------------------------
-static void print_status_register(uint32_t base_addr);
-static void print_status_register2()
+static void print_status_register(struct uhci_hc* hc)
 {
-    if(g_initialized_base_addr == NULL) {
+    if(hc->base_addr == NULL) {
         KERROR("THe UHCI has not been initialized yet!");
         return;
     }
 
-    print_status_register(g_initialized_base_addr);
-}
+    uint32_t base_addr = hc->base_addr;
 
-static void print_status_register(uint32_t base_addr)
-{
     uint16_t status = INW(base_addr + UHCI_STATUS_OFFSET);
     terminal_write_string("UHCI Status Register. Base: ");
     terminal_write_uint32_x(base_addr);
@@ -153,7 +159,11 @@ void print_queue_type(enum nox_uhci_queue type)
 
 void uhci_command(char** args, size_t arg_count)
 {
+    // All comments have been disabled for now as I'm refactoring UHCI
+    // to support multiple host controllers and cleaning up
+    /*
     if(kstrcmp(args[1], "fl")) {
+
         SHOWVAL_U32("Dumping 20 first frames from list at: ", g_frame_list);
 
         uint32_t* fl = (uint32_t*)(uintptr_t)(g_frame_list);
@@ -230,43 +240,53 @@ void uhci_command(char** args, size_t arg_count)
     else if(kstrcmp(args[1], "insert")) {
         get_initial_device_descriptor_dev0();
     }
+    */
 }
 
-static struct get_device_desc_data* ctrl_read(uint32_t bytes_to_read,
+static struct get_device_desc_data* ctrl_read(
+        struct uhci_hc* hc,
+        uint32_t bytes_to_read,
         uint32_t max_packet_size,
         uint8_t device_addr,
         struct device_request_packet* request);
 
 static struct get_device_desc_data* get_device_descriptor_core(
+        struct uhci_hc* hc,
         uint32_t descriptor_size,
         uint32_t max_packet_size,
         uint8_t device_addr);
 
-static struct get_device_desc_data* get_initial_device_descriptor_dev0()
+static struct get_device_desc_data* get_initial_device_descriptor_dev0(struct uhci_hc* hc)
 {
+    // Ensure status is CLEAN as a whistle to begin with
+    OUTW(hc->base_addr + UHCI_STATUS_OFFSET, 0x00FF);
+
     // We don't know the max packet size of un-addressed devices so:
     //
     // * Request first 8 bytes of the descriptor
     // * Get max_packet_size from response (n)
     // * Request n bytes of the descriptor
-    struct get_device_desc_data* data = get_device_descriptor_core(8, 8, 0);
+    struct get_device_desc_data* data = get_device_descriptor_core(hc, 8, 8, 0);
     if (data == NULL) {
         return NULL;
     }
 
     printf("Waiting for interrupt on status... ");
-    poll_status_interrupt();
-    printf("done!\n");
+    if (poll_status_interrupt()) {
+        printf("done!\n");
+        return data;
+    }
 
-    return data;
+    KWARN("FAiled to retrieve initial device descriptor");
+    return NULL;
 }
 
-static struct get_device_desc_data* get_full_device_descriptor_dev0(uint32_t max_packet_size, uint8_t device_addr)
+static struct get_device_desc_data* get_full_device_descriptor_dev0(struct uhci_hc* hc, uint32_t max_packet_size, uint8_t device_addr)
 {
-    return get_device_descriptor_core(sizeof(struct usb_device_descriptor), max_packet_size, device_addr);
+    return get_device_descriptor_core(hc, sizeof(struct usb_device_descriptor), max_packet_size, device_addr);
 }
 
-static struct get_device_desc_data* get_device_descriptor_core(uint32_t descriptor_size, uint32_t max_packet_size, uint8_t device_addr)
+static struct get_device_desc_data* get_device_descriptor_core(struct uhci_hc* hc, uint32_t descriptor_size, uint32_t max_packet_size, uint8_t device_addr)
 {
     struct device_request_packet request;
     request.type = usb_request_type_standard | usb_request_type_device_to_host;
@@ -277,10 +297,10 @@ static struct get_device_desc_data* get_device_descriptor_core(uint32_t descript
     request.value = DESCRIPTOR_TYPE_DEVICE << 8;
     request.length = descriptor_size;
 
-    return ctrl_read(descriptor_size, max_packet_size, device_addr, &request);
+    return ctrl_read(hc, descriptor_size, max_packet_size, device_addr, &request);
 }
 
-static struct get_device_desc_data* ctrl_read(uint32_t bytes_to_read,
+static struct get_device_desc_data* ctrl_read(struct uhci_hc* hc, uint32_t bytes_to_read,
         uint32_t max_packet_size,
         uint8_t device_addr,
         struct device_request_packet* request)
@@ -326,8 +346,6 @@ static struct get_device_desc_data* ctrl_read(uint32_t bytes_to_read,
 
     struct get_device_desc_data* data = (struct get_device_desc_data*) data_ptr;
 
-    g_last_request = data;
-
     data->num_in_descriptors = num_packages;
     data->request = (struct transfer_descriptor*) in_td_ptr;
     data->response_buffer_size = bytes_to_read;
@@ -342,14 +360,12 @@ static struct get_device_desc_data* ctrl_read(uint32_t bytes_to_read,
     //              find this struct again (to free it) once it's all done
     data->setup.software_use0 = (uint32_t) data;
 
-    /*
     printf("[SETUP PACKAGE] %P, link: %P, status: %P, token: %P, buffer: %P\n",
             (uint32_t) &data->setup,
             data->setup.link_ptr,
             data->setup.ctrl_status,
             data->setup.token,
             data->setup.buffer_ptr);
-    */
 
     // Populate these requests backwards for ease of link ptr setup
     uint32_t bytes_left_to_read = bytes_to_read;
@@ -369,17 +385,14 @@ static struct get_device_desc_data* ctrl_read(uint32_t bytes_to_read,
         uint32_t buffer_offset = bytes_read;
         bytes_read += total_bytes_to_read;
 
-        /*
         printf("Buf offset, i=%d,offset=%d,toRead:%d bytes (total left: %d)\n",
                 i, buffer_offset, total_bytes_to_read, bytes_left_to_read);
-        */
 
         cur->link_ptr = td_link_ptr_depth_first; // link_ptr populated later
         cur->ctrl_status = td_ctrl_3errors | td_status_active; // | td_ctrl_ioc;
         cur->token = uhci_packet_id_in | ((total_bytes_to_read - 1) << 21) | data_toggle;
         cur->buffer_ptr = ((uint32_t)data->response_buffer) + buffer_offset;
 
-        /*
         printf("IN TD[%d] %P, link: %P, status: %P, token: %P, buffer: %P\n",
                 i,
                 (uint32_t) cur,
@@ -387,7 +400,6 @@ static struct get_device_desc_data* ctrl_read(uint32_t bytes_to_read,
                 cur->ctrl_status,
                 cur->token,
                 cur->buffer_ptr);
-        */
     }
 
     for (int i = num_packages - 1; i >= 0; i--) {
@@ -406,25 +418,21 @@ static struct get_device_desc_data* ctrl_read(uint32_t bytes_to_read,
     data->ack.ctrl_status = td_ctrl_3errors | td_status_active; // | td_ctrl_ioc;
     data->ack.token = uhci_packet_id_out | (0x7FF << 21) | td_token_data_toggle;
 
-    /*
     printf("ACK TD: %P, Link:%P, Ctrl:%P, Token:%P, Buffer:%P\n",
             (uint32_t) &data->ack,
             data->ack.link_ptr,
             data->ack.ctrl_status,
             data->ack.token,
             data->ack.buffer_ptr);
-    */
 
     // Step 5: Setup queue to point to first TD
     data->queue.head_link = ( ((uint32_t) &data->setup) | td_link_ptr_terminate);
     data->queue.element_link = (uint32_t) &data->setup;
 
-    /*
     printf("Queue is @ %P, head: %P, element: %P\n",
             &data->queue,
             data->queue.head_link,
             data->queue.element_link);
-    */
 
     // Step 6: initialize data packet to send
     data->request_packet.type = request->type;
@@ -434,7 +442,7 @@ static struct get_device_desc_data* ctrl_read(uint32_t bytes_to_read,
 
     // Step 7: Add queue too root queue to schedule for execution
     //         we'll have to wait for an interrupt now
-    schedule_queue_insert(&data->queue, nox_uhci_queue_1);
+    schedule_queue_insert(hc, &data->queue, nox_uhci_queue_1);
 
     return data;
 }
@@ -499,7 +507,7 @@ static void print_td(struct transfer_descriptor* td)
     KINFO("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 }
 
-static void print_frame_list_entry_core(uint32_t* entry, uint8_t indent)
+static void print_frame_list_entry_core(struct uhci_hc* hc, uint32_t* entry, uint8_t indent)
 {
     for (uint8_t i = 0; i < indent; i++) terminal_write_char('\t');
 
@@ -515,7 +523,7 @@ static void print_frame_list_entry_core(uint32_t* entry, uint8_t indent)
             terminal_write_string(" Depth ");
 
         uint32_t entry_addr = (uint32_t)entry;
-        uint32_t root_addr = (uint32_t) (&g_root_queues[0]);
+        uint32_t root_addr = (uint32_t) (&hc->root_queues[0]);
         uint32_t root_size = sizeof(struct uhci_queue) * 16;
 
         if(entry_addr >= root_addr && entry_addr <= (root_addr + root_size)) {
@@ -541,29 +549,31 @@ static void print_frame_list_entry_core(uint32_t* entry, uint8_t indent)
 
     uint32_t* next_entry = ((uint32_t*)(uintptr_t)((*entry) & 0xFFFFFFF0));
 
-    print_frame_list_entry_core(next_entry, indent + 1);
+    print_frame_list_entry_core(hc, next_entry, indent + 1);
 }
 
-static void print_frame_list_entry(uint32_t* entry)
+static void print_frame_list_entry(struct uhci_hc* hc, uint32_t* entry)
 {
-    print_frame_list_entry_core(entry, 0);
+    print_frame_list_entry_core(hc, entry, 0);
 }
 
 void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, uint8_t irq)
 {
+    if (num_hcs >= (UHCI_MAX_HCS - 1)) { // num_hcs is 0-based
+        KPANIC("UHCI:: Only 2 host controllers are supported");
+        return;
+    }
+
+    // Allocate a HC to this init request
+    struct uhci_hc* hc = &g_host_controllers[num_hcs++];
+
     // IRQs are remapped with IRQ0 being at 0x20
     irq += 0x20;
 
     SHOWVAL_U8("UHCI IRQ set to ", irq);
 
-    initialize_root_queues();
+    initialize_root_queues(hc);
     cli_cmd_handler_register("uhci", uhci_command);
-
-    // Unused functions (so far.. make sure they're "used")
-    if(1 == 0) {
-        schedule_queue_insert(NULL, nox_uhci_queue_1);
-        schedule_queue_remove(NULL);
-    }
 
     terminal_write_string("UHCI Initializing Host Controller\n");
     terminal_indentation_increase();
@@ -575,12 +585,13 @@ void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, ui
     bool result = false;
     if((base_addr & 0x1) == 0) {
         //uint32_t size = prepare_pci_device(addr, 9, true);
-
-        result = init_mm(dev, base_addr, irq);
+        hc->io = false;
+        result = init_mm(hc, dev, base_addr, irq);
     }
     else {
         // It's an IO port mapped device
-        result = init_io(base_addr, irq);
+        hc->io = true;
+        result = init_io(hc, base_addr, irq);
     }
 
     terminal_indentation_decrease();
@@ -589,22 +600,21 @@ void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, ui
         KERROR("UHCI Host controller initialization failed.");
     }
     else {
-        SHOWVAL_U32("UHCI: Initialized base address: ", g_initialized_base_addr);
+        SHOWVAL_U32("UHCI: Initialized base address: ", hc->base_addr);
 
-        SHOWVAL_U32("Root queue start: ", (uint32_t)&g_root_queues[0]);
-        SHOWVAL_U32("Root queue end: ", (uint32_t)&g_root_queues[15]);
+        SHOWVAL_U32("Root queue start: ", (uint32_t)&hc->root_queues[0]);
+        SHOWVAL_U32("Root queue end: ", (uint32_t)&hc->root_queues[15]);
     }
 }
 
 // -------------------------------------------------------------------------
 // Initialization
 // -------------------------------------------------------------------------
-static bool init_io(uint32_t base_addr, uint8_t irq)
+static bool init_io(struct uhci_hc* hc, uint32_t base_addr, uint8_t irq)
 {
     // Scrap bit 1:0 as it's not a part of the address
     uint32_t io_addr = (base_addr & ~(1));
-
-    g_initialized_base_addr = io_addr;
+    hc->base_addr = io_addr;
 
 #ifdef USB_DEBUG
     printf("UHCI init_io (addr: %P)\n", io_addr);
@@ -615,70 +625,58 @@ static bool init_io(uint32_t base_addr, uint8_t irq)
         return false;
     }
 
-    setup(io_addr, irq, false);
+    setup(hc, io_addr, irq, false);
+
+    // Initialize our schedule skeleton
+    uint32_t frame_list_addr = IND(io_addr + UHCI_FRAME_BASEADDR_OFFSET);
+
+    schedule_init(hc, frame_list_addr);
+    start_schedule(io_addr);
+
 
     uint32_t port_count = port_count_get(io_addr);
 
     if (port_count == 0) {
-#ifdef USB_DEBUG
-    printf("UHCI Done detecting ports. Found 0, returning...\n");
-#endif
+        printf("UHCI Done detecting ports. Found 0, returning...\n");
         return true;
     } else {
-#ifdef USB_DEBUG
-    printf("UHCI Done detecting ports. Found %d, enabling ports...\n", port_count);
-#endif
+        printf("UHCI Done detecting ports. Found %d, enabling ports...\n", port_count);
     }
 
-    uint8_t cur_hc_index = 0;
-    bool found_hc = false;
+    // Detect all ports on the HC
+    bool has_enabled_port = false;
     for (size_t i = 0; i < port_count; i++) {
-        if (cur_hc_index > UHCI_MAX_HCS - 1) {
-            KWARN("Detected more available IO ports for HCs than we support (2)");
-            break;
-        }
 
         // Ports are 1-based
         uint8_t port_num = i + 1;
 
-        if(enable_port(io_addr, port_num)) {
-            found_hc = true;
+        if(!enable_port(io_addr, port_num)) {
+            continue;
+        }
 
-            struct uhci_hc* hc = &g_host_controllers[cur_hc_index];
-            hc->active = true;
-            hc->io = true;
-            hc->addr = port_num;
-
-            // Next port, next device
-            cur_hc_index++;
-
-            printf("UHCI: Found HC on IO port %d\n", port_num);
-
-            // Initialize our schedule skeleton
-            uint32_t frame_list_addr = IND(io_addr + UHCI_FRAME_BASEADDR_OFFSET);
+        // Set flag to perform device enumeration
+        has_enabled_port = true;
+        printf("UHCI: Found device on port %d\n", port_num);
 
 #ifdef USB_DEBUG
-            printf("Initializing FL at %P\n", frame_list_addr);
+        printf("Initializing FL at %P\n", frame_list_addr);
 #endif
-
-            schedule_init(frame_list_addr);
-
-            start_schedule(io_addr);
-
-            printf("UHCI HC on IO port %d is now ready.\n", port_num);
-        }
     }
 
     // Get the device descriptor of the first device we found
     // NOTE: Host Controllers in the default state will respond to device number "0".
     //       Valid addresses are all non-zero. So we can only retrieve the device descriptor
     //       of one HC at the time
-    if (!found_hc) {
+    if (!has_enabled_port) {
         return true;
     }
 
     printf("Retrieving initial device descriptor for first HC\n");
-    struct get_device_desc_data* data = get_initial_device_descriptor_dev0();
+    struct get_device_desc_data* data = get_initial_device_descriptor_dev0(hc);
+
+    if (data == NULL) {
+        return false;
+    }
 
     print_td(&data->setup);
     for (int i = 0; i < data->num_in_descriptors; i++) {
@@ -706,17 +704,29 @@ static bool init_io(uint32_t base_addr, uint8_t irq)
             desc->release_num,
             desc->max_packet_size);
 
+    if (1 == 0) {
+        // Throw away calls to avoid unused warnings
+        get_full_device_descriptor_dev0(hc, 0, 0);
+        print_frame_list_entry(hc, NULL);
+    }
+
     return true;
 }
 
-static bool init_mm(pci_device* dev, uint32_t base_addr, uint8_t irq)
+/*
+static bool enumerate_devices() {
+    return true;
+}
+*/
+
+static bool init_mm(struct uhci_hc* hc, pci_device* dev, uint32_t base_addr, uint8_t irq)
 {
     // Where in memory space this is is stored in bits 2:1
     uint8_t address_space = ((base_addr >> 1) & 0x3);
     switch(address_space) {
-        case mm_space_32bit:    return init_mm32(base_addr, irq, false);
-        case mm_space_below1mb: return init_mm32(base_addr, irq, true);
-        case mm_space_64bit:    return init_mm64(((((uint64_t)dev->base_addr5) << 32) | base_addr), irq);
+        case mm_space_32bit:    return init_mm32(hc, base_addr, irq, false);
+        case mm_space_below1mb: return init_mm32(hc, base_addr, irq, true);
+        case mm_space_64bit:    return init_mm64(hc, ((((uint64_t)dev->base_addr5) << 32) | base_addr), irq);
         default:
         {
             // TODO: Can we recover? assume 32-bit?
@@ -726,12 +736,12 @@ static bool init_mm(pci_device* dev, uint32_t base_addr, uint8_t irq)
     }
 }
 
-static bool init_mm32(uint32_t base_addr, uint8_t irq, bool below_1mb)
+static bool init_mm32(struct uhci_hc* hc, uint32_t base_addr, uint8_t irq, bool below_1mb)
 {
     return false;
 }
 
-static bool init_mm64(uint64_t base_addr, uint8_t irq)
+static bool init_mm64(struct uhci_hc* hc, uint64_t base_addr, uint8_t irq)
 {
     return false;
 }
@@ -794,7 +804,7 @@ static int32_t detect_root(uint16_t base_addr, bool memory_mapped)
     return 0; // Looks good
 }
 
-static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped)
+static void setup(struct uhci_hc* hc, uint32_t base_addr, uint8_t irq, bool memory_mapped)
 {
     if(memory_mapped)
     {
@@ -820,7 +830,8 @@ static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped)
     // Currently - We will only have one UHCI, so it's safe to store
     // some global state about it - however, this is mostly used for debugging
     // so if/when we support multiple host controllers, this can go. :-)
-    g_frame_list = stack_frame;
+    // ^ Now supporting multiple, but keeping the comment because its cute ^
+    hc->frame_list = stack_frame;
 
     OUTD(base_addr + UHCI_FRAME_BASEADDR_OFFSET, stack_frame);
 
@@ -831,7 +842,7 @@ static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped)
     // Clear the entire status register (it's WC)
     OUTW(base_addr + UHCI_STATUS_OFFSET, 0xFFFF);
 
-    print_status_register(base_addr);
+    print_status_register(hc);
 
 #ifdef USB_DEBUG
     terminal_write_string("UHCI set up for use\n");
@@ -839,7 +850,8 @@ static void setup(uint32_t base_addr, uint8_t irq, bool memory_mapped)
 
     // Install the interrupt handler before we enable the schedule
     // So we don't miss any interrupts!
-    g_irq_num = irq;
+    hc->irq_num = irq;
+    hc->active = true;
     interrupt_receive(irq, uhci_irq);
     pic_enable_irq(irq);
 }
@@ -852,7 +864,7 @@ static void start_schedule(uint16_t base_addr)
     // so just to be sure, set it to 32-byte packets
     cmd &= ~uhci_cmd_max_packet;
 
-    KINFO("Starting UHCI schedule");
+    printf("Starting UHCI schedule on base_addr '%P'\n", base_addr);
 
     // Go go go!
     OUTW(base_addr + UHCI_CMD_OFFSET, cmd |= uhci_cmd_runstop);
@@ -974,7 +986,7 @@ static void schedule_queue_remove(struct uhci_queue* queue)
     parent->head_link = td_link_ptr_queue | td_link_ptr_terminate;
 }
 
-void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue root)
+void schedule_queue_insert(struct uhci_hc* hc, struct uhci_queue* queue, enum nox_uhci_queue root)
 {
     uint32_t queue_addr = (uint32_t) queue;
     if ( (queue_addr & 0xF) != 0) {
@@ -982,7 +994,7 @@ void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue root)
         return;
     }
 
-    struct uhci_queue* parent = &g_root_queues[root];
+    struct uhci_queue* parent = &hc->root_queues[root];
 
     // Advance horizontally through the queue pointers until we
     // find the terminating entry, that's where we'll insert this one
@@ -1006,7 +1018,7 @@ void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue root)
     parent->first_element_link = (uint32_t) queue;
 }
 
-static void schedule_init(uint32_t frame_list_addr)
+static void schedule_init(struct uhci_hc* hc, uint32_t frame_list_addr)
 {
     // In Nox, we maintain 16 queues in the frame list, these queues
     // are static, and we should never have to modify the frame list after this point
@@ -1036,170 +1048,109 @@ static void schedule_init(uint32_t frame_list_addr)
         uint32_t frame_num = i + 1;
 
         if(frame_num % 128 == 0) {
-            frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_128]) | frame_list_ptr_queue;
+            frame_list[i] = (uint32_t)(uintptr_t)(&hc->root_queues[nox_uhci_queue_128]) | frame_list_ptr_queue;
         }
         else if(frame_num % 64 == 0) {
-            frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_64]) | frame_list_ptr_queue;
+            frame_list[i] = (uint32_t)(uintptr_t)(&hc->root_queues[nox_uhci_queue_64]) | frame_list_ptr_queue;
         }
         else if(frame_num % 32 == 0) {
-            frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_32]) | frame_list_ptr_queue;
+            frame_list[i] = (uint32_t)(uintptr_t)(&hc->root_queues[nox_uhci_queue_32]) | frame_list_ptr_queue;
         }
         else if(frame_num % 16 == 0) {
-            frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_16]) | frame_list_ptr_queue;
+            frame_list[i] = (uint32_t)(uintptr_t)(&hc->root_queues[nox_uhci_queue_16]) | frame_list_ptr_queue;
         }
         else if(frame_num % 8 == 0) {
-            frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_8]) | frame_list_ptr_queue;
+            frame_list[i] = (uint32_t)(uintptr_t)(&hc->root_queues[nox_uhci_queue_8]) | frame_list_ptr_queue;
         }
         else if(frame_num % 4 == 0) {
-            frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_4]) | frame_list_ptr_queue;
+            frame_list[i] = (uint32_t)(uintptr_t)(&hc->root_queues[nox_uhci_queue_4]) | frame_list_ptr_queue;
         }
         else if(frame_num % 2 == 0) {
-            frame_list[i] = (uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_2]) | frame_list_ptr_queue;
+            frame_list[i] = (uint32_t)(uintptr_t)(&hc->root_queues[nox_uhci_queue_2]) | frame_list_ptr_queue;
         }
         else if(frame_num % 1 == 0) {
-            frame_list[i] = ((uint32_t)(uintptr_t)(&g_root_queues[nox_uhci_queue_1])) | frame_list_ptr_queue;
+            frame_list[i] = ((uint32_t)(uintptr_t)(&hc->root_queues[nox_uhci_queue_1])) | frame_list_ptr_queue;
         }
     }
 }
 
-static void initialize_root_queues()
+static void initialize_root_queues(struct uhci_hc* hc)
 {
     terminal_write_string("Initializing root UHCI queues\n");
 
-    g_root_queues[0].head_link = td_link_ptr_terminate;
-    g_root_queues[1].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_1] | td_link_ptr_queue);
-    g_root_queues[2].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_2] | td_link_ptr_queue);
-    g_root_queues[3].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_4] | td_link_ptr_queue);
-    g_root_queues[4].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_8] | td_link_ptr_queue);
-    g_root_queues[5].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_16] | td_link_ptr_queue);
-    g_root_queues[6].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_32] | td_link_ptr_queue);
-    g_root_queues[7].head_link = ((uint32_t)(uintptr_t)&g_root_queues[nox_uhci_queue_64] | td_link_ptr_queue);
+    hc->root_queues[0].head_link = td_link_ptr_terminate;
+    hc->root_queues[1].head_link = ((uint32_t)(uintptr_t)&hc->root_queues[nox_uhci_queue_1] | td_link_ptr_queue);
+    hc->root_queues[2].head_link = ((uint32_t)(uintptr_t)&hc->root_queues[nox_uhci_queue_2] | td_link_ptr_queue);
+    hc->root_queues[3].head_link = ((uint32_t)(uintptr_t)&hc->root_queues[nox_uhci_queue_4] | td_link_ptr_queue);
+    hc->root_queues[4].head_link = ((uint32_t)(uintptr_t)&hc->root_queues[nox_uhci_queue_8] | td_link_ptr_queue);
+    hc->root_queues[5].head_link = ((uint32_t)(uintptr_t)&hc->root_queues[nox_uhci_queue_16] | td_link_ptr_queue);
+    hc->root_queues[6].head_link = ((uint32_t)(uintptr_t)&hc->root_queues[nox_uhci_queue_32] | td_link_ptr_queue);
+    hc->root_queues[7].head_link = ((uint32_t)(uintptr_t)&hc->root_queues[nox_uhci_queue_64] | td_link_ptr_queue);
 
     // Ensure sane values (just in case memory was dirty)
-    g_root_queues[0].first_element_link = 0;
-    g_root_queues[1].first_element_link = 0;
-    g_root_queues[2].first_element_link = 0;
-    g_root_queues[3].first_element_link = 0;
-    g_root_queues[4].first_element_link = 0;
-    g_root_queues[5].first_element_link = 0;
-    g_root_queues[6].first_element_link = 0;
-    g_root_queues[7].first_element_link = 0;
+    hc->root_queues[0].first_element_link = 0;
+    hc->root_queues[1].first_element_link = 0;
+    hc->root_queues[2].first_element_link = 0;
+    hc->root_queues[3].first_element_link = 0;
+    hc->root_queues[4].first_element_link = 0;
+    hc->root_queues[5].first_element_link = 0;
+    hc->root_queues[6].first_element_link = 0;
+    hc->root_queues[7].first_element_link = 0;
 
-    SHOWVAL_U32("Root Queue 1 head_link: ", g_root_queues[0].head_link);
-    SHOWVAL_U32("Root Queue 2 head_link: ", g_root_queues[1].head_link);
-    SHOWVAL_U32("Root Queue 3 head_link: ", g_root_queues[2].head_link);
-    SHOWVAL_U32("Root Queue 4 head_link: ", g_root_queues[3].head_link);
-    SHOWVAL_U32("Root Queue 5 head_link: ", g_root_queues[4].head_link);
-    SHOWVAL_U32("Root Queue 6 head_link: ", g_root_queues[5].head_link);
-    SHOWVAL_U32("Root Queue 7 head_link: ", g_root_queues[6].head_link);
-    SHOWVAL_U32("Root Queue 8 head_link: ", g_root_queues[7].head_link);
+    SHOWVAL_U32("Root Queue 1 head_link: ", hc->root_queues[0].head_link);
+    SHOWVAL_U32("Root Queue 2 head_link: ", hc->root_queues[1].head_link);
+    SHOWVAL_U32("Root Queue 3 head_link: ", hc->root_queues[2].head_link);
+    SHOWVAL_U32("Root Queue 4 head_link: ", hc->root_queues[3].head_link);
+    SHOWVAL_U32("Root Queue 5 head_link: ", hc->root_queues[4].head_link);
+    SHOWVAL_U32("Root Queue 6 head_link: ", hc->root_queues[5].head_link);
+    SHOWVAL_U32("Root Queue 7 head_link: ", hc->root_queues[6].head_link);
+    SHOWVAL_U32("Root Queue 8 head_link: ", hc->root_queues[7].head_link);
 }
 
-static void uhci_set_hc_addr(struct uhci_hc* hc, uint8_t addr)
-{
-    intptr_t mem = (intptr_t) aligned_palloc(sizeof(struct uhci_set_addr_data), 16);
-    if (mem <= 0) {
-        KPANIC("Failed to allocate memory when setting UHCI HC address");
-    }
-
-    my_memset((void*) mem, 0, sizeof(struct uhci_set_addr_data));
-
-    struct uhci_set_addr_data* data = (struct uhci_set_addr_data*) mem;
-
-    data->setup.link_ptr = td_link_ptr_depth_first | (uint32_t) &data->ack;
-    data->setup.ctrl_status = td_ctrl_3errors | td_status_active;
-    data->setup.token = ( (8 - 1) << 21) | uhci_packet_id_setup;
-    data->setup.buffer_ptr = (uint32_t)&data->request;
-    data->setup.software_use0 = (uint32_t) data; // Store ptr for retrieval on response
-
-    // Send an *in* package to acknowledge transfer
-    // This differs from ctrl_read where we have a bunch of IN packets and send an out
-    // package to acknowledge transfer, because in this case we sent data
-    data->ack.link_ptr = td_link_ptr_terminate;
-    data->ack.ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_ioc;
-    data->ack.token = ((0x7FF<< 21) | uhci_packet_id_in) | td_token_data_toggle;
-    data->ack.buffer_ptr = 0;
-    data->ack.software_use0 = (uint32_t) data; // Store ptr for retrieval on response
-
-    data->request.request = UHCI_REQUEST_SET_ADDRESS;
-    data->request.value = addr;
-
-    data->queue.head_link = (uint32_t) &data->setup | td_link_ptr_terminate;
-    data->queue.element_link = (uint32_t) &data->setup;
-
-    /*
-    printf("Queue: %P\n", &data->queue);
-    printf("%P\n%P\n\n", data->queue.head_link, data->queue.element_link);
-
-    printf("TD0: %P\n", &data->setup);
-    printf("link:%P\nstatus:%P\ntoken:%P\nbuffer:%P\n\n", data->setup.link_ptr, data->setup.ctrl_status, data->setup.token, data->setup.buffer_ptr);
-
-    printf("TD1: %P\n", &data->ack);
-    printf("link:%P\nstatus:%P\ntoken:%P\nbuffer:%P\n", data->ack.link_ptr, data->ack.ctrl_status, data->ack.token, data->ack.buffer_ptr);
-    */
-
-    schedule_queue_insert(&data->queue, nox_uhci_queue_1);
-}
-
-static void request_lang_ids_core(struct uhci_hc* hc, uint32_t size);
-
-static void request_lang_ids_initial(struct uhci_hc* hc)
-{
-    // Request first 8 bytes, read size, get full list
-    request_lang_ids_core(hc, 8);
-}
-
-static void request_lang_ids_full(struct uhci_hc* hc, uint32_t size)
-{
-    request_lang_ids_core(hc, size);
-}
-
-static void request_lang_ids_core(struct uhci_hc* hc, uint32_t size)
-{
-    struct device_request_packet request;
-    request.type = usb_request_type_standard | usb_request_type_device_to_host;
-    request.request = UHCI_REQUEST_GET_DESCRIPTOR;
-    request.value = DESCRIPTOR_TYPE_STRING << 8;
-    request.index = 0; // Index of 0 means "get me the language ids"
-
-    printf("Requesting HC LANG IDs, max pkt sz: %d\n", hc->desc.max_packet_size);
-
-    ctrl_read(size, hc->desc.max_packet_size, hc->num, &request);
-}
-
-static void get_device_string_descriptor(struct uhci_hc* hc, uint32_t str_len)
-{
-    struct device_request_packet request;
-    request.type = usb_request_type_standard | usb_request_type_device_to_host;
-    request.request = UHCI_REQUEST_GET_DESCRIPTOR;
-    request.value = DESCRIPTOR_TYPE_STRING << 8;
-    request.index = hc->lang_id;
-
-    printf("Requesting device (string) descriptor");
-    ctrl_read(str_len, hc->desc.max_packet_size, hc->num, &request);
-}
-
-static void poll_status_interrupt()
+static bool poll_status_interrupt(struct uhci_hc* hc)
 {
   uint16_t status = 0;
-  while (true) {
-    status = INW(g_initialized_base_addr + UHCI_STATUS_OFFSET);
+  uint32_t attempts = 0;
+  uint32_t max_attempts = 500; // 5s
 
-    if ((status & uhci_status_usb_interrupt) != uhci_status_usb_interrupt) {
-        return;
+  while (true) {
+    status = INW(hc->base_addr + UHCI_STATUS_OFFSET);
+
+    if ((status & uhci_status_usb_interrupt) == uhci_status_usb_interrupt) {
+        return true;
+    }
+
+    attempts++;
+
+    if (attempts >= max_attempts) {
+        KERROR("Timed out waiting for sync status interrupt");
+        return false;
     }
 
     pit_wait(10);
   }
 }
 
+static struct uhci_hc* get_hc_with_irq(uint8_t irq)
+{
+    for (int i = 0; i < UHCI_MAX_HCS; i++ ) {
+        struct uhci_hc* hc = &g_host_controllers[i];
+
+        // TODO: Add active check too?
+        if (hc->irq_num == irq) {
+            return hc;
+        }
+    }
+
+    return NULL;
+}
+
 // -------------------------------------------------------------------------
 // IRQ Handler
 // -------------------------------------------------------------------------
-static void uhci_irq_core(uint8_t irq, struct irq_regs* regs)
+static void uhci_irq_core(struct uhci_hc* hc, uint8_t irq, struct irq_regs* regs)
 {
-    //print_status_register2();
-    uint16_t status = INW(g_initialized_base_addr + UHCI_STATUS_OFFSET);
+    uint16_t status = INW(hc->base_addr + UHCI_STATUS_OFFSET);
 
     if(is_set(status, uhci_status_process_error)) {
         KPANIC("UHCI Error interrupt - Panicking!");
@@ -1212,28 +1163,33 @@ static void uhci_irq_core(uint8_t irq, struct irq_regs* regs)
     }
 
     // Send the completed TDs to the devices
-    handle_fl_complete();
+    handle_fl_complete(hc);
 
     // It's a usb_interrupt, clear status
     // Just blast ALL the bits (this might trash some stuff we want
     // to react to, like process_error?)
-    OUTW(g_initialized_base_addr + UHCI_STATUS_OFFSET, 0xFFFF);
+    OUTW(hc->base_addr + UHCI_STATUS_OFFSET, 0xFFFF);
 }
 
 static void uhci_irq(uint8_t irq, struct irq_regs* regs)
 {
     KINFO("~~~~~~~~~~~~~~uhci irq fired~~~~~~~~~~~~~~~~~~");
 
-    uhci_irq_core(irq, regs);
+    struct uhci_hc* hc = get_hc_with_irq(irq);
+    if (hc == NULL) {
+        KPANIC("Unable to locate HC that can handle this IRQ!");
+    }
 
-    pic_send_eoi(g_irq_num);
+    uhci_irq_core(hc, irq, regs);
+
+    pic_send_eoi(hc->irq_num);
 
     KINFO("~~~~~~~~~~~~~~End IRQ~~~~~~~~~~~~~~~~~~");
 }
 
-static uint16_t get_cur_fp_index()
+static uint16_t get_cur_fp_index(struct uhci_hc* hc)
 {
-    uint16_t cur_frame = INW(g_initialized_base_addr + UHCI_FRAME_NUM_OFFSET);
+    uint16_t cur_frame = INW(hc->base_addr + UHCI_FRAME_NUM_OFFSET);
 
     // Bits 15:11 are reserved, mask off
     return cur_frame & 0x3FF;
@@ -1251,368 +1207,16 @@ static uint32_t* lp_get_addr(uint32_t* link_ptr)
     return (uint32_t*) ((uint32_t)link_ptr & ~0xF);
 }
 
-static bool uhci_hc_handle_td_default(struct uhci_hc* hc, struct transfer_descriptor* td)
-{
-    if ( (td->token & uhci_packet_id_setup) != uhci_packet_id_setup) {
-        // We only care about the SETUP packet initially
-        // Might as well flag as handled, saves us needlessly processing this for every HC
-        return true;
-    }
-
-    // By convention, all SETUP package have the TD that is associated
-    // with the setup request in software_use0
-    if (td->software_use0 == 0) {
-        KERROR("UHCI: Missing link for SETUP data package");
-        return true;
-    }
-
-    struct get_device_desc_data* data = (struct get_device_desc_data*) td->software_use0;
-
-    print_td(&data->setup);
-    for (int i = 0; i < data->num_in_descriptors; i++) {
-        print_td(data->request + i);
-    }
-    print_td(&data->ack);
-
-    // First things first - make sure the HC forgets about this queue
-    // We don't want to free the memory, repurpose the address, and have the HC
-    // pick up on random bytes as if it was a TD and fire a bunch of errors.
-    // Not that this has happened...
-    schedule_queue_remove(&data->queue);
-
-    printf("Found DATA at %P\n", td->software_use0);
-
-    // Switch state
-    hc->state = uhci_hc_state_initial_dev;
-
-    // Max buffer size stored in 31:21 (upper 10 bits)
-    uint8_t* response_buffer = (uint8_t*)data->response_buffer;
-
-    // Save device descriptor on device
-    my_memcpy((void*) &hc->desc, (void*) response_buffer, data->response_buffer_size);
-
-    // Free *all* memory allocated to achieve the request for the initial descriptor
-    phree((void*) data);
-
-    // Request descriptor again, but now using
-    // usb_device_descriptor->max_packet_size as buffer size to get entire descriptor
-    printf("Got small INITIAL device desc (first %d bytes, @ %P).\n", data->response_buffer_size, data->response_buffer);
-
-    struct usb_device_descriptor* desc = (struct usb_device_descriptor*)response_buffer;
-
-    printf("Device descriptor size: %d, type: %d, release num: %P, max packet: %d\n",
-            desc->desc_length,
-            desc->type,
-            desc->release_num,
-            desc->max_packet_size);
-
-    if (desc->desc_length < 18) {
-        KPANIC("UNexpected descriptor size! PANICING");
-    }
-
-    printf("Thanks for the initial device descriptor, getting the full one (size: %d)...\n",
-            hc->desc.max_packet_size);
-
-    uhci_set_hc_addr(hc, hc->num);
-
-    return true;
-}
-
-static bool uhci_hc_handle_td_initial(struct uhci_hc* hc, struct transfer_descriptor* td)
-{
-    // We've got the initial descriptor, and we've sent SET_ADDRESS.
-    // Here we will react to the response to the SET_ADDRESS
-
-    if ( (td->token & uhci_packet_id_setup) != uhci_packet_id_setup) {
-        // We only care about the SETUP packet
-        // Might as well flag as handled, saves us needlessly processing this for every HC
-        return true;
-    }
-
-    if (td->software_use0 == 0) {
-        printf("UHCI::handle::initial::td: Ignoring secondary TD\n");
-        return true;
-    }
-
-    struct uhci_set_addr_data* data = (struct uhci_set_addr_data*) td->software_use0;
-
-    schedule_queue_remove(&data->queue);
-
-    print_td(&data->setup);
-    print_td(&data->ack);
-
-    printf("UHCI HC with address '%d' has now been addressed\n", hc->num);
-
-    phree((void*) data);
-
-    hc->state = uhci_hc_state_addressed;
-
-    // TODO: Check the bits and stuff to make sure this is indeed a SET_ADDR request response
-    // For now, just assume all is fine and dandy (uhci_hc already has the device addr)
-    get_full_device_descriptor_dev0(hc->desc.max_packet_size, hc->num);
-
-    return true;
-}
-
-static bool uhci_hc_handle_td_addressed(struct uhci_hc* hc, struct transfer_descriptor* td)
-{
-    if ( (td->token & uhci_packet_id_setup) != uhci_packet_id_setup) {
-        // We only care about the SETUP packet
-        // Might as well flag as handled, saves us needlessly processing this for every HC
-        // printf("UHCI - Initial State: Ignoring non-setup packet\n");
-        return true;
-    }
-
-    if (td->software_use0 == 0) {
-        printf("UHCI::handle::addressed::td: Ignoring secondary TD\n");
-        return true;
-    }
-
-    printf("Got full descriptor setup response\n");
-
-    // Success transfer =
-    //  act_len = 7 for setup packet
-    //  act_len = x CORRECT for the number of ins, descriptor size?
-    //  act_len = 0x7FF for OUT packet
-    //  TODO check status bits (see td_ctrL-status enum)
-
-    struct get_device_desc_data* data = (struct get_device_desc_data*) td->software_use0;
-
-    schedule_queue_remove(&data->queue);
-
-    uint32_t setup_len = data->setup.token >> 21;
-    if (setup_len != 7) {
-        KERROR("UHCI: SETUP packet length for full descriptor was not 7.\n");
-        return true;
-    }
-
-    uint32_t ack_len = data->ack.token >> 21;
-    if (ack_len != 0x7FF) {
-        KERROR("UHCI: ACK packet length for full descriptor was not 0x7FF.\n");
-        return true;
-    }
-
-    // All IN transfers point to the same buffer, but different positions within it
-    // find the lowest address (= start of buffer)
-    uint32_t response_buffer_addr = 0xFFFFFFFF;
-    uint32_t buffer_size = 0;
-    for (int i = 0; i < data->num_in_descriptors; i++) {
-        struct transfer_descriptor* in_td = data->request + i;
-
-        if (in_td->buffer_ptr < response_buffer_addr) {
-            response_buffer_addr = in_td->buffer_ptr;
-        }
-
-        // + 1 because the size - 1 is stored in the TDs
-        buffer_size += (in_td->token >> 21) + 1;
-    }
-
-    struct usb_device_descriptor* desc = (struct usb_device_descriptor*) response_buffer_addr;
-
-    if (desc->desc_length != 18) {
-        printf("Device desc length: %d\n", desc->desc_length);
-        KPANIC("Corrupted device descriptor received. Unexpected desc length!");
-    }
-
-    printf("::FULL Device Desc:: (Buf:addr=%P,len=%d)\n", response_buffer_addr, buffer_size);
-    printf("Len=%d,type=%d,rel=%d,class=%d,sub class=%d,protocol=%d,max pkt sz=%d\n",
-            desc->desc_length,
-            desc->type,
-            desc->release_num,
-            desc->device_class,
-            desc->sub_class,
-            desc->protocol,
-            desc->max_packet_size);
-    printf("Vendor=%d,product=%d,dev_rel=%d,manufacturer=%d,product=%d,serial=%d,num_configs=%d\n",
-            desc->vendor_id,
-            desc->product_id,
-            desc->device_rel,
-            desc->manufacturer,
-            desc->product,
-            desc->serial_num,
-            desc->num_configurations);
-
-    // Save device descriptor on device
-    my_memcpy((void*) &hc->desc, (void*) response_buffer_addr, buffer_size);
-
-    // Free *all* memory allocated to achieve the request for the initial descriptor
-    phree((void*) data);
-
-    // Store the fact that we got the full descriptor
-    hc->state = uhci_hc_state_full_dev;
-
-    request_lang_ids_initial(hc);
-    if (1 == 0) request_lang_ids_full(hc, 256);
-
-    return true;
-}
-
-static bool uhci_hc_handle_td_full_dev(struct uhci_hc* hc, struct transfer_descriptor* td)
-{
-    if ( (td->token & uhci_packet_id_setup) != uhci_packet_id_setup) {
-        // We only care about the SETUP packet
-        // Might as well flag as handled, saves us needlessly processing this for every HC
-        return true;
-    }
-
-    if (td->software_use0 == 0) {
-        printf("UHCI::handle::full::td: Ignoring secondary TD\n");
-        return true;
-    }
-
-    printf("Got string descriptor 0 setup response\n");
-
-    // Success transfer =
-    //  act_len = 7 for setup packet
-    //  act_len = x CORRECT for the number of ins, descriptor size?
-    //  act_len = 0x7FF for OUT packet
-    //  TODO check status bits (see td_ctrL-status enum)
-
-    // More critical TODO: We should go ahead and retrieve the entire list here.
-    // If a device's LANG ids list is > 8 bytes we're in for a bad time right now
-    // as we only retrieve the first 8 bytes
-    struct get_device_desc_data* data = (struct get_device_desc_data*) td->software_use0;
-
-    schedule_queue_remove(&data->queue);
-
-    struct uhci_string_lang_descriptor* desc = (struct uhci_string_lang_descriptor*) data->response_buffer;
-
-    uint32_t num_supported_langs = (desc->desc_length - 2) / 2;
-    printf("String desc! Len=%d,type=%P,supported languages=%d\n",
-            desc->desc_length, desc->type, num_supported_langs);
-
-    // Note: We only care about english
-    printf("Supported languages: ");
-    uint16_t* langs = (uint16_t*) (data->response_buffer + 2);
-    for (uint32_t i = 0; i < num_supported_langs; i++) {
-        uint16_t current = *(langs + i);
-        uint16_t primary = (current & 0x3FF); // 0:9 primary
-        uint16_t sub = (current >> 10); // 10:15 sub language
-
-        if (i == 0) {
-            // Save the first English one, this is what we'll use
-            hc->lang_id = current;
-        }
-
-        if (primary == LANG_ENGLISH) {
-            printf("English (");
-            switch (sub) {
-                case LANG_REGION_US: printf("USA) "); break;
-                case LANG_REGION_UK: printf("UK) "); break;
-                case LANG_REGION_AUS: printf("Australia) "); break;
-                case LANG_REGION_CAN: printf("Canada) "); break;
-                default: printf("%d) ", sub);
-            }
-        } else {
-            printf("%d ", *(langs + i));
-        }
-    }
-    printf("\n");
-
-    if (hc->lang_id == 0) {
-        KWARN("Device does not support any English languages, things are about to get weird");
-        hc->lang_id = *langs;
-    }
-
-    phree((void*) data);
-
-    hc->state = uhci_hc_state_has_lang;
-
-    // Read first 8 bytes to get size
-    get_device_string_descriptor(hc, 8);
-
-    return true;
-}
-
-static bool uhci_hc_handle_td_has_lang(struct uhci_hc* hc, struct transfer_descriptor* td)
-{
-    // At this stage, we have a LANG ID set on the hc, and we're expecting
-    // a string description of the device
-
-    if ( (td->token & uhci_packet_id_setup) != uhci_packet_id_setup) {
-        // We only care about the SETUP packet
-        // Might as well flag as handled, saves us needlessly processing this for every HC
-        return true;
-    }
-
-    if (td->software_use0 == 0) {
-        printf("UHCI::handle::has_lang::td: Ignoring secondary TD\n");
-        return true;
-    }
-
-    printf("Got string descriptor setup response\n");
-
-    // Success transfer =
-    //  act_len = 7 for setup packet
-    //  act_len = x CORRECT for the number of ins, descriptor size?
-    //  act_len = 0x7FF for OUT packet
-    //  TODO check status bits (see td_ctrL-status enum)
-
-    struct get_device_desc_data* data = (struct get_device_desc_data*) td->software_use0;
-
-    schedule_queue_remove(&data->queue);
-
-    // Skip past desc_length and 'type'.
-    // TODO: Nox has no Unicode support
-    uint8_t* description_utf8 = data->response_buffer + 2;
-
-    struct uhci_string_descriptor* desc = (struct uhci_string_descriptor*) data->response_buffer;
-    printf("string descriptor is %d bytes long!\n", desc->desc_length);
-
-    if (desc->desc_length > 8) {
-        // TODO: retrieve full string (just make the same request again with the proper size)
-        KWARN("Only retrieved partial device descriptor string");
-    }
-
-    char* initial_desc = (char*) palloc(9);
-
-    // Null terminate it
-    uint32_t str_max_index = desc->desc_length < 7 ? desc->desc_length - 1 : 7;
-    *(initial_desc + (desc->desc_length < 7 ? desc->desc_length - 1 : 7) ) = 0;
-
-    my_memcpy((void*) initial_desc, (void*)description_utf8, 8);
-    printf("String description: \"%s\" (", initial_desc);
-    for (int i = 0; i <= str_max_index; i++) {
-        terminal_write_uint8_x(*(initial_desc + i));
-        terminal_write_char(' ');
-    }
-    terminal_write_string(")\n");
-
-    phree((void*) data);
-
-    return true;
-}
-
-static bool uhci_hc_handle_td_has_string_desc(struct uhci_hc* hc, struct transfer_descriptor* td)
-{
-    return true;
-}
-
-static bool uhci_hc_handle_td_has_config(struct uhci_hc* hc, struct transfer_descriptor* td)
-{
-    KPANIC("TODO! handle_td_has_config");
-    return true;
-}
 
 static bool uhci_hc_handle_td(struct uhci_hc* hc, struct transfer_descriptor* td)
 {
     if (1 == 0) print_td(td); // "unused" warnings meh
 
-    switch (hc->state) {
-        case uhci_hc_state_default:          return uhci_hc_handle_td_default(hc, td);
-        case uhci_hc_state_initial_dev:      return uhci_hc_handle_td_initial(hc, td);
-        case uhci_hc_state_addressed:        return uhci_hc_handle_td_addressed(hc, td);
-        case uhci_hc_state_full_dev:         return uhci_hc_handle_td_full_dev(hc, td);
-        case uhci_hc_state_has_lang:         return uhci_hc_handle_td_has_lang(hc, td);
-        case uhci_hc_state_has_string_desc:  return uhci_hc_handle_td_has_string_desc(hc, td);
-        case uhci_hc_state_has_config:       return uhci_hc_handle_td_has_config(hc, td);
-        default:
-            KERROR("TODO: UHCI handle non-default states");
-            return false;
-    }
+    // TODO: Redirect to the correct device
+    return true;
 }
 
-static void handle_fl_complete_core(uint32_t* link_ptr, lp_type type)
+static void handle_fl_complete_core(struct uhci_hc* hc, uint32_t* link_ptr, lp_type type)
 {
     uint32_t* next = 0;
     lp_type next_type;
@@ -1624,16 +1228,7 @@ static void handle_fl_complete_core(uint32_t* link_ptr, lp_type type)
 
                 uint32_t td_lp = (td->link_ptr & ~0xF);
 
-                bool handled = false;
-                for (int i = 0; i < UHCI_MAX_HCS; i++) {
-                    struct uhci_hc* hc = &g_host_controllers[i];
-                    if (hc->active && uhci_hc_handle_td(hc, td)) {
-                        handled = true;
-                        break;
-                    }
-                }
-
-                if (!handled) {
+                if (!uhci_hc_handle_td(hc, td)) {
                     KERROR("Encountered TD that went unhandled");
                 }
 
@@ -1641,7 +1236,7 @@ static void handle_fl_complete_core(uint32_t* link_ptr, lp_type type)
                     next_type = ptr_to_lp_type(td->link_ptr);
                     next = (uint32_t*) td_lp;
 
-                    handle_fl_complete_core(next, next_type);
+                    handle_fl_complete_core(hc, next, next_type);
                 }
 
             break;
@@ -1654,7 +1249,7 @@ static void handle_fl_complete_core(uint32_t* link_ptr, lp_type type)
                     next_type = ptr_to_lp_type(queue->head_link);
                     next = (uint32_t*)queue->head_link;
 
-                    handle_fl_complete_core(next, next_type);
+                    handle_fl_complete_core(hc, next, next_type);
                 } else {
                     SHOWVAL_U32("Found queue that doesn't point to anything active, e.g.", queue->head_link);
                 }
@@ -1666,7 +1261,7 @@ static void handle_fl_complete_core(uint32_t* link_ptr, lp_type type)
                 next_type = ptr_to_lp_type((uint32_t) next);
 
                 if ((uint32_t) next != 0)
-                    handle_fl_complete_core(next, next_type);
+                    handle_fl_complete_core(hc, next, next_type);
 
                 break;
             }
@@ -1678,16 +1273,16 @@ static void handle_fl_complete_core(uint32_t* link_ptr, lp_type type)
     }
 }
 
-static void handle_fl_complete()
+static void handle_fl_complete(struct uhci_hc* hc)
 {
-    uint16_t cur_fp_index = get_cur_fp_index();
+    uint16_t cur_fp_index = get_cur_fp_index(hc);
     cur_fp_index -= 1;
 
-    uint32_t* frame_list = (uint32_t*)g_frame_list;
+    uint32_t* frame_list = (uint32_t*)hc->frame_list;
 
     uint32_t* cur_fp = frame_list + cur_fp_index;
 
-    handle_fl_complete_core(cur_fp, lp_type_lp);
+    handle_fl_complete_core(hc, cur_fp, lp_type_lp);
 }
 
 // -------------------------------------------------------------------------

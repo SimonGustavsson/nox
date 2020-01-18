@@ -104,7 +104,10 @@ static void uhci_device_get_descriptor(struct uhci_device* device)
 
     // Step 7: Add queue too root queue to schedule for execution
     //         we'll have to wait for an interrupt now
-    schedule_queue_insert(queue, nox_uhci_queue_1);
+    //
+    // Commented out as this code path is not in use (yet)
+    //
+    // schedule_queue_insert(queue, nox_uhci_queue_1);
 }
 
 struct transfer_descriptor* init_td(struct uhci_device* device, uintptr_t td_mem, uint8_t packet_id, uint32_t link, uint8_t* buf)
@@ -112,9 +115,9 @@ struct transfer_descriptor* init_td(struct uhci_device* device, uintptr_t td_mem
     struct transfer_descriptor* td = (struct transfer_descriptor*)td_mem;
 
     uint8_t max_packet_size =
-        device->descriptor == NULL ?
+        device->desc == NULL ?
         8 :
-        device->descriptor->max_packet_size;
+        device->desc->max_packet_size;
 
     td->token = (TD_TOKEN_SIZE(max_packet_size) | packet_id);
     td->link_ptr = td_link_ptr_terminate;

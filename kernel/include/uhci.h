@@ -299,42 +299,22 @@ struct device_request_packet {
 // Address occupies everything but the low 4 bits
 #define QUEUE_HEAD_LINK_ADDR_MASK (0xFFFFFFF0)
 
-enum uhci_hc_state {
-    // No device descriptor obtained
-    uhci_hc_state_default,
+typedef enum {
+    uhci_state_default,
+    uhci_state_addressed
+} device_state;
 
-    // Have received initial 8-byte sized device descriptor
-    uhci_hc_state_initial_dev,
-
-    // uhci_hc_state_initial_dev + have assigned an address to HC
-    uhci_hc_state_addressed,
-
-    // HC is addressed and we have received the full device descriptor
-    uhci_hc_state_full_dev,
-
-    // We have retrieved the supported language ids
-    uhci_hc_state_has_lang,
-
-    // We have retrieved a string description of the device
-    uhci_hc_state_has_string_desc,
-
-    // We have retrieved device configuration
-    uhci_hc_state_has_config
-};
-
-struct uhci_hc {
-    bool active;
-    bool io;
-    uint32_t addr;
-    enum uhci_hc_state state;
-    struct usb_device_descriptor desc;
-
+// uhci_device is not in the UHCI spec, this is a Nox struct
+// to keep track of connected devices
+struct uhci_device {
     // Device number, statically assigned by Nox
     // This will be the address we set the HC to
     uint8_t num;
-
+    int8_t port; // which pci port it resides on
+    device_state state;
+    struct usb_device_descriptor* desc;
     uint16_t lang_id;
-};
+} PACKED;
 
 struct uhci_queue {
     uint32_t head_link;
@@ -350,6 +330,16 @@ struct uhci_queue {
     // we can traverse all TDs in a completed queue
     uint32_t first_element_link;
 } ALIGN(16);
+
+struct uhci_hc {
+    bool active;
+    bool io;
+    uint32_t base_addr;
+    uint8_t irq_num;
+    uint32_t frame_list;
+    struct uhci_queue root_queues[16];
+    struct uhci_device devices[128];
+};
 
 enum nox_uhci_queue {
     nox_uhci_queue_1,        // Executed every 1ms
@@ -393,24 +383,10 @@ struct uhci_set_addr_data {
 
 #define UHCI_GET_DEVICE_DESCRIPTOR_REQUEST_SIZE (0x8)
 
-typedef enum {
-    uhci_state_default,
-    uhci_state_addressed
-} device_state;
-
-// uhci_device is not in the UHCI spec, this is a Nox struct
-// to keep track of connected devices
-struct uhci_device {
-    uint8_t num; // ( < 1 = uninitialized)
-    int8_t port; // which pci port it resides on
-    device_state state;
-    struct usb_device_descriptor* descriptor;
-} PACKED;
-
 int32_t uhci_detect_root(uint16_t base_addr, bool io_addr);
 void uhci_init(uint32_t base_addr, pci_device* dev, struct pci_address* addr, uint8_t irq);
 void uhci_command(char** args, size_t arg_count);
 void handle_td(struct uhci_device* device, struct transfer_descriptor* td);
-void schedule_queue_insert(struct uhci_queue* queue, enum nox_uhci_queue root);
+void schedule_queue_insert(struct uhci_hc* hc, struct uhci_queue* queue, enum nox_uhci_queue root);
 
 #endif
