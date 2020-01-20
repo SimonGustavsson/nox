@@ -46,6 +46,7 @@ enum uhci_cmd {
 };
 
 enum uhci_status {
+    // 16:6 - reserved
     uhci_status_halted            = 1 << 5,
     uhci_status_process_error     = 1 << 4,
     uhci_status_host_system_error = 1 << 3,
@@ -151,6 +152,11 @@ struct transfer_descriptor {
     uint32_t software_use2;
     uint32_t software_use3;
 } PACKED;
+
+struct uhci_descriptor {
+    uint8_t desc_length;
+    uint8_t type;
+};
 
 struct uhci_string_lang_descriptor {
     uint8_t desc_length;
@@ -334,6 +340,7 @@ struct uhci_queue {
 struct uhci_hc {
     bool active;
     bool io;
+    bool interrupt_fired;
     uint32_t base_addr;
     uint8_t irq_num;
     uint32_t frame_list;
@@ -360,7 +367,7 @@ enum nox_uhci_queue {
     nox_uhci_queue_reserved4, // Not used (yet)
 };
 
-struct get_descriptor_data {
+struct ctrl_transfer_data {
     struct uhci_queue queue;
     struct transfer_descriptor setup;
 
