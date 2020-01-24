@@ -20,6 +20,11 @@
 // Note: There *may* be more ports mapped after 0x12.
 // This depends in the host controller
 
+#define DEFAULT_PACKET_SIZE (8)
+#define BASIC_DESCRIPTOR_SIZE (8)
+#define UNADDRESSED_DEVICE_ID (0)
+#define DESCRIPTOR_INDEX_NONE (0)
+
 #include <stdint.h>
 #include <stdbool.h>
 #include "kernel.h"

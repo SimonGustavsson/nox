@@ -355,6 +355,7 @@ void* pcalloc(unsigned int item_size, unsigned int size)
 
 void phree(void* pointer)
 {
+    printf("Freeing pointer '%P'\n", pointer);
     // Free da pointah
     unsigned char* ptr = (unsigned char*)pointer;
     int num_slices = -1;

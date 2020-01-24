@@ -34,7 +34,7 @@ log: bochsout.txt
 panic: action=ask
 error: action=report
 info: action=report
-debug: action=ignore, pci=report # report BX_DEBUG from module 'pci'
+debug: action=ignore, pci=ignore, usbhub=report, usb_hub=report, usb_ctl=report, usbctl=report, usb_hid=report, usbhid=report, usb_uhci=report
 
 debugger_log: -
 parport1: enabled=1, file="parport.out"

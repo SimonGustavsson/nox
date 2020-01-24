@@ -15,6 +15,7 @@ void terminal_write_char(const char c);
 void terminal_write_uint32(uint32_t val);
 void terminal_indentation_increase();
 void terminal_indentation_decrease();
+void terminal_write_buffer(uint8_t* values, uint32_t count, uint32_t vals_per_row);
 void terminal_write_uint8_x(uint8_t val);
 void terminal_write_uint16_x(uint16_t val);
 void terminal_write_uint24_x(uint32_t val);

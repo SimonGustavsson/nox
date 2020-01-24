@@ -134,6 +134,22 @@ void terminal_write_ptr(void* val)
 #endif
 }
 
+void terminal_write_buffer(uint8_t* values, uint32_t count, uint32_t vals_per_row)
+{
+    uint32_t column = 1;
+    for (uint32_t i = 0; i <= count - 1; i++) {
+        terminal_write_uint8_x( *(values + i));
+        if (column++ >= vals_per_row) {
+            terminal_write_char('\n');
+            column = 1;
+        } else {
+            terminal_write_char(' ');
+        }
+    }
+
+    terminal_write_char('\n');
+}
+
 void terminal_write_uint8_x(uint8_t val)
 {
     terminal_write_char('0');

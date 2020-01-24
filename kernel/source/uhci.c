@@ -261,6 +261,7 @@ static struct uhci_descriptor* get_descriptor(
         uint32_t desc_type,
         uint32_t max_packet_size,
         uint32_t size,
+        uint32_t index,
         uint32_t device_addr)
 {
     struct device_request_packet request;
@@ -274,13 +275,18 @@ static struct uhci_descriptor* get_descriptor(
             // as a 16-bit word in little-endian
             request.value = DESCRIPTOR_TYPE_DEVICE << 8;
             request.length = size;
+            request.index = index;
             break;
         case DESCRIPTOR_TYPE_CONFIG:
             KWARN("TODO: Implement config descriptor retrieval");
             return NULL;
         case DESCRIPTOR_TYPE_STRING:
-            KWARN("TODO: Implement string descriptor retrieval");
-            return NULL;
+            request.type = usb_request_type_standard | usb_request_type_device_to_host;
+            request.request = UHCI_REQUEST_GET_DESCRIPTOR;
+            request.value = DESCRIPTOR_TYPE_STRING << 8;
+            request.index = index; // Index of 0 means "get me the language ids"
+            request.length = size;
+            break;
         case DESCRIPTOR_TYPE_INTERFACE:
             KWARN("TODO: Implement interface descriptor retrieval");
             return NULL;
@@ -310,29 +316,40 @@ static struct uhci_descriptor* get_descriptor(
 
     // Release the data we don't need anymore (buffer is still good)
     uint8_t* buffer = data->response_buffer;
-    phree((void*) data->request);
-    phree((void*) data);
+
+    // Cleaning up memory currently breaks the world
+    // Someone should probably investigate that at some point
+    // phree((void*) data->request);
+    // phree((void*) data);
 
     return (struct uhci_descriptor*) buffer;
 }
 
-// Sets teh address of device '0' (a recently discovered device)
+// Sets the address of device '0' (a recently discovered device)
 static bool set_device_addr(struct uhci_hc* hc, uint8_t device_addr)
 {
    intptr_t mem = (intptr_t) aligned_palloc(sizeof(struct uhci_set_addr_data), 16);
     if (mem <= 0) {
         KPANIC("Failed to allocate memory when setting UHCI HC address");
     }
+    printf("set_device_addr alloc: %P\n", mem);
 
     my_memset((void*) mem, 0, sizeof(struct uhci_set_addr_data));
 
     struct uhci_set_addr_data* data = (struct uhci_set_addr_data*) mem;
+
+    printf("Set_addr data: %P\n", data);
+    printf("Set_addr QUEUE: %P\n", &data->queue);
+    printf("Set_addr SETUP: %P\n", &data->setup);
+    printf("Set_addr ACK: %P\n", &data->ack);
+    printf("Set_addr BUF: %P\n", &data->request);
 
     data->setup.link_ptr = td_link_ptr_depth_first | (uint32_t) &data->ack;
     data->setup.ctrl_status = td_ctrl_3errors | td_status_active;
     data->setup.token = ( (8 - 1) << 21) | uhci_packet_id_setup;
     data->setup.buffer_ptr = (uint32_t)&data->request;
     data->setup.software_use0 = (uint32_t) data; // Store ptr for retrieval on response
+
 
     // Send an *in* package to acknowledge transfer
     // This differs from ctrl_read where we have a bunch of IN packets and send an out
@@ -343,11 +360,15 @@ static bool set_device_addr(struct uhci_hc* hc, uint8_t device_addr)
     data->ack.buffer_ptr = 0;
     data->ack.software_use0 = (uint32_t) data; // Store ptr for retrieval on response
 
+    data->request.type = 0;
     data->request.request = UHCI_REQUEST_SET_ADDRESS;
     data->request.value = device_addr;
+    data->request.index = 0;
 
     data->queue.head_link = (uint32_t) &data->setup | td_link_ptr_terminate;
     data->queue.element_link = (uint32_t) &data->setup;
+
+    printf("Set Address SETUP TD: %P\n", &data->setup);
 
     /*
     printf("Queue: %P\n", &data->queue);
@@ -362,20 +383,66 @@ static bool set_device_addr(struct uhci_hc* hc, uint8_t device_addr)
 
     bool success = poll_status_interrupt();
 
+    printf("Set_addr done? result: %d\n", success ? 1 : 0);
+
     // TODO: check data to see if it was actually successful
 
     schedule_queue_remove(&data->queue);
-    phree( (void*) data);
+
+    // Cleaning up memory currently breaks the world
+    // Someone should probably investigate that at some point
+    // phree( (void*) data);
 
     return success;
 }
 
-static struct ctrl_transfer_data* ctrl_read(struct uhci_hc* hc, uint32_t bytes_to_read,
+static bool get_language_ids(struct uhci_hc* hc, struct uhci_device* device)
+{
+    printf("Requesting HC LANG IDs (max pkt size; %d, dev no=%d)...\n",
+            device->desc->max_packet_size,
+            device->num);
+
+    struct uhci_string_lang_descriptor* initial_list =
+        (struct uhci_string_lang_descriptor*) get_descriptor(hc,
+                DESCRIPTOR_TYPE_STRING,
+                device->desc->max_packet_size,
+                BASIC_DESCRIPTOR_SIZE,
+                DESCRIPTOR_INDEX_NONE,
+                device->num);
+
+    if (initial_list == NULL) {
+        KERROR("UHCI:: Failed to retrieve LANG ID list");
+        return false;
+    }
+
+    printf("Initial small descriptor for lang IDs sz:%d,type=%d\n", initial_list->desc_length, initial_list->type);
+
+    if (initial_list->desc_length <= device->desc->max_packet_size) {
+
+        // Done, no need for a second request
+        return true;
+    }
+
+    struct uhci_string_lang_descriptor* full_list =
+        (struct uhci_string_lang_descriptor*) get_descriptor(hc,
+                DESCRIPTOR_TYPE_STRING,
+                device->desc->max_packet_size,
+                initial_list->desc_length,
+                DESCRIPTOR_INDEX_NONE,
+                device->num);
+
+    printf("Got language ids! Sz: %d\n", full_list->desc_length);
+
+    return true;
+}
+
+static struct ctrl_transfer_data* ctrl_read(struct uhci_hc* hc,
+        uint32_t bytes_to_read,
         uint32_t max_packet_size,
         uint8_t device_addr,
         struct device_request_packet* request)
 {
-    printf("ctrl_read(%d, %d)", bytes_to_read, max_packet_size);
+    printf("ctrl_read(bytes:%d, pkt sz:%d, dev_addr:%d)\n", bytes_to_read, max_packet_size, device_addr);
 
     if (max_packet_size > 0x3FF) {
         // We only have 10 bits to store the value, so clamp it
@@ -389,6 +456,8 @@ static struct ctrl_transfer_data* ctrl_read(struct uhci_hc* hc, uint32_t bytes_t
         KERROR("UHCI Get Device Desc: Failed to allocate memory for data");
         return NULL;
     }
+
+    printf("ctrl_read alloc: %P\n", data_ptr);
 
     my_memset((void*) data_ptr, 0, sizeof(struct ctrl_transfer_data));
 
@@ -414,6 +483,8 @@ static struct ctrl_transfer_data* ctrl_read(struct uhci_hc* hc, uint32_t bytes_t
         return NULL;
     }
 
+    my_memset((void*) response_buffer_ptr, 0, bytes_to_read);
+
     struct ctrl_transfer_data* data = (struct ctrl_transfer_data*) data_ptr;
 
     data->num_in_descriptors = num_packages;
@@ -423,19 +494,26 @@ static struct ctrl_transfer_data* ctrl_read(struct uhci_hc* hc, uint32_t bytes_t
 
     data->setup.link_ptr = td_link_ptr_depth_first | ((uint32_t) in_td_ptr) ;
     data->setup.ctrl_status = td_ctrl_3errors | td_status_active;
-    data->setup.token = ( (8 - 1) << 21) | uhci_packet_id_setup; // SETUP pkt is always 8 bytes
+    data->setup.token = ( (8 - 1) << 21) | uhci_packet_id_setup | (device_addr << 8); // SETUP pkt is always 8 bytes
     data->setup.buffer_ptr = (uint32_t)&data->request_packet;
 
     // !important - set up a link from the setup TD so we can
     //              find this struct again (to free it) once it's all done
     data->setup.software_use0 = (uint32_t) data;
 
+    printf("ctrl_read: data: %P\n", data);
+    printf("ctrl_read: queue: %P\n", &data->queue);
+    printf("ctrl_read: setup: %P\n", &data->setup);
+    printf("ctrl_read: ack: %P\n", &data->ack);
+
+    /*
     printf("[SETUP PACKAGE] %P, link: %P, status: %P, token: %P, buffer: %P\n",
             (uint32_t) &data->setup,
             data->setup.link_ptr,
             data->setup.ctrl_status,
             data->setup.token,
             data->setup.buffer_ptr);
+    */
 
     // Populate these requests backwards for ease of link ptr setup
     uint32_t bytes_left_to_read = bytes_to_read;
@@ -449,20 +527,23 @@ static struct ctrl_transfer_data* ctrl_read(struct uhci_hc* hc, uint32_t bytes_t
 
         uint32_t total_bytes_to_read = bytes_left_to_read < max_packet_size
             ? bytes_left_to_read
-            :max_packet_size;
+            : max_packet_size;
         bytes_left_to_read -= total_bytes_to_read;
 
         uint32_t buffer_offset = bytes_read;
         bytes_read += total_bytes_to_read;
 
+        /*
         printf("Buf offset, i=%d,offset=%d,toRead:%d bytes (total left: %d)\n",
                 i, buffer_offset, total_bytes_to_read, bytes_left_to_read);
+        */
 
         cur->link_ptr = td_link_ptr_depth_first; // link_ptr populated later
         cur->ctrl_status = td_ctrl_3errors | td_status_active; // | td_ctrl_ioc;
-        cur->token = uhci_packet_id_in | ((total_bytes_to_read - 1) << 21) | data_toggle;
+        cur->token = uhci_packet_id_in | ((total_bytes_to_read - 1) << 21) | data_toggle | (device_addr << 8);
         cur->buffer_ptr = ((uint32_t)data->response_buffer) + buffer_offset;
 
+        /*
         printf("IN TD[%d] %P, link: %P, status: %P, token: %P, buffer: %P\n",
                 i,
                 (uint32_t) cur,
@@ -470,6 +551,7 @@ static struct ctrl_transfer_data* ctrl_read(struct uhci_hc* hc, uint32_t bytes_t
                 cur->ctrl_status,
                 cur->token,
                 cur->buffer_ptr);
+        */
     }
 
     for (int i = num_packages - 1; i >= 0; i--) {
@@ -486,29 +568,35 @@ static struct ctrl_transfer_data* ctrl_read(struct uhci_hc* hc, uint32_t bytes_t
     // Step 4: the OUT package to acknowledge transfer
     data->ack.link_ptr = td_link_ptr_terminate;
     data->ack.ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_ioc;
-    data->ack.token = uhci_packet_id_out | (0x7FF << 21) | td_token_data_toggle;
+    data->ack.token = uhci_packet_id_out | (0x7FF << 21) | td_token_data_toggle | (device_addr << 8);
+    data->ack.buffer_ptr = 0xDEADBEEF;
 
+    /*
     printf("ACK TD: %P, Link:%P, Ctrl:%P, Token:%P, Buffer:%P\n",
             (uint32_t) &data->ack,
             data->ack.link_ptr,
             data->ack.ctrl_status,
             data->ack.token,
             data->ack.buffer_ptr);
+    */
 
     // Step 5: Setup queue to point to first TD
     data->queue.head_link = ( ((uint32_t) &data->setup) | td_link_ptr_terminate);
     data->queue.element_link = (uint32_t) &data->setup;
 
+    /*
     printf("Queue is @ %P, head: %P, element: %P\n",
             &data->queue,
             data->queue.head_link,
             data->queue.element_link);
+    */
 
     // Step 6: initialize data packet to send
     data->request_packet.type = request->type;
     data->request_packet.request = request->request;
     data->request_packet.value = request->value;
     data->request_packet.length = request->length;
+    data->request_packet.index = request->index;
 
     // Step 7: Add queue too root queue to schedule for execution
     //         we'll have to wait for an interrupt now
@@ -731,7 +819,7 @@ static bool init_io(struct uhci_hc* hc, uint32_t base_addr, uint8_t irq)
         printf("Initializing FL at %P\n", frame_list_addr);
 #endif
 
-        setup_new_device(hc, port_num, 0);
+        setup_new_device(hc, port_num, 1);
     }
 
     if (!has_enabled_port) {
@@ -740,10 +828,6 @@ static bool init_io(struct uhci_hc* hc, uint32_t base_addr, uint8_t irq)
 
     return true;
 }
-
-#define DEFAULT_PACKET_SIZE (8)
-#define BASIC_DESCRIPTOR_SIZE (8)
-#define UNADDRESSED_DEVICE_ID (0)
 
 static bool setup_new_device(struct uhci_hc* hc, uint8_t port_num, uint8_t dev_no) {
 
@@ -757,6 +841,7 @@ static bool setup_new_device(struct uhci_hc* hc, uint8_t port_num, uint8_t dev_n
                 DESCRIPTOR_TYPE_DEVICE,
                 DEFAULT_PACKET_SIZE,
                 BASIC_DESCRIPTOR_SIZE,
+                DESCRIPTOR_INDEX_NONE,
                 UNADDRESSED_DEVICE_ID);
 
     if (initial_device == NULL) {
@@ -764,10 +849,25 @@ static bool setup_new_device(struct uhci_hc* hc, uint8_t port_num, uint8_t dev_n
         return false;
     }
 
+    if (initial_device->desc_length != 18) {
+        printf("Initial device desc length is '%d'!\n", initial_device->desc_length);
+        return false;
+    }
+
+    printf("Got initial device (len=%d,type=%d,rel=%d, setting address to '%d'\n",
+            initial_device->desc_length,
+            initial_device->type,
+            initial_device->release_num,
+            dev_no);
+
+    pit_wait(1000);
+
     // Give the device an address so that we can ID it
     if (!set_device_addr(hc, dev_no)) {
         return false;
     }
+
+    pit_wait(1000);
 
     // Get the full device descriptor
     struct usb_device_descriptor* full_device =
@@ -775,15 +875,27 @@ static bool setup_new_device(struct uhci_hc* hc, uint8_t port_num, uint8_t dev_n
                 DESCRIPTOR_TYPE_DEVICE,
                 initial_device->max_packet_size,
                 sizeof(struct usb_device_descriptor),
+                DESCRIPTOR_INDEX_NONE,
                 dev_no);
 
-    printf("Got full device! vendor: %d\n", full_device->vendor_id);
+    printf("Got full device! vendor: %d, max_packet: %d\n", full_device->vendor_id,
+            full_device->max_packet_size);
 
-    struct uhci_device* device = &hc->devices[dev_no];
+    if (full_device->max_packet_size == 0) {
+        KPANIC("max_packet_size == 0");
+    }
+
+    struct uhci_device* device = &hc->devices[dev_no - 1];
     device->num = dev_no;
     device->port = port_num;
+    device->desc = full_device;
 
-    my_memcpy((void*) &device->desc, (void*) full_device, sizeof(struct usb_device_descriptor));
+    printf("Saved device max_packet_size: %d\n", device->desc->max_packet_size);
+
+    if (!get_language_ids(hc, device)) {
+        KWARN("Failed to retrieve list of supported langauges");
+        return false;
+    }
 
     return true;
 }
@@ -1075,11 +1187,13 @@ void schedule_queue_insert(struct uhci_hc* hc, struct uhci_queue* queue, enum no
     // when we want to remove this queue after it has been executed
     queue->parent = (uint32_t*)(uintptr_t)parent;
 
+    /*
     terminal_write_string("Inserted queue at ");
     terminal_write_uint32_x((uint32_t)queue);
     terminal_write_string(" into queue at ");
     terminal_write_uint32_x((uint32_t)parent);
     terminal_write_char('\n');
+    */
 
     // It's very important that we do this last, as as soon as
     // we set it, the Host Controller will pick it up and start processing
@@ -1227,7 +1341,6 @@ static struct uhci_hc* get_hc_with_irq(uint8_t irq)
 static void uhci_irq_core(struct uhci_hc* hc, uint8_t irq, struct irq_regs* regs)
 {
     uint16_t status = INW(hc->base_addr + UHCI_STATUS_OFFSET);
-    print_status_register(hc);
 
     if(is_set(status, uhci_status_process_error)) {
         KPANIC("UHCI Error interrupt - Panicking!");
@@ -1242,7 +1355,7 @@ static void uhci_irq_core(struct uhci_hc* hc, uint8_t irq, struct irq_regs* regs
     hc->interrupt_fired = true;
 
     // Send the completed TDs to the devices
-    handle_fl_complete(hc);
+    if (1 == 0) handle_fl_complete(hc);
 
     // It's a usb_interrupt, clear status
     // Just blast ALL the bits (this might trash some stuff we want
@@ -1252,18 +1365,20 @@ static void uhci_irq_core(struct uhci_hc* hc, uint8_t irq, struct irq_regs* regs
 
 static void uhci_irq(uint8_t irq, struct irq_regs* regs)
 {
-    KINFO("~~~~~~~~~~~~~~uhci irq fired~~~~~~~~~~~~~~~~~~");
+    // KINFO("~~~~~~~~~~~~~~uhci irq fired~~~~~~~~~~~~~~~~~~");
 
     struct uhci_hc* hc = get_hc_with_irq(irq);
     if (hc == NULL) {
         KPANIC("Unable to locate HC that can handle this IRQ!");
     }
 
+    printf("\nUHCI::IRQ\n");
+
     uhci_irq_core(hc, irq, regs);
 
     pic_send_eoi(hc->irq_num);
 
-    KINFO("~~~~~~~~~~~~~~End IRQ~~~~~~~~~~~~~~~~~~");
+    // KINFO("~~~~~~~~~~~~~~End IRQ~~~~~~~~~~~~~~~~~~");
 }
 
 static uint16_t get_cur_fp_index(struct uhci_hc* hc)
