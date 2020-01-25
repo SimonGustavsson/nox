@@ -293,10 +293,8 @@ static struct uhci_descriptor* get_descriptor(
         uint32_t desc_type,
         uint32_t index)
 {
-    printf("get_descriptor:: Index is %d\n", index);
     //
     // Request the 8 first bytes first
-    printf("Getting intiial descriptor for type '%d'\n", desc_type);
     struct uhci_descriptor* initial =
         get_descriptor_core(hc,
                 desc_type,
@@ -305,7 +303,6 @@ static struct uhci_descriptor* get_descriptor(
                 BASIC_DESCRIPTOR_SIZE,
                 index,
                 device->num);
-    printf("Done getting intiial descriptor for type '%d'\n", desc_type);
 
     if (initial == NULL) {
         KERROR("UHCI:: Failed to retrieve initial descriptor");
@@ -349,7 +346,6 @@ static struct uhci_descriptor* get_descriptor_core(
         uint32_t index,
         uint32_t device_addr)
 {
-    printf("get_descriptor_core:: Index is %d\n", index);
     struct device_request_packet request;
 
     switch (desc_type) {
@@ -370,7 +366,6 @@ static struct uhci_descriptor* get_descriptor_core(
             request.type = usb_request_type_standard | usb_request_type_device_to_host;
             request.request = UHCI_REQUEST_GET_DESCRIPTOR;
             request.value = DESCRIPTOR_TYPE_STRING << 8 | index;
-            printf("req.wVal=%X\n", request.value & 0xff);
             request.index = lang_id;
             request.length = size;
             break;
@@ -491,7 +486,6 @@ static struct ctrl_transfer_data* ctrl_read(struct uhci_hc* hc,
         uint8_t device_addr,
         struct device_request_packet* request)
 {
-    printf("ctrl_read(bytes:%d, pkt sz:%d, dev_addr:%d)\n", bytes_to_read, max_packet_size, device_addr);
 
     if (max_packet_size < 8) {
         KERROR("UHCI:: Bad max_packet_size, expected >= 8");
@@ -510,8 +504,6 @@ static struct ctrl_transfer_data* ctrl_read(struct uhci_hc* hc,
         KERROR("UHCI Get Device Desc: Failed to allocate memory for data");
         return NULL;
     }
-
-    printf("ctrl_read alloc: %P\n", data_ptr);
 
     my_memset((void*) data_ptr, 0, sizeof(struct ctrl_transfer_data));
 
@@ -554,9 +546,6 @@ static struct ctrl_transfer_data* ctrl_read(struct uhci_hc* hc,
     // !important - set up a link from the setup TD so we can
     //              find this struct again (to free it) once it's all done
     data->setup.software_use0 = (uint32_t) data;
-
-    printf("ctrl_read: setup: %P\n", &data->setup);
-    printf("ctrl_read: response buf: %P\n", response_buffer_ptr);
 
     /*
     printf("[SETUP PACKAGE] %P, link: %P, status: %P, token: %P, buffer: %P\n",
@@ -914,7 +903,10 @@ static bool setup_new_device(struct uhci_hc* hc, uint8_t port_num, uint8_t dev_n
         return false;
     }
 
+    // USB 2.0 (9.2.6.3) says we need to give it 2ms
     pit_wait(200);
+
+    printf("Device is now addressed as '%d'\n", dev_no);
 
     // Get the full device descriptor
     struct usb_device_descriptor* full_device =
@@ -1436,21 +1428,15 @@ static bool poll_status_interrupt(struct uhci_hc* hc)
     status = INW(hc->base_addr + UHCI_STATUS_OFFSET);
 
     if ((status & uhci_status_usb_interrupt) == uhci_status_usb_interrupt) {
-        printf("Poll SUCCESS!\n");
 
         // Clear interrupt flag in status register (Status reg is write-clear)
         OUTW(hc->base_addr + UHCI_STATUS_OFFSET, uhci_status_usb_interrupt);
 
-        return true;
-    }
+        // Give it a second to reset?
+        pit_wait(10);
 
-    /*
-    if (hc->interrupt_fired) {
-        KWARN("Using backup interrupt mechanism instead of ctrl status checking");
-        hc->interrupt_fired = false;
         return true;
     }
-    */
 
     attempts++;
 
