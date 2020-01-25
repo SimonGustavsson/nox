@@ -1023,34 +1023,36 @@ static bool setup_new_device(struct uhci_hc* hc, uint8_t port_num, uint8_t dev_n
     print_usb_string(product_char_buf, product_desc_str->desc_length);
     printf("\n");
 
-    struct configuration_descriptor* config  =
-        (struct configuration_descriptor*) get_descriptor(hc,
-                device,
-                DESCRIPTOR_TYPE_CONFIG,
-                0);
+    struct configuration_descriptor** configs =
+        (struct configuration_descriptor**) palloc(
+                device->desc->num_configurations * sizeof(struct configuration_descriptor*));
 
-    if (config == NULL) {
-        KERROR("Failed to retrieve Configurations");
-        return false;
+    for (uint32_t config_index = 0; config_index < device->desc->num_configurations; config_index++) {
+        struct configuration_descriptor* cur_config  =
+            (struct configuration_descriptor*) get_descriptor(hc,
+                    device,
+                    DESCRIPTOR_TYPE_CONFIG,
+                    config_index);
+
+        configs[config_index] = cur_config;
+
+        if (cur_config == NULL) {
+            // TODO: error handling / memory cleanup
+            printf("Failed to retrieve Configuration %d", config_index);
+            return false;
+        }
     }
 
-    intptr_t config_mem = (intptr_t) palloc(config->total_length);
-    if (config_mem == NULL) {
-        KERROR("UHCI:: Failed to allocate memory for config");
-        return false;
-    }
+    device->configs = configs;
 
-    my_memcpy((void*) config_mem, (void*) config, config->total_length);
-    device->config = (struct configuration_descriptor*) config_mem;
-    device->config_size = config->total_length;
-
+    struct configuration_descriptor* first_config = configs[0];
     printf("Got Config [len=%d,type=%d,total_len=%d,interfaces=%d,config_val=%d,str_index=%d\n",
-            config->length,
-            config->type,
-            config->total_length,
-            config->num_interfaces,
-            config->config_val,
-            config->config_string_index);
+            first_config->length,
+            first_config->type,
+            first_config->total_length,
+            first_config->num_interfaces,
+            first_config->config_val,
+            first_config->config_string_index);
 
     return true;
 }
