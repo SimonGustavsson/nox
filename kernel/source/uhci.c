@@ -506,8 +506,6 @@ static bool set_device_config(struct uhci_hc* hc, struct uhci_device* device, ui
         KPANIC("Failed to allocate memory when setting UHCI device config");
     }
 
-    printf("set_device_config alloc: %P\n", mem);
-
     my_memset((void*) mem, 0, mem_size);
 
     struct uhci_queue* queue = (struct uhci_queue*) mem;
@@ -520,7 +518,6 @@ static bool set_device_config(struct uhci_hc* hc, struct uhci_device* device, ui
     setup->ctrl_status = td_ctrl_3errors | td_status_active;
     setup->token = ( (8 - 1) << 21) | uhci_packet_id_setup | (device->num << 8);
     setup->buffer_ptr = (uint32_t)request;
-    printf("Set config SETUP Addr: %P\n", setup);
 
     // Send an *in* package to acknowledge transfer
     // This differs from ctrl_read where we have a bunch of IN packets and send an out
@@ -1102,11 +1099,16 @@ static bool setup_new_device(struct uhci_hc* hc, uint8_t port_num, uint8_t dev_n
             return false;
         }
 
-        printf("Config addr: %P\n", cur_config);
+        printf("Got Config [len=%d,type=%d,total_len=%d,interfaces=%d,config_val=%d,str_index=%d\n",
+                cur_config->length,
+                cur_config->type,
+                cur_config->total_length,
+                cur_config->num_interfaces,
+                cur_config->config_val,
+                cur_config->config_string_index);
 
         configs[config_index] = cur_config;
 
-        printf("Cur_config length: %d, total_len = %d\n", cur_config->length, cur_config->total_length);
         struct interface_descriptor* ifaces =
             (struct interface_descriptor*) (((uint32_t) cur_config) + cur_config->length);
 
@@ -1118,24 +1120,51 @@ static bool setup_new_device(struct uhci_hc* hc, uint8_t port_num, uint8_t dev_n
                 break;
             }
 
-            printf("Interface found [class=%X,sub_class=%X,proto=%X,endpoints=%d",
+            printf("  Interface found [class=%X,sub_class=%X,proto=%X,endpoints=%d]\n",
                     iface->class_code,
                     iface->sub_class,
                     iface->protocol,
                     iface->num_endpoints);
+
+            uint32_t endpoints_offset = 0;
+            bool is_hid = iface->class_code == 0x03;
+            if (is_hid) {
+                // There's a sneaky(?) HID descriptor before the endpoints
+
+                struct hid_descriptor* hid = (struct hid_descriptor*) (((uint32_t) iface) + iface->length);
+
+                // endpoints come straight after the hid descriptor
+                endpoints_offset = hid->desc_length;
+
+                printf("    Found HID descriptor [len=%d,type=%X,class=%X]\n",
+                        hid->desc_length,
+                        hid->type,
+                        hid->hid_class);
+            }
+;
+            uint32_t endpoints_start = (((uint32_t) iface) + iface->length) + endpoints_offset;
+            struct endpoint_descriptor* endpoints = (struct endpoint_descriptor*) endpoints_start;
+
+            for (uint32_t e_index = 0; e_index < iface->num_endpoints; e_index++) {
+                struct endpoint_descriptor* cur_endpoint = endpoints + 0;
+
+                if (cur_endpoint->type != DESCRIPTOR_TYPE_ENDPOINT) {
+                    printf("     Endpoint descriptor has invalid type '%d', expected '%d'\n",
+                            cur_endpoint->type, DESCRIPTOR_TYPE_ENDPOINT);
+                    break;
+                }
+
+                printf("    Found endpoint [addr=%X,attr=%X,pkt_sz=%d]\n",
+                        cur_endpoint->addr,
+                        cur_endpoint->attributes,
+                        cur_endpoint->max_packet_size);
+            }
         }
     }
 
     device->configs = configs;
 
     struct configuration_descriptor* first_config = configs[0];
-    printf("Got Config [len=%d,type=%d,total_len=%d,interfaces=%d,config_val=%d,str_index=%d\n",
-            first_config->length,
-            first_config->type,
-            first_config->total_length,
-            first_config->num_interfaces,
-            first_config->config_val,
-            first_config->config_string_index);
 
     if (!set_device_config(hc, device, first_config->config_val)) {
         KERROR("Failed to set configuration");

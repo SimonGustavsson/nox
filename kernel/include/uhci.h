@@ -190,6 +190,21 @@ struct uhci_string_descriptor {
 #define UHCI_CONF_ATTR_SELF_POWERED (1 << 6)
 #define UHCI_CONF_ATTR_REMOTE_WKUP (1 << 5)
 
+struct hid_descriptor {
+    uint8_t desc_length;
+    uint8_t type; // Should be 0x21
+    uint16_t hid_class;
+    uint8_t country_code;
+    uint8_t num_descriptors;
+
+    // Fields below are "optional"
+    uint8_t report_type;
+
+    // This length describes the size of the HID descriptor, there could
+    // be more stored after the fields we have defined here, depending on the device
+    uint16_t report_desc_length;
+};
+
 struct configuration_descriptor {
     uint8_t length; // Size of this descriptor
     uint8_t type; // Should be 0x02 for this
@@ -303,6 +318,7 @@ enum usb_request_type {
 #define DESCRIPTOR_TYPE_STRING    (0x03)
 #define DESCRIPTOR_TYPE_INTERFACE (0x04)
 #define DESCRIPTOR_TYPE_ENDPOINT  (0x05)
+#define DESCRIPTOR_TYPE_HID       (0x21)
 
 
 struct device_request_packet {
