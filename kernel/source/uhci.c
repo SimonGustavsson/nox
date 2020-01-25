@@ -305,7 +305,7 @@ static struct uhci_descriptor* get_descriptor(
                 device->num);
 
     if (initial == NULL) {
-        KERROR("UHCI:: Failed to retrieve initial descriptor");
+        KERROR("UHCI:: Failed to retrieve initial descriptor (==NULL)");
         return false;
     }
 
@@ -319,12 +319,21 @@ static struct uhci_descriptor* get_descriptor(
         return initial;
     }
 
+    uint32_t full_desc_size = initial->desc_length;
+
+    if (desc_type == DESCRIPTOR_TYPE_CONFIG) {
+       // Get FULL descriptor size, including interfaces and endpoints
+       struct configuration_descriptor* c = (struct configuration_descriptor*) initial;
+       full_desc_size = c->total_length;
+       printf("Requesting full size Configuration descriptor\n");
+    }
+
     // Now that we know the size of it we can get the whole thing
     struct uhci_descriptor* full = get_descriptor_core(hc,
             desc_type,
             device->lang_id,
             device->max_packet_size,
-            initial->desc_length,
+            full_desc_size,
             index,
             device->num);
 
@@ -360,8 +369,12 @@ static struct uhci_descriptor* get_descriptor_core(
             request.index = index;
             break;
         case DESCRIPTOR_TYPE_CONFIG:
-            KWARN("TODO: Implement config descriptor retrieval");
-            return NULL;
+            request.type = usb_request_type_standard | usb_request_type_device_to_host;
+            request.request = UHCI_REQUEST_GET_DESCRIPTOR;
+            request.value = DESCRIPTOR_TYPE_CONFIG << 8 | index;
+            request.index = lang_id;
+            request.length = size;
+            break;
         case DESCRIPTOR_TYPE_STRING:
             request.type = usb_request_type_standard | usb_request_type_device_to_host;
             request.request = UHCI_REQUEST_GET_DESCRIPTOR;
@@ -1009,6 +1022,35 @@ static bool setup_new_device(struct uhci_hc* hc, uint8_t port_num, uint8_t dev_n
     printf("Product desc (len: %d):", product_desc_str->desc_length);
     print_usb_string(product_char_buf, product_desc_str->desc_length);
     printf("\n");
+
+    struct configuration_descriptor* config  =
+        (struct configuration_descriptor*) get_descriptor(hc,
+                device,
+                DESCRIPTOR_TYPE_CONFIG,
+                0);
+
+    if (config == NULL) {
+        KERROR("Failed to retrieve Configurations");
+        return false;
+    }
+
+    intptr_t config_mem = (intptr_t) palloc(config->total_length);
+    if (config_mem == NULL) {
+        KERROR("UHCI:: Failed to allocate memory for config");
+        return false;
+    }
+
+    my_memcpy((void*) config_mem, (void*) config, config->total_length);
+    device->config = (struct configuration_descriptor*) config_mem;
+    device->config_size = config->total_length;
+
+    printf("Got Config [len=%d,type=%d,total_len=%d,interfaces=%d,config_val=%d,str_index=%d\n",
+            config->length,
+            config->type,
+            config->total_length,
+            config->num_interfaces,
+            config->config_val,
+            config->config_string_index);
 
     return true;
 }
