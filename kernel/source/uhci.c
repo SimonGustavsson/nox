@@ -493,6 +493,68 @@ static bool set_device_addr(struct uhci_hc* hc, uint8_t device_addr)
     return success;
 }
 
+static bool set_device_config(struct uhci_hc* hc, struct uhci_device* device, uint32_t config)
+{
+    uint32_t mem_size =
+        sizeof(struct uhci_queue) +
+        sizeof(struct transfer_descriptor) +
+        sizeof(struct transfer_descriptor) +
+        sizeof(struct device_request_packet);
+
+    intptr_t mem = (intptr_t) aligned_palloc(mem_size, 16);
+    if (mem <= 0) {
+        KPANIC("Failed to allocate memory when setting UHCI device config");
+    }
+
+    printf("set_device_config alloc: %P\n", mem);
+
+    my_memset((void*) mem, 0, mem_size);
+
+    struct uhci_queue* queue = (struct uhci_queue*) mem;
+    struct transfer_descriptor* setup = (struct transfer_descriptor*) mem + sizeof(struct uhci_queue);
+    struct transfer_descriptor* ack = setup + 1;
+    struct device_request_packet* request =
+        (struct device_request_packet*) (((uint32_t)ack) + sizeof(struct transfer_descriptor));
+
+    setup->link_ptr = td_link_ptr_depth_first | (uint32_t) ack;
+    setup->ctrl_status = td_ctrl_3errors | td_status_active;
+    setup->token = ( (8 - 1) << 21) | uhci_packet_id_setup | (device->num << 8);
+    setup->buffer_ptr = (uint32_t)request;
+    printf("Set config SETUP Addr: %P\n", setup);
+
+    // Send an *in* package to acknowledge transfer
+    // This differs from ctrl_read where we have a bunch of IN packets and send an out
+    // package to acknowledge transfer, because in this case we sent data
+    ack->link_ptr = td_link_ptr_terminate;
+    ack->ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_ioc;
+    ack->token = ((0x7FF<< 21) | uhci_packet_id_in) | td_token_data_toggle | (device->num << 8);
+    ack->buffer_ptr = 0;
+
+    request->type = 0;
+    request->request = UHCI_REQUEST_SET_CONFIGURATION;
+    request->value = config;
+    request->index = 0;
+
+    queue->head_link = (uint32_t) setup | td_link_ptr_terminate;
+    queue->element_link = (uint32_t) setup;
+
+    schedule_queue_insert(hc, queue, nox_uhci_queue_1);
+
+    bool success = poll_status_interrupt();
+
+    printf("Set_config done? result: %d\n", success ? 1 : 0);
+
+    // TODO: check data to see if it was actually successful
+
+    schedule_queue_remove(queue);
+
+    // Cleaning up memory currently breaks the world
+    // Someone should probably investigate that at some point
+    // phree( (void*) data);
+
+    return success;
+}
+
 static struct ctrl_transfer_data* ctrl_read(struct uhci_hc* hc,
         uint32_t bytes_to_read,
         uint32_t max_packet_size,
@@ -1053,6 +1115,11 @@ static bool setup_new_device(struct uhci_hc* hc, uint8_t port_num, uint8_t dev_n
             first_config->num_interfaces,
             first_config->config_val,
             first_config->config_string_index);
+
+    if (!set_device_config(hc, device, first_config->config_val)) {
+        KERROR("Failed to set configuration");
+        return false;
+    }
 
     return true;
 }
