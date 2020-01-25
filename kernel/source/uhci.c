@@ -1096,12 +1096,33 @@ static bool setup_new_device(struct uhci_hc* hc, uint8_t port_num, uint8_t dev_n
                     DESCRIPTOR_TYPE_CONFIG,
                     config_index);
 
-        configs[config_index] = cur_config;
-
         if (cur_config == NULL) {
             // TODO: error handling / memory cleanup
             printf("Failed to retrieve Configuration %d", config_index);
             return false;
+        }
+
+        printf("Config addr: %P\n", cur_config);
+
+        configs[config_index] = cur_config;
+
+        printf("Cur_config length: %d, total_len = %d\n", cur_config->length, cur_config->total_length);
+        struct interface_descriptor* ifaces =
+            (struct interface_descriptor*) (((uint32_t) cur_config) + cur_config->length);
+
+        for (uint32_t if_index = 0; if_index < cur_config->num_interfaces; if_index++) {
+            struct interface_descriptor* iface = ifaces + if_index;
+
+            if (iface->type != DESCRIPTOR_TYPE_INTERFACE) {
+                KERROR("Interface descriptor does not have expected type");
+                break;
+            }
+
+            printf("Interface found [class=%X,sub_class=%X,proto=%X,endpoints=%d",
+                    iface->class_code,
+                    iface->sub_class,
+                    iface->protocol,
+                    iface->num_endpoints);
         }
     }
 

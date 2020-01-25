@@ -202,7 +202,13 @@ struct configuration_descriptor {
     uint8_t attributes; // See UHCI_CONF_ATTR
     uint8_t max_power; // Maximum power consumption
 
-    // Interface/Endpoint descriptors go here
+    // Note: Interfaces/endpoints here. e.g.
+    // interface 1
+    //     interface1-endpoint1
+    //     interface1-endpoint2
+    // interface 2
+    //     interface2-endpoint1
+    //  ...
 };
 
 struct interface_descriptor {
