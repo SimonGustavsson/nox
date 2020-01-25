@@ -1121,6 +1121,8 @@ static bool setup_new_device(struct uhci_hc* hc, uint8_t port_num, uint8_t dev_n
         return false;
     }
 
+    device->active_config = first_config;
+
     return true;
 }
 

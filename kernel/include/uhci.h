@@ -327,6 +327,7 @@ struct uhci_device {
     uint16_t lang_id;
     uint16_t max_packet_size;
     struct configuration_descriptor** configs;
+    struct configuration_descriptor* active_config;
 } PACKED;
 
 struct uhci_queue {
