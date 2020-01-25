@@ -325,6 +325,7 @@ struct uhci_device {
     device_state state;
     struct usb_device_descriptor* desc;
     uint16_t lang_id;
+    uint16_t max_packet_size;
 } PACKED;
 
 struct uhci_queue {

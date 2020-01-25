@@ -100,7 +100,10 @@ static bool init_mm64(struct uhci_hc* hc, uint64_t base_addr, uint8_t irq);
 #ifdef USB_DEBUG
 static void print_init_info(struct pci_address* addr, uint32_t base_addr);
 #endif
+static void disable_interrupts(struct uhci_hc* hc);
+static void enable_interrupts(struct uhci_hc* hc);
 static int32_t detect_root(uint16_t base_addr, bool memory_mapped);
+static int get_unaddressed_dev_max_packet_size(struct uhci_hc* hc);
 static void setup(struct uhci_hc* hc, uint32_t base_addr, uint8_t irq, bool memory_mapped);
 static void uhci_irq(uint8_t irq, struct irq_regs* regs);
 static bool enable_port(uint32_t base_addr, uint8_t port);
@@ -255,15 +258,98 @@ static struct ctrl_transfer_data* ctrl_read(
         uint8_t device_addr,
         struct device_request_packet* request);
 
-// See DESCRIPTOR_TYPE_* defines for desc_type
-static struct uhci_descriptor* get_descriptor(
+static struct uhci_descriptor* get_descriptor_core(
         struct uhci_hc* hc,
         uint32_t desc_type,
+        uint16_t lang_id,
+        uint32_t max_packet_size,
+        uint32_t size,
+        uint32_t index,
+        uint32_t device_addr);
+
+static int get_unaddressed_dev_max_packet_size(struct uhci_hc* hc)
+{
+    // Get the first 8 bytes of the device descriptor
+    struct usb_device_descriptor* initial =
+        (struct usb_device_descriptor*) get_descriptor_core(hc,
+                DESCRIPTOR_TYPE_DEVICE,
+                0,
+                8,
+                BASIC_DESCRIPTOR_SIZE,
+                0,
+                0);
+
+    if (initial == NULL) {
+        KERROR("UHCI:: Failed to retrieve initial descriptor");
+        return false;
+    }
+
+    return initial->max_packet_size;
+}
+
+static struct uhci_descriptor* get_descriptor(
+        struct uhci_hc* hc,
+        struct uhci_device* device,
+        uint32_t desc_type,
+        uint32_t index)
+{
+    printf("get_descriptor:: Index is %d\n", index);
+    //
+    // Request the 8 first bytes first
+    printf("Getting intiial descriptor for type '%d'\n", desc_type);
+    struct uhci_descriptor* initial =
+        get_descriptor_core(hc,
+                desc_type,
+                device->lang_id,
+                device->max_packet_size,
+                BASIC_DESCRIPTOR_SIZE,
+                index,
+                device->num);
+    printf("Done getting intiial descriptor for type '%d'\n", desc_type);
+
+    if (initial == NULL) {
+        KERROR("UHCI:: Failed to retrieve initial descriptor");
+        return false;
+    }
+
+    if (initial->type != desc_type) {
+        KERROR("UHCI:: Failed to read initial desc, type mismatch");
+        printf("Expected type: %X, got %X\n", desc_type, initial->type);
+        return NULL;
+    }
+
+    if (initial->desc_length <= device->max_packet_size) {
+        return initial;
+    }
+
+    // Now that we know the size of it we can get the whole thing
+    struct uhci_descriptor* full = get_descriptor_core(hc,
+            desc_type,
+            device->lang_id,
+            device->max_packet_size,
+            initial->desc_length,
+            index,
+            device->num);
+
+    if (full->type != desc_type) {
+        KERROR("UHCI:: Failed to read full device desc, type mismatch");
+        return NULL;
+    }
+
+    return full;
+}
+
+// See DESCRIPTOR_TYPE_* defines for desc_type
+static struct uhci_descriptor* get_descriptor_core(
+        struct uhci_hc* hc,
+        uint32_t desc_type,
+        uint16_t lang_id,
         uint32_t max_packet_size,
         uint32_t size,
         uint32_t index,
         uint32_t device_addr)
 {
+    printf("get_descriptor_core:: Index is %d\n", index);
     struct device_request_packet request;
 
     switch (desc_type) {
@@ -283,8 +369,9 @@ static struct uhci_descriptor* get_descriptor(
         case DESCRIPTOR_TYPE_STRING:
             request.type = usb_request_type_standard | usb_request_type_device_to_host;
             request.request = UHCI_REQUEST_GET_DESCRIPTOR;
-            request.value = DESCRIPTOR_TYPE_STRING << 8;
-            request.index = index; // Index of 0 means "get me the language ids"
+            request.value = DESCRIPTOR_TYPE_STRING << 8 | index;
+            printf("req.wVal=%X\n", request.value & 0xff);
+            request.index = lang_id;
             request.length = size;
             break;
         case DESCRIPTOR_TYPE_INTERFACE:
@@ -338,11 +425,13 @@ static bool set_device_addr(struct uhci_hc* hc, uint8_t device_addr)
 
     struct uhci_set_addr_data* data = (struct uhci_set_addr_data*) mem;
 
+    /*
     printf("Set_addr data: %P\n", data);
     printf("Set_addr QUEUE: %P\n", &data->queue);
     printf("Set_addr SETUP: %P\n", &data->setup);
     printf("Set_addr ACK: %P\n", &data->ack);
     printf("Set_addr BUF: %P\n", &data->request);
+    */
 
     data->setup.link_ptr = td_link_ptr_depth_first | (uint32_t) &data->ack;
     data->setup.ctrl_status = td_ctrl_3errors | td_status_active;
@@ -396,46 +485,6 @@ static bool set_device_addr(struct uhci_hc* hc, uint8_t device_addr)
     return success;
 }
 
-static bool get_language_ids(struct uhci_hc* hc, struct uhci_device* device)
-{
-    printf("Requesting HC LANG IDs (max pkt size; %d, dev no=%d)...\n",
-            device->desc->max_packet_size,
-            device->num);
-
-    struct uhci_string_lang_descriptor* initial_list =
-        (struct uhci_string_lang_descriptor*) get_descriptor(hc,
-                DESCRIPTOR_TYPE_STRING,
-                device->desc->max_packet_size,
-                BASIC_DESCRIPTOR_SIZE,
-                DESCRIPTOR_INDEX_NONE,
-                device->num);
-
-    if (initial_list == NULL) {
-        KERROR("UHCI:: Failed to retrieve LANG ID list");
-        return false;
-    }
-
-    printf("Initial small descriptor for lang IDs sz:%d,type=%d\n", initial_list->desc_length, initial_list->type);
-
-    if (initial_list->desc_length <= device->desc->max_packet_size) {
-
-        // Done, no need for a second request
-        return true;
-    }
-
-    struct uhci_string_lang_descriptor* full_list =
-        (struct uhci_string_lang_descriptor*) get_descriptor(hc,
-                DESCRIPTOR_TYPE_STRING,
-                device->desc->max_packet_size,
-                initial_list->desc_length,
-                DESCRIPTOR_INDEX_NONE,
-                device->num);
-
-    printf("Got language ids! Sz: %d\n", full_list->desc_length);
-
-    return true;
-}
-
 static struct ctrl_transfer_data* ctrl_read(struct uhci_hc* hc,
         uint32_t bytes_to_read,
         uint32_t max_packet_size,
@@ -443,6 +492,11 @@ static struct ctrl_transfer_data* ctrl_read(struct uhci_hc* hc,
         struct device_request_packet* request)
 {
     printf("ctrl_read(bytes:%d, pkt sz:%d, dev_addr:%d)\n", bytes_to_read, max_packet_size, device_addr);
+
+    if (max_packet_size < 8) {
+        KERROR("UHCI:: Bad max_packet_size, expected >= 8");
+        return NULL;
+    }
 
     if (max_packet_size > 0x3FF) {
         // We only have 10 bits to store the value, so clamp it
@@ -501,10 +555,8 @@ static struct ctrl_transfer_data* ctrl_read(struct uhci_hc* hc,
     //              find this struct again (to free it) once it's all done
     data->setup.software_use0 = (uint32_t) data;
 
-    printf("ctrl_read: data: %P\n", data);
-    printf("ctrl_read: queue: %P\n", &data->queue);
     printf("ctrl_read: setup: %P\n", &data->setup);
-    printf("ctrl_read: ack: %P\n", &data->ack);
+    printf("ctrl_read: response buf: %P\n", response_buffer_ptr);
 
     /*
     printf("[SETUP PACKAGE] %P, link: %P, status: %P, token: %P, buffer: %P\n",
@@ -819,7 +871,9 @@ static bool init_io(struct uhci_hc* hc, uint32_t base_addr, uint8_t irq)
         printf("Initializing FL at %P\n", frame_list_addr);
 #endif
 
-        setup_new_device(hc, port_num, 1);
+        disable_interrupts(hc);
+        setup_new_device(hc, port_num, port_num);
+        enable_interrupts(hc);
     }
 
     if (!has_enabled_port) {
@@ -829,54 +883,50 @@ static bool init_io(struct uhci_hc* hc, uint32_t base_addr, uint8_t irq)
     return true;
 }
 
+static void print_usb_string(uint8_t* buffer, uint32_t length)
+{
+    for (uint32_t i = 0; i < length; i++) {
+        if (i % 2 == 0) {
+            terminal_write_char(*(buffer + i));
+        }
+    }
+}
+
 static bool setup_new_device(struct uhci_hc* hc, uint8_t port_num, uint8_t dev_no) {
 
     // WC status, such that we can appropriately poll?!
     OUTW(hc->base_addr + UHCI_STATUS_OFFSET, 0x00FF);
 
-    // Get initial device descriptor to get max packet size
-    // so we know how to retrieve the full descriptor
-    struct usb_device_descriptor* initial_device =
-        (struct usb_device_descriptor*) get_descriptor(hc,
-                DESCRIPTOR_TYPE_DEVICE,
-                DEFAULT_PACKET_SIZE,
-                BASIC_DESCRIPTOR_SIZE,
-                DESCRIPTOR_INDEX_NONE,
-                UNADDRESSED_DEVICE_ID);
-
-    if (initial_device == NULL) {
-        KWARN("Failed to retrieve initial device descriptor");
+    // Get the max packet size so that we know how to retrieve descriptors
+    int max_packet_size = get_unaddressed_dev_max_packet_size(hc);
+    if (max_packet_size < 8) {
+        printf("Invalid max_packet_size for device '%d'!\n", max_packet_size);
         return false;
     }
 
-    if (initial_device->desc_length != 18) {
-        printf("Initial device desc length is '%d'!\n", initial_device->desc_length);
-        return false;
-    }
+    struct uhci_device* device = &hc->devices[dev_no - 1];
+    device->max_packet_size = (uint16_t) max_packet_size;
 
-    printf("Got initial device (len=%d,type=%d,rel=%d, setting address to '%d'\n",
-            initial_device->desc_length,
-            initial_device->type,
-            initial_device->release_num,
-            dev_no);
-
-    pit_wait(1000);
+    pit_wait(200);
 
     // Give the device an address so that we can ID it
     if (!set_device_addr(hc, dev_no)) {
         return false;
     }
 
-    pit_wait(1000);
+    pit_wait(200);
 
     // Get the full device descriptor
     struct usb_device_descriptor* full_device =
         (struct usb_device_descriptor*) get_descriptor(hc,
+                device,
                 DESCRIPTOR_TYPE_DEVICE,
-                initial_device->max_packet_size,
-                sizeof(struct usb_device_descriptor),
-                DESCRIPTOR_INDEX_NONE,
-                dev_no);
+                DESCRIPTOR_INDEX_NONE);
+
+    if (full_device == NULL) {
+        KERROR("Failed to retrieve full device descriptor");
+        return false;
+    }
 
     printf("Got full device! vendor: %d, max_packet: %d\n", full_device->vendor_id,
             full_device->max_packet_size);
@@ -885,17 +935,88 @@ static bool setup_new_device(struct uhci_hc* hc, uint8_t port_num, uint8_t dev_n
         KPANIC("max_packet_size == 0");
     }
 
-    struct uhci_device* device = &hc->devices[dev_no - 1];
     device->num = dev_no;
     device->port = port_num;
     device->desc = full_device;
 
     printf("Saved device max_packet_size: %d\n", device->desc->max_packet_size);
 
-    if (!get_language_ids(hc, device)) {
-        KWARN("Failed to retrieve list of supported langauges");
+    struct uhci_string_lang_descriptor* lang_ids =
+        (struct uhci_string_lang_descriptor*) get_descriptor(hc,
+                device,
+                DESCRIPTOR_TYPE_STRING,
+                DESCRIPTOR_INDEX_NONE);
+
+    if (lang_ids == NULL || lang_ids->desc_length == 0) {
+        KERROR("failed to retrieve language ids");
         return false;
     }
+
+    // 2 bytes = initial bytes, then every entry is 2 bytes
+    uint32_t num_supported_langs = (lang_ids->desc_length - 2) / 2;
+
+    printf("Supported languages: ");
+    uint16_t* langs = (uint16_t*) (( (uint8_t*) lang_ids) + 2); // Skip desc len+type
+    for (uint32_t i = 0; i < num_supported_langs; i++) {
+        uint16_t current = *(langs + i);
+        uint16_t primary = (current & 0x3FF); // 0:9 primary
+        uint16_t sub = (current >> 10); // 10:15 sub language
+
+        if (i == 0 && primary == LANG_ENGLISH) {
+            // Save the first English one, this is what we'll use
+            device->lang_id = current;
+        }
+
+        if (primary == LANG_ENGLISH) {
+            printf("English (");
+            switch (sub) {
+                case LANG_REGION_US: printf("USA) "); break;
+                case LANG_REGION_UK: printf("UK) "); break;
+                case LANG_REGION_AUS: printf("Australia) "); break;
+                case LANG_REGION_CAN: printf("Canada) "); break;
+                default: printf("%d) ", sub);
+            }
+        } else {
+            printf("%d ", *(langs + i));
+        }
+    }
+    printf("\n");
+
+    struct uhci_string_descriptor* vendor_desc_str  =
+        (struct uhci_string_descriptor*) get_descriptor(hc,
+                device,
+                DESCRIPTOR_TYPE_STRING,
+                1);
+
+    if (vendor_desc_str == NULL) {
+        KERROR("Failed to get vendor desc");
+        return false;
+    }
+
+    uint8_t* char_buf = (uint8_t*) vendor_desc_str;
+    char_buf += 2; // Skip past desc len + type
+
+    printf("Vendor desc (len: %d):", vendor_desc_str->desc_length);
+    print_usb_string(char_buf, vendor_desc_str->desc_length);
+    printf("\n");
+
+    struct uhci_string_descriptor* product_desc_str  =
+        (struct uhci_string_descriptor*) get_descriptor(hc,
+                device,
+                DESCRIPTOR_TYPE_STRING,
+                2);
+
+    if (product_desc_str == NULL) {
+        KERROR("Failed to get product desc");
+        return false;
+    }
+
+    uint8_t* product_char_buf = (uint8_t*) product_desc_str;
+    product_char_buf += 2; // Skip past desc len + type
+
+    printf("Product desc (len: %d):", product_desc_str->desc_length);
+    print_usb_string(product_char_buf, product_desc_str->desc_length);
+    printf("\n");
 
     return true;
 }
@@ -985,6 +1106,20 @@ static int32_t detect_root(uint16_t base_addr, bool memory_mapped)
     return 0; // Looks good
 }
 
+static void enable_interrupts(struct uhci_hc* hc)
+{
+    OUTW(hc->base_addr + UHCI_INTERRUPT_OFFSET,
+            uhci_irpt_short_packet_enable |
+            uhci_irpt_oncomplete_enable |
+            uhci_irpt_resume_irpt_enable |
+            uhci_irpt_timeout_enable);
+}
+
+static void disable_interrupts(struct uhci_hc* hc)
+{
+    OUTW(hc->base_addr + UHCI_INTERRUPT_OFFSET, 0);
+}
+
 static void setup(struct uhci_hc* hc, uint32_t base_addr, uint8_t irq, bool memory_mapped)
 {
     if(memory_mapped)
@@ -993,12 +1128,17 @@ static void setup(struct uhci_hc* hc, uint32_t base_addr, uint8_t irq, bool memo
         return;
     }
 
+    hc->irq_num = irq;
+    hc->active = true;
+
     // Enable interrupts
+    /*
     OUTW(base_addr + UHCI_INTERRUPT_OFFSET,
             uhci_irpt_short_packet_enable |
             uhci_irpt_oncomplete_enable |
             uhci_irpt_resume_irpt_enable |
             uhci_irpt_timeout_enable);
+    */
 
     // Start on frame 0
     OUTW(base_addr + UHCI_FRAME_NUM_OFFSET, 0x0000);
@@ -1029,10 +1169,6 @@ static void setup(struct uhci_hc* hc, uint32_t base_addr, uint8_t irq, bool memo
     terminal_write_string("UHCI set up for use\n");
 #endif
 
-    // Install the interrupt handler before we enable the schedule
-    // So we don't miss any interrupts!
-    hc->irq_num = irq;
-    hc->active = true;
     interrupt_receive(irq, uhci_irq);
     pic_enable_irq(irq);
 }
@@ -1294,20 +1430,27 @@ static bool poll_status_interrupt(struct uhci_hc* hc)
 {
   uint16_t status = 0;
   uint32_t attempts = 0;
-  uint32_t max_attempts = 10; // 10*200=2000 (2s)
+  uint32_t max_attempts = 100; // 100*200=20000 (2s)
 
   while (true) {
     status = INW(hc->base_addr + UHCI_STATUS_OFFSET);
 
     if ((status & uhci_status_usb_interrupt) == uhci_status_usb_interrupt) {
+        printf("Poll SUCCESS!\n");
+
+        // Clear interrupt flag in status register (Status reg is write-clear)
+        OUTW(hc->base_addr + UHCI_STATUS_OFFSET, uhci_status_usb_interrupt);
+
         return true;
     }
 
+    /*
     if (hc->interrupt_fired) {
         KWARN("Using backup interrupt mechanism instead of ctrl status checking");
         hc->interrupt_fired = false;
         return true;
     }
+    */
 
     attempts++;
 
@@ -1342,8 +1485,25 @@ static void uhci_irq_core(struct uhci_hc* hc, uint8_t irq, struct irq_regs* regs
 {
     uint16_t status = INW(hc->base_addr + UHCI_STATUS_OFFSET);
 
+    print_status_register(hc);
+
     if(is_set(status, uhci_status_process_error)) {
         KPANIC("UHCI Error interrupt - Panicking!");
+        return;
+    }
+
+    if(is_set(status, uhci_status_error_interrupt)) {
+        KPANIC("UHCI Error Interrupt - Panicking!");
+        return;
+    }
+
+    if(is_set(status, uhci_status_host_system_error)) {
+        KPANIC("UHCI Host System Error - Panicking!");
+        return;
+    }
+
+    if(is_set(status, uhci_status_halted)) {
+        KPANIC("UHCI Halted - Panicking!");
         return;
     }
 
