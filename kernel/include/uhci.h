@@ -31,6 +31,17 @@
 #define UNADDRESSED_DEVICE_ID (0)
 #define DESCRIPTOR_INDEX_NONE (0)
 
+
+// These values are valid 'bRequest' values for HID devices
+// Values taken from hid1_11.pdf (7.2)
+#define HID_GET_REPORT   (0x01)
+#define HID_GET_IDLE     (0x02)
+#define HID_GET_PROTOCOL (0x03)
+// 0x04-0x08 Reserved
+#define HID_SET_REPORT   (0x09)
+#define HID_SET_IDLE     (0x0A)
+#define HID_SET_PROTOCOL (0x0B)
+
 #include <stdint.h>
 #include <stdbool.h>
 #include "kernel.h"

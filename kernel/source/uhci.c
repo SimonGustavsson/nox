@@ -420,6 +420,64 @@ static struct uhci_descriptor* get_descriptor_core(
     return (struct uhci_descriptor*) buffer;
 }
 
+static bool send_set_idle(struct uhci_hc* hc, struct uhci_device* device, uint32_t interface)
+{
+    uint32_t mem_size =
+        sizeof(struct uhci_queue) +
+        sizeof(struct transfer_descriptor) +
+        sizeof(struct transfer_descriptor) +
+        sizeof(struct device_request_packet);
+
+    intptr_t mem = (intptr_t) aligned_palloc(mem_size, 16);
+    if (mem <= 0) KPANIC("Failed to allocate memory when setting UHCI device config");
+
+    my_memset((void*) mem, 0, mem_size);
+
+    struct uhci_queue* queue = (struct uhci_queue*) mem;
+    struct transfer_descriptor* setup = (struct transfer_descriptor*) mem + sizeof(struct uhci_queue);
+    struct transfer_descriptor* ack = setup + 1;
+    struct device_request_packet* request =
+        (struct device_request_packet*) (((uint32_t)ack) + sizeof(struct transfer_descriptor));
+
+    setup->link_ptr = td_link_ptr_depth_first | (uint32_t) ack;
+    setup->ctrl_status = td_ctrl_3errors | td_status_active;
+    setup->token = ( (8 - 1) << 21) | uhci_packet_id_setup | (device->num << 8);
+    setup->buffer_ptr = (uint32_t)request;
+
+    // Send an *in* package to acknowledge transfer
+    // This differs from ctrl_read where we have a bunch of IN packets and send an out
+    // package to acknowledge transfer, because in this case we sent data
+    ack->link_ptr = td_link_ptr_terminate;
+    ack->ctrl_status = td_ctrl_3errors | td_status_active | td_ctrl_ioc;
+    ack->token = ((0x7FF<< 21) | uhci_packet_id_in) | td_token_data_toggle | (device->num << 8);
+    ack->buffer_ptr = 0;
+
+    request->type = usb_request_type_host_to_device | usb_request_type_class | usb_request_recip_interface;
+    request->request = HID_SET_IDLE;
+    request->value = 0x0000; // high byte: 0 (Indefinitely), low byte: 0 (all reports)
+    request->index = interface;
+    request->length = 0; // No data transfer
+
+    queue->head_link = (uint32_t) setup | td_link_ptr_terminate;
+    queue->element_link = (uint32_t) setup;
+
+    schedule_queue_insert(hc, queue, nox_uhci_queue_1);
+
+    bool success = poll_status_interrupt();
+
+    printf("set_idle done? result: %d\n", success ? 1 : 0);
+
+    // TODO: check data to see if it was actually successful
+
+    schedule_queue_remove(queue);
+
+    // Cleaning up memory currently breaks the world
+    // Someone should probably investigate that at some point
+    // phree( (void*) data);
+
+    return success;
+}
+
 // Sets the address of device '0' (a recently discovered device)
 static bool set_device_addr(struct uhci_hc* hc, uint8_t device_addr)
 {
@@ -432,14 +490,6 @@ static bool set_device_addr(struct uhci_hc* hc, uint8_t device_addr)
     my_memset((void*) mem, 0, sizeof(struct uhci_set_addr_data));
 
     struct uhci_set_addr_data* data = (struct uhci_set_addr_data*) mem;
-
-    /*
-    printf("Set_addr data: %P\n", data);
-    printf("Set_addr QUEUE: %P\n", &data->queue);
-    printf("Set_addr SETUP: %P\n", &data->setup);
-    printf("Set_addr ACK: %P\n", &data->ack);
-    printf("Set_addr BUF: %P\n", &data->request);
-    */
 
     data->setup.link_ptr = td_link_ptr_depth_first | (uint32_t) &data->ack;
     data->setup.ctrl_status = td_ctrl_3errors | td_status_active;
@@ -466,15 +516,6 @@ static bool set_device_addr(struct uhci_hc* hc, uint8_t device_addr)
     data->queue.element_link = (uint32_t) &data->setup;
 
     printf("Set Address SETUP TD: %P\n", &data->setup);
-
-    /*
-    printf("Queue: %P\n", &data->queue);
-    printf("%P\n%P\n\n", data->queue.head_link, data->queue.element_link);
-    printf("TD0: %P\n", &data->setup);
-    printf("link:%P\nstatus:%P\ntoken:%P\nbuffer:%P\n\n", data->setup.link_ptr, data->setup.ctrl_status, data->setup.token, data->setup.buffer_ptr);
-    printf("TD1: %P\n", &data->ack);
-    printf("link:%P\nstatus:%P\ntoken:%P\nbuffer:%P\n", data->ack.link_ptr, data->ack.ctrl_status, data->ack.token, data->ack.buffer_ptr);
-    */
 
     schedule_queue_insert(hc, &data->queue, nox_uhci_queue_1);
 
@@ -1150,10 +1191,14 @@ static bool setup_new_device(struct uhci_hc* hc, uint8_t port_num, uint8_t dev_n
                             report->length);
                 }
 
+                if (iface->protocol == USB_PROTOCOL_MOUSE) {
+                    // Send SET_IDLE (optional by spec, but some devices require it)
+                    send_set_idle(hc, device, iface->interface_num);
+                }
+
                 // endpoints come straight after the hid descriptor
                 endpoints_offset = hid->desc_length;
                 interface_offset += hid->desc_length;
-
             }
 ;
             uint32_t endpoints_start = (((uint32_t) iface) + iface->length) + endpoints_offset;
