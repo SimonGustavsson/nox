@@ -1109,14 +1109,20 @@ static bool setup_new_device(struct uhci_hc* hc, uint8_t port_num, uint8_t dev_n
 
         configs[config_index] = cur_config;
 
-        struct interface_descriptor* ifaces =
-            (struct interface_descriptor*) (((uint32_t) cur_config) + cur_config->length);
+        uint32_t ifaces_start = (((uint32_t) cur_config) + cur_config->length);
+
+        uint32_t interface_offset = 0;
 
         for (uint32_t if_index = 0; if_index < cur_config->num_interfaces; if_index++) {
-            struct interface_descriptor* iface = ifaces + if_index;
+            struct interface_descriptor* iface = (struct interface_descriptor*)
+                (ifaces_start + interface_offset);
+
+            printf("Interface offset: %d (Addr: %P)\n", interface_offset, iface);
+
+            interface_offset += iface->length;
 
             if (iface->type != DESCRIPTOR_TYPE_INTERFACE) {
-                KERROR("Interface descriptor does not have expected type");
+                printf("  Invalid type, found '%d' expected '%d'\n", iface->type, DESCRIPTOR_TYPE_INTERFACE);
                 break;
             }
 
@@ -1130,16 +1136,24 @@ static bool setup_new_device(struct uhci_hc* hc, uint8_t port_num, uint8_t dev_n
             bool is_hid = iface->class_code == 0x03;
             if (is_hid) {
                 // There's a sneaky(?) HID descriptor before the endpoints
-
                 struct hid_descriptor* hid = (struct hid_descriptor*) (((uint32_t) iface) + iface->length);
+                printf("    Found HID descriptor [len=%d,type=%X,release=%X]\n",
+                        hid->desc_length,
+                        hid->type,
+                        hid->release);
+
+                struct hid_descriptor_report* first_report = &hid->report0;
+                for (uint32_t rep_index = 0; rep_index < hid->num_descriptors; rep_index++) {
+                    struct hid_descriptor_report* report = first_report + rep_index;
+                    printf("      Found report [type=%d,length=%d]\n",
+                            report->type,
+                            report->length);
+                }
 
                 // endpoints come straight after the hid descriptor
                 endpoints_offset = hid->desc_length;
+                interface_offset += hid->desc_length;
 
-                printf("    Found HID descriptor [len=%d,type=%X,class=%X]\n",
-                        hid->desc_length,
-                        hid->type,
-                        hid->hid_class);
             }
 ;
             uint32_t endpoints_start = (((uint32_t) iface) + iface->length) + endpoints_offset;
@@ -1154,10 +1168,19 @@ static bool setup_new_device(struct uhci_hc* hc, uint8_t port_num, uint8_t dev_n
                     break;
                 }
 
-                printf("    Found endpoint [addr=%X,attr=%X,pkt_sz=%d]\n",
+                interface_offset += cur_endpoint->length;
+
+                printf("    Found endpoint [addr=%X,attr=%X,pkt_sz=%d,type=",
                         cur_endpoint->addr,
                         cur_endpoint->attributes,
                         cur_endpoint->max_packet_size);
+
+                if (is_set(cur_endpoint->attributes, endpoint_attribute_interrupt)) printf("interrupt]\n");
+                else if (is_set(cur_endpoint->attributes, endpoint_attribute_bulk)) printf("bulk]\n");
+                else if (is_set(cur_endpoint->attributes, endpoint_attribute_isochronous)) printf("Isochronous]\n");
+                else if (is_set(cur_endpoint->attributes, endpoint_attribute_control)) printf("control]\n");
+
+
             }
         }
     }

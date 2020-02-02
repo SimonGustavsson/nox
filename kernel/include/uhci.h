@@ -20,6 +20,12 @@
 // Note: There *may* be more ports mapped after 0x12.
 // This depends in the host controller
 
+
+#define USB_CLASS_HID (0x3)
+#define USB_SUBCLASS_BOOT_INTERACE (0x1)
+#define USB_PROTOCOL_KEYBOARD (0x2)
+#define USB_PROTOCOL_MOUSE (0x2)
+
 #define DEFAULT_PACKET_SIZE (8)
 #define BASIC_DESCRIPTOR_SIZE (8)
 #define UNADDRESSED_DEVICE_ID (0)
@@ -190,19 +196,20 @@ struct uhci_string_descriptor {
 #define UHCI_CONF_ATTR_SELF_POWERED (1 << 6)
 #define UHCI_CONF_ATTR_REMOTE_WKUP (1 << 5)
 
+struct hid_descriptor_report {
+    uint8_t type;
+    uint16_t length;
+} PACKED;
+
 struct hid_descriptor {
     uint8_t desc_length;
     uint8_t type; // Should be 0x21
-    uint16_t hid_class;
+    uint16_t release;
     uint8_t country_code;
     uint8_t num_descriptors;
 
     // Fields below are "optional"
-    uint8_t report_type;
-
-    // This length describes the size of the HID descriptor, there could
-    // be more stored after the fields we have defined here, depending on the device
-    uint16_t report_desc_length;
+    struct hid_descriptor_report report0;
 };
 
 struct configuration_descriptor {
@@ -238,6 +245,20 @@ struct interface_descriptor {
     uint8_t interface_string_index; // String Descriptor index of interface
 };
 
+enum endpoint_attribute {
+    endpoint_attribute_control     = (0 << 0),
+    endpoint_attribute_isochronous = (1 << 0),
+    endpoint_attribute_bulk        = (2 << 0),
+    endpoint_attribute_interrupt   = (3 << 0),
+    endpoint_attribute_synch       = (3 << 2),
+    endpoint_attribute_adaptive    = (2 << 2),
+    endpoint_attribute_async       = (1 << 2),
+    endpoint_attribute_no_sync     = (0 << 2),
+    endpoint_attribute_explicit_feedback = (2 << 4),
+    endpoint_attribute_feedback    = (1 << 4),
+    endpoint_attribute_data        = (0 << 4)
+};
+
 struct endpoint_descriptor {
     uint8_t length;
     uint8_t type; // 0x05
@@ -248,7 +269,7 @@ struct endpoint_descriptor {
     // 5:4 = For ISO endpoints only (00=data,01=feedback,10=explicit feedback, 11=reserved)
     // 7:6 = Reserved
     //
-    uint8_t attributes;
+    uint8_t attributes; // endpoint_attribute
     uint16_t max_packet_size;
 };
 
