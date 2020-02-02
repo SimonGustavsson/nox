@@ -116,6 +116,13 @@ static void print_frame_list_entry(struct uhci_hc* hc, uint32_t* entry);
 static void print_td(struct transfer_descriptor* td);
 static void initialize_root_queues(struct uhci_hc* hc);
 static void start_schedule(uint16_t base_addr);
+static uint8_t* get_hid_report(struct uhci_hc* hc, struct uhci_device* dev, uint16_t interface, uint16_t desc_length);
+static struct ctrl_transfer_data* ctrl_read(
+        struct uhci_hc* hc,
+        uint32_t bytes_to_read,
+        uint32_t max_packet_size,
+        uint8_t device_addr,
+        struct device_request_packet* request);
 
 // -------------------------------------------------------------------------
 // Public Contract
@@ -251,12 +258,48 @@ void uhci_command(char** args, size_t arg_count)
     */
 }
 
-static struct ctrl_transfer_data* ctrl_read(
-        struct uhci_hc* hc,
-        uint32_t bytes_to_read,
-        uint32_t max_packet_size,
-        uint8_t device_addr,
-        struct device_request_packet* request);
+static uint8_t* get_hid_report(struct uhci_hc* hc, struct uhci_device* device, uint16_t interface, uint16_t desc_length)
+{
+   struct device_request_packet request;
+   request.type = usb_request_type_device_to_host | usb_request_type_standard | usb_request_recip_interface;
+   request.request = UHCI_REQUEST_GET_DESCRIPTOR;
+   request.value = 0x2200; // High byte: REPORT, LOw byte: 00 (index 0)
+   request.index = interface;
+   request.length = desc_length;
+
+   printf("get_hid_report, type: %X\n", request.type);
+
+    struct ctrl_transfer_data* data = ctrl_read(hc,
+            desc_length,
+            device->max_packet_size,
+            device->num,
+            &request);
+
+    if (!poll_status_interrupt(hc)) {
+        printf("Polling failed, :(\n");
+
+        schedule_queue_remove(&data->queue);
+        phree((void*) data->request);
+        phree((void*) data->response_buffer);
+        phree((void*) data);
+        return NULL;
+    }
+
+    schedule_queue_remove(&data->queue);
+
+    // TODO: Check data to ensure it was successful here
+
+    // Release the data we don't need anymore (buffer is still good)
+    uint8_t* buffer = data->response_buffer;
+
+    // Cleaning up memory currently breaks the world
+    // Someone should probably investigate that at some point
+    // phree((void*) data->request);
+    // phree((void*) data);
+
+    return buffer;
+}
+
 
 static struct uhci_descriptor* get_descriptor_core(
         struct uhci_hc* hc,
@@ -1189,6 +1232,14 @@ static bool setup_new_device(struct uhci_hc* hc, uint8_t port_num, uint8_t dev_n
                     printf("      Found report [type=%d,length=%d]\n",
                             report->type,
                             report->length);
+                    uint8_t* report_desc =  get_hid_report(hc, device, iface->interface_num, report->length);
+                    if (report_desc == NULL) {
+                        KWARN("Failed to get report descriptor");
+                    } else {
+                        KWARN("GOT REPORT DESCRIPTOR");
+                        terminal_write_buffer(report_desc, report->length, 8);
+                        KWARN("END GOT REPORT DESCRIPTOR");
+                    }
                 }
 
                 if (iface->protocol == USB_PROTOCOL_MOUSE) {
