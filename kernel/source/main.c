@@ -265,8 +265,6 @@ void cmain(uint32_t magic_value, uint32_t* boot_data)
     terminal_write_uint32_x(rust_result);
     terminal_write_char('\n');
 
-    while(1);
-
     // Let's do some hdd stuff m8
     ata_init();
     terminal_write_string("ata_init done\n");

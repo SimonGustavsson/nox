@@ -38,6 +38,21 @@ pub unsafe extern "C" fn rust_alloc(allocator: *mut Allocator, size: usize) -> *
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn rust_aligned_alloc(
+    allocator: *mut Allocator,
+    size: usize,
+    alignment: u8,
+) -> *mut usize {
+    match allocator.as_mut() {
+        Some(a) => match a.aligned_alloc(size, alignment) {
+            Ok(ptr) => ptr,
+            Err(_) => 0 as *mut usize,
+        },
+        None => 0 as *mut usize,
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn rust_free(allocator: *mut Allocator, ptr: *mut usize) -> bool {
     match allocator.as_mut() {
         Some(a) => a.free(ptr),
