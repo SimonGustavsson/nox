@@ -25,6 +25,8 @@
 static struct mem_map_entry g_mmap[MAX_MMAP_ENTRIES];
 static uint32_t g_mmap_entries;
 
+extern uint32_t hello_rust(uint32_t, uint32_t);
+
 static void call_test_sys_call(uint32_t foo)
 {
     __asm("mov %0, %%eax"
@@ -257,6 +259,14 @@ void cmain(uint32_t magic_value, uint32_t* boot_data)
     terminal_write_string("kb_init done\n");
 
     KERROR("MOO!?");
+
+    uint32_t rust_result = hello_rust(1, 2);
+    terminal_write_string("Rust reuslt: ");
+    terminal_write_uint32_x(rust_result);
+    terminal_write_char('\n');
+
+    while(1);
+
     // Let's do some hdd stuff m8
     ata_init();
     terminal_write_string("ata_init done\n");

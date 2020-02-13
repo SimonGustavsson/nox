@@ -20,7 +20,7 @@ TAG_FILES := $(shell find . '(' -name *.c -o -name *.h -o -name *.asm ')')
 TIME = [$(shell date +%H:%M:%S)]
 
 # Modules are folders that exist in the repo root
-IGNORED_DIRS := . ./.git ./$(BUILD_DIR)
+IGNORED_DIRS := . ./.git ./$(BUILD_DIR) ./rust
 _DIRS := $(shell find . -maxdepth 1 -type d | LC_ALL=c sort)
 MODULES := $(notdir $(filter-out $(IGNORED_DIRS),$(_DIRS)))
 

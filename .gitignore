@@ -45,3 +45,5 @@ obj/
 
 # Tags
 tags
+
+kernel/noxrust/target/
