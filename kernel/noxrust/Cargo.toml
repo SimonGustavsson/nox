@@ -2,7 +2,7 @@
 target = "x86-nox.json"
 name = "noxrust"
 version = "0.1.0"
-authors = ["Simon Gustavsson <simon67041@gmail.com>"]
+authors = ["Simon Gustavsson"]
 edition = "2018"
 [lib]
 crate-type = ["staticlib"]
